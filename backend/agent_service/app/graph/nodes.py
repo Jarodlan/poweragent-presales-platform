@@ -43,6 +43,14 @@ def _template_sections() -> list[str]:
     return [section for section in sections if section not in {"使用原则", "写作约束"}]
 
 
+def _specialized_sections() -> list[str]:
+    return ["技术实施方案", "效益评估指标", "总结"]
+
+
+def _generic_sections() -> list[str]:
+    return [section for section in _template_sections() if section not in _specialized_sections()]
+
+
 def _section_requirement(section_title: str) -> str:
     return PROMPTS["expand_sections"].get("section_requirements", {}).get(section_title, "")
 
@@ -268,6 +276,89 @@ def generate_section(state: AgentState, section_title: str) -> AgentState:
     )
     state["status"] = "expanding_sections"
     return state
+
+
+def _generate_special_section(
+    state: AgentState,
+    *,
+    section_title: str,
+    prompt_key: str,
+    max_tokens: int,
+) -> AgentState:
+    section_contents = state.get("section_contents", {})
+    evidence_excerpt = _truncate(state.get("evidence", {}).get("merged_text", ""), 2200)
+    outline_excerpt = _truncate(state.get("outline", ""), 1800)
+    previous_sections = _truncate(state.get("generated_sections_context", ""), 2200)
+    section_block = _truncate(_section_template_block(section_title), 1800)
+    shared_prefix = _shared_cache_prefix()
+    prompt = PROMPTS[prompt_key]
+    content = _chat_json_or_text(
+        [
+            {
+                "role": "system",
+                "content": (
+                    f"{prompt['system']}\n"
+                    f"{shared_prefix}\n"
+                    f"规则：{prompt['rules']}\n"
+                ),
+            },
+            {
+                "role": "user",
+                "content": (
+                    f"用户需求：{state['query']}\n"
+                    f"标准化场景：{state.get('normalized_intent', '')}\n"
+                    f"上下文：{state.get('normalized_context', {})}\n"
+                    f"方案大纲：\n{outline_excerpt}\n"
+                    f"检索证据：\n{evidence_excerpt}\n"
+                    f"模板中的本章节要求：\n{section_block}\n"
+                    f"已完成章节摘要：\n{previous_sections}\n"
+                    f"请只输出章节“{section_title}”的Markdown正文。"
+                ),
+            },
+        ],
+        model=settings.qwen_review_model,
+        fallback_model=settings.minimax_default_model,
+        max_tokens=max_tokens,
+    )
+    if not content.startswith("## "):
+        content = f"## {section_title}\n\n{content}"
+    section_contents[section_title] = content.strip()
+    state["section_contents"] = section_contents
+    existing_context = state.get("generated_sections_context", "")
+    state["generated_sections_context"] = (
+        existing_context
+        + f"{section_title}: "
+        + f"{_truncate(content.replace('\\n', ' '), 260)}\n"
+    )
+    state["status"] = "expanding_sections"
+    return state
+
+
+def generate_implementation_section(state: AgentState) -> AgentState:
+    return _generate_special_section(
+        state,
+        section_title="技术实施方案",
+        prompt_key="generate_implementation_section",
+        max_tokens=2200,
+    )
+
+
+def generate_kpi_section(state: AgentState) -> AgentState:
+    return _generate_special_section(
+        state,
+        section_title="效益评估指标",
+        prompt_key="generate_kpi_section",
+        max_tokens=1200,
+    )
+
+
+def generate_summary_section(state: AgentState) -> AgentState:
+    return _generate_special_section(
+        state,
+        section_title="总结",
+        prompt_key="generate_summary_section",
+        max_tokens=900,
+    )
 
 
 def assemble_solution(state: AgentState) -> AgentState:
