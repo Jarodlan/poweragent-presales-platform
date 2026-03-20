@@ -9,6 +9,7 @@ class AgentRunCreateRequest(BaseModel):
     assistant_message_id: str
     query: str
     params: dict[str, Any] = Field(default_factory=dict)
+    callback_url: str
 
 
 class AgentRunResponse(BaseModel):

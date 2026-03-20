@@ -1,7 +1,7 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, BackgroundTasks, HTTPException
 
 from app.schemas.run import AgentRunCreateRequest, AgentRunResponse, AgentRunStatusResponse
-from app.services.agent_runner import create_run, get_run
+from app.services.agent_runner import create_run, execute_run, get_run
 
 
 router = APIRouter()
@@ -13,8 +13,9 @@ def health() -> dict:
 
 
 @router.post("/internal/agent/runs", response_model=AgentRunResponse)
-def start_run(payload: AgentRunCreateRequest) -> AgentRunResponse:
+def start_run(payload: AgentRunCreateRequest, background_tasks: BackgroundTasks) -> AgentRunResponse:
     run = create_run(payload.model_dump())
+    background_tasks.add_task(execute_run, run["run_id"])
     return AgentRunResponse(run_id=run["run_id"], status=run["status"])
 
 
