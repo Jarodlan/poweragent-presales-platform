@@ -1,0 +1,2495 @@
+<!DOCTYPE html>
+<html>
+<head>
+<!-- 启用极速模式(webkit) 911-->
+<meta name="renderer" content="webkit">
+<meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1">
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<meta name="format-detection" content="telephone=no" />
+<meta name="referrer" content="no-referrer-when-downgrade">
+<meta name="keywords" content="电力系统分析，高性能计算服务，智能调度运行优化，大数据智能综合计算，分布式智能电网咨询，智慧电网，负荷智能技术，电力分析，负荷预测，技术咨询，实施服务，电网物联，定制化服务，新型电力系统，软件技术，硬件产品，工程建设，国家电网，南方电网，能源企业，城市电网">
+<meta name="description" content="益帕瓦公司专注于电力系统分析高性能计算服务，提供智能调度运行优化决策咨询方案、大数据智能综合计算服务、分布式智能电网咨询服务等。团队拥有深厚电力系知识产权和丰富经验，为电网公司、能源企业、事业单位等提供全面解决方案。">
+<title>佛山市益帕瓦物联科技有限公司 - 首页</title>
+<link rel="shortcut icon" type="image/x-icon" href="img/upimages/favicon.ico" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black" />
+<meta name='apple-touch-fullscreen' content='yes' />
+<meta name="full-screen" content="yes">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" id="headScreen" />
+<!-- SEO友好提示1 -->
+<meta name="applicable-device" content="pc,mobile">
+<!--[if lt IE 9]>
+<script type="text/javascript" src="/js/comm/html5shiv.js"></script>
+<script type="text/javascript" src="/js/comm/respond.min.js"></script>
+<![endif]-->
+<script type="text/javascript" src="js/comm/jquery.min.js"></script>
+<script type="text/javascript" src="js/comm/jquery.lazyload.min.js"></script>
+<script type="text/javascript" src="js/comm/jquery.nicescroll.min.js"></script>
+<script type="text/javascript" src="js/comm/ubox.js" charset="utf-8"></script>
+<script type="text/javascript" src="js/comm/wow.js" charset="utf-8"></script>
+    <script>
+        var js_comm_alert_okButton = '确认';
+        var js_comm_alert_cancelButton = '取消';
+        var js_comm_alert_login = '登录';
+        var js_comm_alert_goreturn = '返回';
+    </script>
+<script type="text/javascript" src="js/comm/alert.js" charset="utf-8"></script>
+<script type="text/javascript" src="js/01098805.js?1773816941" charset="utf-8"></script>
+<script type="text/javascript" src="js/comm/comm.js?11" charset="utf-8"></script>
+<link rel="stylesheet" type="text/css" href="css/comm/font/css/font-awesome.min.css">
+<link rel="stylesheet" type="text/css" href="css/comm/animate.min.css"/>
+<link rel="stylesheet" type="text/css" href="css/comm/box.css"/>
+<link rel="stylesheet" type="text/css" href="css/comm/alert.css"/>
+<link rel="stylesheet" type="text/css" href="css/comm/comm.css?1773816941"/>
+<link rel="stylesheet" type="text/css" href="css/01098805.css?1773816941"/>
+<link rel="stylesheet" type="text/css" href="css/comm/iconfont.css?1"/>
+<script>
+	var batchArr = [];
+	var checkLoad = 0;//判断是否是回调完成的
+</script>
+<script>
+    var isOpenMobie = 2;
+    var isOpenPad = 1;
+    if(isOpenMobie == 1){
+        if(isOpenPad == 1){
+            $("body").css("width","auto");
+        }else{
+            //是否手机端判断
+            var ua = navigator.userAgent;
+            var ipad = ua.match(/(iPad).*OS\s([\d_]+)/),
+                isIphone =!ipad && ua.match(/(iPhone\sOS)\s([\d_]+)/),
+                isAndroid = ua.match(/(Android)\s+([\d.]+)/),
+                isMobile = isIphone || isAndroid;
+            if(isMobile){
+                // ?
+                // $("body").css("width","1280px");
+                // $("body").css("zoom", $(window).width() / 1280);
+                var scale = window.screen.width / 1280;
+                $("head").append("<meta id='headScreen' class='c6x' content='width=1280, initial-scale="+scale+", maximum-scale="+scale+", user-scalable=no' name='viewport' />");
+            }else{
+                $("body").css("width","auto");
+            }
+        }
+    }else{
+        $("body").css("width","auto");
+        $("head").append("<meta id='headScreen' content='width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no' name='viewport' />");
+    }
+    //手机屏幕尺寸兼容 purewinter 2019-03-26
+    $(window).on('load',function(){
+        bodyScale();
+    });
+    function bodyScale(){
+        var windowWidth = $(window).width();
+        $("#bodyScale").remove();
+        if(windowWidth < 680){
+            var scale = windowWidth / 375;
+            $("#headScreen").remove();
+            $("head").append("<meta id='headScreen' content='width=375, initial-scale="+scale+", maximum-scale="+scale+", user-scalable=no' name='viewport' />");
+        }else if(windowWidth < 960){
+            var scale = windowWidth / 960;
+            $("#headScreen").remove();
+            $("head").append("<meta id='headScreen' content='width=960, initial-scale="+scale+", maximum-scale="+scale+", user-scalable=no' name='viewport' />");
+        }
+        $("body").css('visibility','visible');
+    }
+</script>
+<script>
+String.prototype.replaceAll= function(s1,s2){
+    return this.replace(new RegExp(s1,"gm"),s2);
+}
+function getQueryVariable(variable)
+{
+    var query = window.location.search.substring(1);
+    var vars = query.split("&");
+    for (var i=0;i<vars.length;i++) {
+        var pair = vars[i].split("=");
+        if(pair[0] == variable){return pair[1];}
+    }
+    return(false);
+}
+var FIDUser = getQueryVariable('FIDUser');
+var param = "idweb=66541&langid=0&UPermission=all&FIDUser=" + FIDUser;
+document.getElementsByTagName('head')[0].appendChild(document. createElement('script')).src="https://s143js.nicebox.cn/exusers/login_html_v9_diy.php?" + param;
+// 字体大小限制不跟随系统
+$(document).ready(function(){
+    if (typeof WeixinJSBridge == "object" && typeof WeixinJSBridge.invoke == "function") {
+        handleFontSize();
+    } else {
+        document.addEventListener("WeixinJSBridgeReady", handleFontSize, false);
+    }
+    function handleFontSize() {
+        // 设置网页字体为默认大小
+        WeixinJSBridge.invoke('setFontSizeCallback', { 'fontSize' : 0 });
+        // 重写设置网页字体大小的事件
+        WeixinJSBridge.on('menu:setfont', function() {
+            WeixinJSBridge.invoke('setFontSizeCallback', { 'fontSize' : 0 });
+        });
+    }
+})
+const screenZoom = 1;
+//制作屏幕缩放导致错乱的，不过还有问题，暂时屏蔽5个文件	20230625
+// const screenZoom = 100 / Number(detectZoom());
+// document.body.style.zoom = screenZoom;
+// function detectZoom(){	//获取屏幕放大比例
+// 	//是否手机端判断
+// 	var ua = navigator.userAgent;
+// 	var ipad = ua.match(/(iPad).*OS\s([\d_]+)/),
+// 	    isIphone =!ipad && ua.match(/(iPhone\sOS)\s([\d_]+)/),
+// 	    isAndroid = ua.match(/(Android)\s+([\d.]+)/),
+// 	    isMobile = isIphone || isAndroid;
+// 	if(ipad || isMobile){ return 100; }		//如果是ipad或手机真机/模拟机，不用调整
+// 	let ratio = 0;
+// 	if (window.devicePixelRatio !== undefined) {
+// 		ratio = window.devicePixelRatio;
+// 		console.log('ratio::'+ratio);
+// 	}
+// 	if (ratio) {
+// 		ratio = Math.round(ratio * 100);
+// 	}
+// 	return ratio;	//返回电脑系统的放大比例
+// }
+$(window).on('load',function(){
+    if (!(/msie [6|7|8|9]/i.test(navigator.userAgent))){
+        setTimeout(function(){
+            new WOW().init()
+        },150)
+    };
+});
+var DIY_WEBSITE_ID = "66541";
+var DIY_JS_SERVER = "s143js.nicebox.cn";
+var DIY_SCHEME = "https:";
+</script>
+            <script src="https://s143js.nicebox.cn/exusers/login_html_v9_diy.php?idweb=66541&langid=0&UPermission=all"></script>
+    </head>
+<body>
+<!--这里专门处理百度分享文章显示缩略图不正确的问题，因为百度分享读取的是第一张图片，缩略图尽量在400x400,但是至好宽高都要大于400，前提是具有微信分享功能，图片地址通过jq传入 $(".baiduImg").attr("src",shareImg);-->
+<div class="baiduImgSet" style="display: none;">
+    <img class="baiduImg" src="">
+</div>
+<script type="text/javascript">var Default_isFT = 0;</script>
+            <div id="comm_layout_header" class="layout   scrollView" >
+                                <div class="view_contents ">
+                                <div id="dh_style_46_1750925581146" class="view style_46 dh  lockHeightView " >
+                                <div names="dh" class="view_contents " >
+<div id="menu" class="menu menuStyle_46">
+	<div class="menuLayout">
+		<ul class="miniMenu columnSet showmobile">
+			<li class="leftBox">
+				<div class="nav"></div>
+				<div class="sidebar icoMenuSet"><i class="fa fa-navicon" onclick="setDhListen('style_01',this)"></i></div>
+				<div class="menuScroll">
+					<ul class="menuUlCopy">
+								<li id="hot" class="rflex" pageid="1098805" showmobile=""><a class="mainMenuSet" href="index.html">
+								首页</a>
+								</li>
+								<li class="rflex" pageid="1098807" showmobile=""><a class="mainMenuSet" href="service.html">
+								服务与方案</a>
+								</li>
+								<li class="rflex" pageid="1098809" showmobile=""><a class="mainMenuSet" href="product.html">
+								产品与技术</a>
+								</li>
+								<li class="rflex" pageid="1098811" showmobile=""><a class="mainMenuSet" href="news.html">
+								公司动态</a>
+								</li>
+								<li class="rflex" pageid="1098813" showmobile=""><a class="mainMenuSet" href="culture.html">
+								企业文化</a>
+								</li>
+								<li class="rflex" pageid="1098815" showmobile=""><a class="mainMenuSet" href="about.html">
+								关于我们</a>
+								</li>
+					</ul>
+				</div>
+			</li>
+		</ul>
+		<div class="menuUl_box columnSet dhAreaSet showpc">
+			<ul class="menuUl dflex maxWidth ">
+						<li id="hot" class="rflex isLi" pageid="1098805" showpc="">
+							<a class="mainMenuSet" href="index.html">
+								首页
+							</a>
+						</li>
+						<li class="rflex isLi" pageid="1098807" showpc="">
+							<a class="mainMenuSet" href="service.html">
+								服务与方案
+							</a>
+						</li>
+						<li class="rflex isLi" pageid="1098809" showpc="">
+							<a class="mainMenuSet" href="product.html">
+								产品与技术
+							</a>
+						</li>
+						<li class="rflex isLi" pageid="1098811" showpc="">
+							<a class="mainMenuSet" href="news.html">
+								公司动态
+							</a>
+						</li>
+						<li class="rflex isLi" pageid="1098813" showpc="">
+							<a class="mainMenuSet" href="culture.html">
+								企业文化
+							</a>
+						</li>
+						<li class="rflex isLi" pageid="1098815" showpc="">
+							<a class="mainMenuSet" href="about.html">
+								关于我们
+							</a>
+						</li>
+			</ul>
+			<!-- 二级内容 -->
+				<ul class="menuUl dflex menuUlSubView twoBgSet">
+						<li class="rflex isLi" pageid="1098805" showpc="">
+						</li>
+						<li class="rflex isLi" pageid="1098807" showpc="">
+						</li>
+						<li class="rflex isLi" pageid="1098809" showpc="">
+						</li>
+						<li class="rflex isLi" pageid="1098811" showpc="">
+						</li>
+						<li class="rflex isLi" pageid="1098813" showpc="">
+						</li>
+						<li class="rflex isLi" pageid="1098815" showpc="">
+						</li>
+				</ul>
+		</div>
+	</div>
+</div>
+<!-- 导航栏目有下级时禁止跳转 -->
+<!-- 二级菜单宽度自适应 -->
+<!-- 二级菜单图片宽度 -->
+                </div>
+            </div>
+                        <div id="image_logo_1750925937949" class="view logo image  " >
+                                <div names="image" class="view_contents " >
+                    <div class="logoStyle modSet">
+<a href='index.html' target="_self"><img class="imgSet" src="img/logo.png?1773816941" title="佛山市益帕瓦物联科技有限公司" alt="佛山市益帕瓦物联科技有限公司" style="width:100%; height:auto"/></a>
+</div>                </div>
+            </div>
+                        <div id="text_style_15_1750926478882" class="view style_15 text  lockHeightView " >
+                                <div names="text" class="view_contents " >
+                    <div class="textList_default15">
+		<div class="list mia_li_cont">
+			<div class="mia_li_item modSet">
+				<div class="title_view">
+					<div class="title titleSet" >
+						<span></span>
+						<span>让电力更智慧，让负荷更智能</span>
+					</div>
+				</div>
+			</div>
+		</div>
+</div>
+                </div>
+            </div>
+                            </div>
+            </div>
+                        <div id="layout_diy_1750924919" class="layout   scrollView" >
+                                <div class="view_contents ">
+                                <div id="banner_style_17_1750926781880" class="view style_17 banner  " >
+                                <div names="banner" class="view_contents " >
+                    <div id="banner" class="bannerStyle_17">
+	<div class="main_visual">
+		<div class="main_image">
+			<ul class="main_ul">
+					<li>
+                            <div class="img_box picSet"><img class="" src="https://cdn.yun.sooce.cn/6/60303/webp/17509259816162708d9388d54120a458034adfb13782b.webp?version=1750926008" alt="面向电网公司提供智能调度运行优化决策咨询方案、大数据智能综合计算服务、分布式智能电网咨询服务。"></div>
+                                <div class="info twoBgSet">
+                                		<div class="title titProSet">电力系统分析高性能计算服务</div>
+                                		<div class="subTitle defProSet">面向电网公司提供智能调度运行优化决策咨询方案、大数据智能综合计算服务、分布式智能电网咨询服务。</div>
+                                </div>
+					</li>
+					<li>
+                            <div class="img_box picSet"><img class="" src="https://cdn.yun.sooce.cn/6/60303/webp/1750925981756d92d40b2ed79315c9c687693446bf1a4.webp?version=1750926009" alt="面向市场运营及城市电网主体提供电力分析、负荷预测等技术咨询和实施服务。"></div>
+                                <div class="info twoBgSet">
+                                		<div class="title titProSet">智慧电网和负荷智能技术服务</div>
+                                		<div class="subTitle defProSet">面向市场运营及城市电网主体提供电力分析、负荷预测等技术咨询和实施服务。</div>
+                                </div>
+					</li>
+					<li>
+                            <div class="img_box picSet"><img class="" src="https://cdn.yun.sooce.cn/6/60303/webp/175092598181868fe14ad849ade0cad8bfec101ec456a.webp?version=1750926008" alt="面向电网公司、能源企业和事业单位提供新型电力系统软件技术、硬件产品和工程建设等服务。"></div>
+                                <div class="info twoBgSet">
+                                		<div class="title titProSet">电网物联定制化服务</div>
+                                		<div class="subTitle defProSet">面向电网公司、能源企业和事业单位提供新型电力系统软件技术、硬件产品和工程建设等服务。</div>
+                                </div>
+					</li>
+			</ul>
+		</div>
+		<div class="flicking_con">
+				<div class="dot crIco" href="javascript:;">
+                    <i class="schedule altTipOn"></i>
+                </div>
+				<div class="dot crIco" href="javascript:;">
+                    <i class="schedule altTipOn"></i>
+                </div>
+				<div class="dot crIco" href="javascript:;">
+                    <i class="schedule altTipOn"></i>
+                </div>
+		</div>
+		<div class="arrow arrowLeft arrowSet"><i class='fa fa-angle-left awesome-font'></i><span class="text-font"><</span></div>
+		<div class="arrow arrowRight arrowSet"><i class='fa fa-angle-right awesome-font'></i><span class="text-font">></span></div>
+	</div>
+</div>
+                    </div>
+            </div>
+                            </div>
+            </div>
+                        <div id="layout_1750926761114" class="layout   scrollView" >
+                                <div class="view_contents ">
+                                <div id="image_style_22_1751009971077" class="view style_22 image  lockHeightView " >
+                                <div names="image" class="view_contents " >
+<!-- modSet titleSet imgSet detailSet--><!-- pageSet pagecurSet -->
+<div class="imgStyle_22">
+	<input type='hidden' id='current_page_1751009971077' value="3"/>
+	<input type='hidden' id='show_per_page_1751009971077' value="12"/>
+	<ul class="imgTextUl" id="content_1751009971077">
+			<li class="imgTextLi mia_li_cont ">
+				<div class="mia_li_item modSet">
+					<div class="left">
+						<div class="image-box">
+							<a style="cursor:default;">
+								<div class="imgTBox">
+									<img class="imgSet" src="https://cdn.yun.sooce.cn/6/66541/png/1772096953604043ad732b70f3be2.png" alt="国家电网
+南方电网
+... ..."/>
+								</div>
+							</a>
+						</div>
+						<div class="ratio" style="margin-top:67%;"></div>
+					</div>
+					<div class="cont">
+						<div class="title">
+							<div class="name titleSet">电网企业</div>
+						</div>
+							<div class="imgDetail detailSet">国家电网
+南方电网
+... ...</div>
+					</div>
+				</div>
+			</li>
+			<li class="imgTextLi mia_li_cont ">
+				<div class="mia_li_item modSet">
+					<div class="left">
+						<div class="image-box">
+							<a style="cursor:default;">
+								<div class="imgTBox">
+									<img class="imgSet" src="https://cdn.yun.sooce.cn/6/66541/png/1772096953604324da4334f2b65ea.png" alt="地方能源企业
+发售电企业
+... ..."/>
+								</div>
+							</a>
+						</div>
+						<div class="ratio" style="margin-top:67%;"></div>
+					</div>
+					<div class="cont">
+						<div class="title">
+							<div class="name titleSet">能源企业</div>
+						</div>
+							<div class="imgDetail detailSet">地方能源企业
+发售电企业
+... ...</div>
+					</div>
+				</div>
+			</li>
+			<li class="imgTextLi mia_li_cont ">
+				<div class="mia_li_item modSet">
+					<div class="left">
+						<div class="image-box">
+							<a style="cursor:default;">
+								<div class="imgTBox">
+									<img class="imgSet" src="https://cdn.yun.sooce.cn/6/66541/png/17720969536047435129f354ffad8.png" alt="城市电网
+地方电网
+... ..."/>
+								</div>
+							</a>
+						</div>
+						<div class="ratio" style="margin-top:67%;"></div>
+					</div>
+					<div class="cont">
+						<div class="title">
+							<div class="name titleSet">事业单位</div>
+						</div>
+							<div class="imgDetail detailSet">城市电网
+地方电网
+... ...</div>
+					</div>
+				</div>
+			</li>
+		<li></li>
+		<li></li>
+		<li></li>
+		<li></li>
+		<li></li>
+		<li></li>
+		<li></li>
+	</ul>
+</div>
+                </div>
+            </div>
+                        <div id="titleText_style_08_1751010317684" class="view style_08 titleText  lockHeightView " >
+                                <div names="titleText" class="view_contents " >
+<script class="editor-view-extend">
+    </script><div class="titleStyle_8 modSet">
+	<div class="view_cont">
+		<div class="title_top_view">
+			<div class="line lineleft lineshapeSet"></div>
+			<div class="circle circleleft circledotSet"></div>
+			<div class="titletop bigtitsSet">业务领域</div>
+			<div class="circle circleright circledotSet"></div>
+			<div class="line lineright lineshapeSet"></div>
+		</div>
+	</div>
+</div>
+<!-- // 链接数据处理  开始↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓ -->
+<!-- // 链接数据处理  结束↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑ -->                </div>
+            </div>
+                        <div id="text_style_01_1751010471450" class="view style_01 text  lockHeightView " >
+                                <div names="text" class="view_contents " >
+<script class="editor-view-extend">
+    </script>团队为有部分或全面分布式智能电网建设需求的电网公司、能源企业及事业单位提供方案咨询、软件技术、硬件产品和工程建设等业务服务。                </div>
+            </div>
+                        <div id="titleText_style_08_1751013617272" class="view style_08 titleText  lockHeightView " >
+                                <div names="titleText" class="view_contents " >
+<script class="editor-view-extend">
+    </script><div class="titleStyle_8 modSet">
+	<div class="view_cont">
+		<div class="title_top_view">
+			<div class="line lineleft lineshapeSet"></div>
+			<div class="circle circleleft circledotSet"></div>
+			<div class="titletop bigtitsSet">核心优势</div>
+			<div class="circle circleright circledotSet"></div>
+			<div class="line lineright lineshapeSet"></div>
+		</div>
+	</div>
+</div>
+<!-- // 链接数据处理  开始↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓ -->
+<!-- // 链接数据处理  结束↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑ -->                </div>
+            </div>
+                        <div id="text_style_01_1751013672633" class="view style_01 text  lockHeightView " >
+                                <div names="text" class="view_contents " >
+<script class="editor-view-extend">
+    </script>团队在AI人工智能电网调控、电力系统运行分析与计算、电力系统规划与运行等核心技术上拥有先进理论支撑，扎实研究基础，多项专利授权，领域内权威专著等专业优势。                </div>
+            </div>
+                        <div id="image_style_12_1_1751013772795" class="view style_12_1 image  lockHeightView " >
+                                <div names="image" class="view_contents " >
+                    <!-- pageSet pagecurSet -->
+<div class="imgStyle_12_1">
+	<ul class="imgTextUl">
+			<li class="imgTextLi mia_li_cont">
+				<div class="mia_li_item modSet">
+					<a style="cursor:default;display: block;">
+						<div class="imgTBoxArea">
+							<div class="image-box">
+								<div class="imgTBox">
+									<img src="https://cdn.yun.sooce.cn/6/60303/webp/44db1ad01e95a44071fffefb7c9804bc.webp"  class="picSet picFit"  alt="44db1ad01e95a44071fffefb7c9804bc">
+								</div>
+							</div>
+							<div class="ratio" style="margin-top:100%;"></div>
+						</div>
+						<div class="cont">
+							<div class="name titProSet">丰富的行业经验和应用场景</div>
+							<div class="hide_view">
+							</div>
+						</div>
+					</a>
+				</div>
+			</li>
+			<li class="imgTextLi mia_li_cont">
+				<div class="mia_li_item modSet">
+					<a style="cursor:default;display: block;">
+						<div class="imgTBoxArea">
+							<div class="image-box">
+								<div class="imgTBox">
+									<img src="https://cdn.yun.sooce.cn/6/60303/webp/309c89e772b4b7e931d856d7cd26f081.webp"  class="picSet picFit"  alt="309c89e772b4b7e931d856d7cd26f081">
+								</div>
+							</div>
+							<div class="ratio" style="margin-top:100%;"></div>
+						</div>
+						<div class="cont">
+							<div class="name titProSet">深厚的理论积淀和行业模型</div>
+							<div class="hide_view">
+							</div>
+						</div>
+					</a>
+				</div>
+			</li>
+			<li class="imgTextLi mia_li_cont">
+				<div class="mia_li_item modSet">
+					<a style="cursor:default;display: block;">
+						<div class="imgTBoxArea">
+							<div class="image-box">
+								<div class="imgTBox">
+									<img src="https://cdn.yun.sooce.cn/6/60303/webp/7a73eece7cd6aa1fcb80d9c0839b915c.webp"  class="picSet picFit"  alt="7a73eece7cd6aa1fcb80d9c0839b915c">
+								</div>
+							</div>
+							<div class="ratio" style="margin-top:100%;"></div>
+						</div>
+						<div class="cont">
+							<div class="name titProSet">高效求解算法引擎</div>
+							<div class="hide_view">
+							</div>
+						</div>
+					</a>
+				</div>
+			</li>
+			<li class="imgTextLi mia_li_cont">
+				<div class="mia_li_item modSet">
+					<a style="cursor:default;display: block;">
+						<div class="imgTBoxArea">
+							<div class="image-box">
+								<div class="imgTBox">
+									<img src="https://cdn.yun.sooce.cn/6/60303/webp/174dd6d47700e299f8d11d8181169403.webp"  class="picSet picFit"  alt="174dd6d47700e299f8d11d8181169403">
+								</div>
+							</div>
+							<div class="ratio" style="margin-top:100%;"></div>
+						</div>
+						<div class="cont">
+							<div class="name titProSet">高效标准研发体系</div>
+							<div class="hide_view">
+							</div>
+						</div>
+					</a>
+				</div>
+			</li>
+			<li class="imgTextLi mia_li_cont">
+				<div class="mia_li_item modSet">
+					<a style="cursor:default;display: block;">
+						<div class="imgTBoxArea">
+							<div class="image-box">
+								<div class="imgTBox">
+									<img src="https://cdn.yun.sooce.cn/6/60303/webp/d040b9f8b450e8db8c1746f8b0ca24f4.webp"  class="picSet picFit"  alt="d040b9f8b450e8db8c1746f8b0ca24f4">
+								</div>
+							</div>
+							<div class="ratio" style="margin-top:100%;"></div>
+						</div>
+						<div class="cont">
+							<div class="name titProSet">快速精准建模技术</div>
+							<div class="hide_view">
+							</div>
+						</div>
+					</a>
+				</div>
+			</li>
+			<li class="imgTextLi mia_li_cont">
+				<div class="mia_li_item modSet">
+					<a style="cursor:default;display: block;">
+						<div class="imgTBoxArea">
+							<div class="image-box">
+								<div class="imgTBox">
+									<img src="https://cdn.yun.sooce.cn/6/60303/webp/7f1b118604a404abacac5e29f532b9f6.webp"  class="picSet picFit"  alt="7f1b118604a404abacac5e29f532b9f6">
+								</div>
+							</div>
+							<div class="ratio" style="margin-top:100%;"></div>
+						</div>
+						<div class="cont">
+							<div class="name titProSet">海量的行业数据和客户特征</div>
+							<div class="hide_view">
+							</div>
+						</div>
+					</a>
+				</div>
+			</li>
+		<li></li>
+		<li></li>
+		<li></li>
+		<li></li>
+		<li></li>
+		<li></li>
+		<li></li>
+		<li></li>
+		<li></li>
+		<li></li>
+	</ul>
+</div>
+                </div>
+            </div>
+                            </div>
+            </div>
+                        <div id="layout_1751014680696" class="layout   scrollView" >
+                                <div class="view_contents ">
+                                <div id="titleText_style_08_1751014821938" class="view style_08 titleText  lockHeightView " >
+                                <div names="titleText" class="view_contents " >
+<script class="editor-view-extend">
+    </script><div class="titleStyle_8 modSet">
+	<div class="view_cont">
+		<div class="title_top_view">
+			<div class="line lineleft lineshapeSet"></div>
+			<div class="circle circleleft circledotSet"></div>
+			<div class="titletop bigtitsSet">解决方案</div>
+			<div class="circle circleright circledotSet"></div>
+			<div class="line lineright lineshapeSet"></div>
+		</div>
+	</div>
+</div>
+<!-- // 链接数据处理  开始↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓ -->
+<!-- // 链接数据处理  结束↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑ -->                </div>
+            </div>
+                        <div id="text_style_01_1751014847105" class="view style_01 text  lockHeightView " >
+                                <div names="text" class="view_contents " >
+<script class="editor-view-extend">
+    </script>团队针对不同主体提供电力系统分析高性能计算服务、分布式智能电网咨询服务、母线负荷预测技术、多元场景运行方式生成技术等。                </div>
+            </div>
+                        <div id="image_style_12_1_1751014996706" class="view style_12_1 image  lockHeightView " >
+                                <div names="image" class="view_contents " >
+                    <!-- pageSet pagecurSet -->
+<div class="imgStyle_12_1">
+	<ul class="imgTextUl">
+			<li class="imgTextLi mia_li_cont">
+				<div class="mia_li_item modSet">
+					<a style="cursor:default;display: block;">
+						<div class="imgTBoxArea">
+							<div class="image-box">
+								<div class="imgTBox">
+									<img src="https://cdn.yun.sooce.cn/6/60303/webp/599eedb3e7fc241f030098a8f8a80b00.webp"  class="picSet picFit"  alt="599eedb3e7fc241f030098a8f8a80b00">
+								</div>
+							</div>
+							<div class="ratio" style="margin-top:100%;"></div>
+						</div>
+						<div class="cont">
+							<div class="name titProSet">AI智能调度运行咨询服务</div>
+							<div class="hide_view">
+							</div>
+						</div>
+					</a>
+				</div>
+			</li>
+			<li class="imgTextLi mia_li_cont">
+				<div class="mia_li_item modSet">
+					<a style="cursor:default;display: block;">
+						<div class="imgTBoxArea">
+							<div class="image-box">
+								<div class="imgTBox">
+									<img src="https://cdn.yun.sooce.cn/6/60303/webp/c947caf79b6b874b31087e032491e914.webp"  class="picSet picFit"  alt="c947caf79b6b874b31087e032491e914">
+								</div>
+							</div>
+							<div class="ratio" style="margin-top:100%;"></div>
+						</div>
+						<div class="cont">
+							<div class="name titProSet">大数据智能综合计算服务</div>
+							<div class="hide_view">
+							</div>
+						</div>
+					</a>
+				</div>
+			</li>
+			<li class="imgTextLi mia_li_cont">
+				<div class="mia_li_item modSet">
+					<a style="cursor:default;display: block;">
+						<div class="imgTBoxArea">
+							<div class="image-box">
+								<div class="imgTBox">
+									<img src="https://cdn.yun.sooce.cn/6/60303/webp/bc209f8955981a576f5d23d0167ebc5f.webp"  class="picSet picFit"  alt="bc209f8955981a576f5d23d0167ebc5f">
+								</div>
+							</div>
+							<div class="ratio" style="margin-top:100%;"></div>
+						</div>
+						<div class="cont">
+							<div class="name titProSet">负荷预测辅助决策咨询服务</div>
+							<div class="hide_view">
+							</div>
+						</div>
+					</a>
+				</div>
+			</li>
+			<li class="imgTextLi mia_li_cont">
+				<div class="mia_li_item modSet">
+					<a style="cursor:default;display: block;">
+						<div class="imgTBoxArea">
+							<div class="image-box">
+								<div class="imgTBox">
+									<img src="https://cdn.yun.sooce.cn/6/60303/webp/95ab98bef7015afbcccd9417903eca3f.webp"  class="picSet picFit"  alt="95ab98bef7015afbcccd9417903eca3f">
+								</div>
+							</div>
+							<div class="ratio" style="margin-top:100%;"></div>
+						</div>
+						<div class="cont">
+							<div class="name titProSet">电力系统分析咨询服务</div>
+							<div class="hide_view">
+							</div>
+						</div>
+					</a>
+				</div>
+			</li>
+			<li class="imgTextLi mia_li_cont">
+				<div class="mia_li_item modSet">
+					<a style="cursor:default;display: block;">
+						<div class="imgTBoxArea">
+							<div class="image-box">
+								<div class="imgTBox">
+									<img src="https://cdn.yun.sooce.cn/6/60303/webp/c005087fd947e3bc5eb1bd024836e1f7.webp"  class="picSet picFit"  alt="c005087fd947e3bc5eb1bd024836e1f7">
+								</div>
+							</div>
+							<div class="ratio" style="margin-top:100%;"></div>
+						</div>
+						<div class="cont">
+							<div class="name titProSet">潮流样本生成和优化</div>
+							<div class="hide_view">
+							</div>
+						</div>
+					</a>
+				</div>
+			</li>
+			<li class="imgTextLi mia_li_cont">
+				<div class="mia_li_item modSet">
+					<a style="cursor:default;display: block;">
+						<div class="imgTBoxArea">
+							<div class="image-box">
+								<div class="imgTBox">
+									<img src="https://cdn.yun.sooce.cn/6/60303/webp/89e196f6e43a104bac351ab9be8a68ce.webp"  class="picSet picFit"  alt="89e196f6e43a104bac351ab9be8a68ce">
+								</div>
+							</div>
+							<div class="ratio" style="margin-top:100%;"></div>
+						</div>
+						<div class="cont">
+							<div class="name titProSet">智能电网定制化服务</div>
+							<div class="hide_view">
+							</div>
+						</div>
+					</a>
+				</div>
+			</li>
+		<li></li>
+		<li></li>
+		<li></li>
+		<li></li>
+		<li></li>
+		<li></li>
+		<li></li>
+		<li></li>
+		<li></li>
+		<li></li>
+	</ul>
+</div>
+                </div>
+            </div>
+                        <div id="titleText_style_08_1751015851576" class="view style_08 titleText  lockHeightView " >
+                                <div names="titleText" class="view_contents " >
+<script class="editor-view-extend">
+    </script><div class="titleStyle_8 modSet">
+	<div class="view_cont">
+		<div class="title_top_view">
+			<div class="line lineleft lineshapeSet"></div>
+			<div class="circle circleleft circledotSet"></div>
+			<div class="titletop bigtitsSet">项目案例</div>
+			<div class="circle circleright circledotSet"></div>
+			<div class="line lineright lineshapeSet"></div>
+		</div>
+	</div>
+</div>
+<!-- // 链接数据处理  开始↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓ -->
+<!-- // 链接数据处理  结束↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑ -->                </div>
+            </div>
+                        <div id="text_style_01_1751015908636" class="view style_01 text  lockHeightView " >
+                                <div names="text" class="view_contents " >
+<script class="editor-view-extend">
+    </script>团队参与国家级科技部重大项目、国家863计划、国家自然科学基金项目、省级科研项目、国家电网和南方电网等行业龙头企业委托的科研项目数十项。                </div>
+            </div>
+                        <div id="image_style_13_1_1751016036736" class="view style_13_1 image  lockHeightView " >
+                                <div names="image" class="view_contents " >
+                    <!-- pageSet pagecurSet -->
+<div class="imgStyle_13_1">
+	<input type='hidden' id='current_page_1' value="15"/>
+	<input type='hidden' id='show_per_page_1' value="15"/>
+	<ul class="imgTextUl" id="content_1">
+			<li class="imgTextLi mia_li_cont">
+				<div class="mia_li_item modSet">
+					<div class="left">
+						<div class="image-box">
+							<a style="cursor:default;">
+								<div class="imgTBox">
+									<img class="imgSet" src="https://cdn.yun.sooce.cn/6/66541/png/1772096953605e9c830a8dc42dc9b.png" alt="电力能源领域校企联合办学模式探索与实践，获过中国高等教育博览会“校企合作 双百计划”省部级一等奖">
+								</div>
+							</a>
+						</div>
+						<div class="ratio" style="margin-top:100%;"></div>
+					</div>
+					<div class="cont">
+						<a style="cursor:default;">
+							<div class="name titleSet">中国高等教育学会</div>
+						</a>
+							<div class="subName detailSet">电力能源领域校企联合办学模式探索与实践，获过中国高等教育博览会“校企合作 双百计划”省部级一等奖</div>
+					</div>
+				</div>
+			</li>
+			<li class="imgTextLi mia_li_cont">
+				<div class="mia_li_item modSet">
+					<div class="left">
+						<div class="image-box">
+							<a style="cursor:default;">
+								<div class="imgTBox">
+									<img class="imgSet" src="https://cdn.yun.sooce.cn/6/66541/png/177209695360520bcd6f5b737122e.png" alt="面向电力系统安全评估的深度稀疏图注意力卷积集成模型和增量学习算法研究与应用">
+								</div>
+							</a>
+						</div>
+						<div class="ratio" style="margin-top:100%;"></div>
+					</div>
+					<div class="cont">
+						<a style="cursor:default;">
+							<div class="name titleSet">国家自然科学基金</div>
+						</a>
+							<div class="subName detailSet">面向电力系统安全评估的深度稀疏图注意力卷积集成模型和增量学习算法研究与应用</div>
+					</div>
+				</div>
+			</li>
+			<li class="imgTextLi mia_li_cont">
+				<div class="mia_li_item modSet">
+					<div class="left">
+						<div class="image-box">
+							<a style="cursor:default;">
+								<div class="imgTBox">
+									<img class="imgSet" src="https://cdn.yun.sooce.cn/6/66541/png/177209695360520bcd6f5b737122e.png" alt="数字电网运行业务的数据链路特性分析与基础模型">
+								</div>
+							</a>
+						</div>
+						<div class="ratio" style="margin-top:100%;"></div>
+					</div>
+					<div class="cont">
+						<a style="cursor:default;">
+							<div class="name titleSet">国家自然科学基金</div>
+						</a>
+							<div class="subName detailSet">数字电网运行业务的数据链路特性分析与基础模型</div>
+					</div>
+				</div>
+			</li>
+			<li class="imgTextLi mia_li_cont">
+				<div class="mia_li_item modSet">
+					<div class="left">
+						<div class="image-box">
+							<a style="cursor:default;">
+								<div class="imgTBox">
+									<img class="imgSet" src="https://cdn.yun.sooce.cn/6/66541/png/17720969536057a4560d0fd1d06ad.png" alt="内存计算技术及在电网分析中的应用">
+								</div>
+							</a>
+						</div>
+						<div class="ratio" style="margin-top:100%;"></div>
+					</div>
+					<div class="cont">
+						<a style="cursor:default;">
+							<div class="name titleSet">国网科研院</div>
+						</a>
+							<div class="subName detailSet">内存计算技术及在电网分析中的应用</div>
+					</div>
+				</div>
+			</li>
+			<li class="imgTextLi mia_li_cont">
+				<div class="mia_li_item modSet">
+					<div class="left">
+						<div class="image-box">
+							<a style="cursor:default;">
+								<div class="imgTBox">
+									<img class="imgSet" src="https://cdn.yun.sooce.cn/6/66541/png/1772096953605387f62a30f6bf623.png" alt="DSP机电暂态仿真软件，获南方电网科学研究院专利奖一等奖">
+								</div>
+							</a>
+						</div>
+						<div class="ratio" style="margin-top:100%;"></div>
+					</div>
+					<div class="cont">
+						<a style="cursor:default;">
+							<div class="name titleSet">南网科研院</div>
+						</a>
+							<div class="subName detailSet">DSP机电暂态仿真软件，获南方电网科学研究院专利奖一等奖</div>
+					</div>
+				</div>
+			</li>
+			<li class="imgTextLi mia_li_cont">
+				<div class="mia_li_item modSet">
+					<div class="left">
+						<div class="image-box">
+							<a style="cursor:default;">
+								<div class="imgTBox">
+									<img class="imgSet" src="https://cdn.yun.sooce.cn/6/66541/png/1772096953605387f62a30f6bf623.png" alt="大型电力系统实时数字仿真计算单元自动优化分配方法，获南方电网科学研究院专利奖一等奖">
+								</div>
+							</a>
+						</div>
+						<div class="ratio" style="margin-top:100%;"></div>
+					</div>
+					<div class="cont">
+						<a style="cursor:default;">
+							<div class="name titleSet">南网科研院</div>
+						</a>
+							<div class="subName detailSet">大型电力系统实时数字仿真计算单元自动优化分配方法，获南方电网科学研究院专利奖一等奖</div>
+					</div>
+				</div>
+			</li>
+			<li class="imgTextLi mia_li_cont">
+				<div class="mia_li_item modSet">
+					<div class="left">
+						<div class="image-box">
+							<a style="cursor:default;">
+								<div class="imgTBox">
+									<img class="imgSet" src="https://cdn.yun.sooce.cn/6/66541/png/1772096953587f5393aa0f82098ac.png" alt="广东省电力源网荷储智慧联动运营关键技术">
+								</div>
+							</a>
+						</div>
+						<div class="ratio" style="margin-top:100%;"></div>
+					</div>
+					<div class="cont">
+						<a style="cursor:default;">
+							<div class="name titleSet">广东省重点项目</div>
+						</a>
+							<div class="subName detailSet">广东省电力源网荷储智慧联动运营关键技术</div>
+					</div>
+				</div>
+			</li>
+			<li class="imgTextLi mia_li_cont">
+				<div class="mia_li_item modSet">
+					<div class="left">
+						<div class="image-box">
+							<a style="cursor:default;">
+								<div class="imgTBox">
+									<img class="imgSet" src="https://cdn.yun.sooce.cn/6/66541/png/1772096953605387f62a30f6bf623.png" alt="大系统实时数字仿真&#40;RTDS&#41;建模技术研究，获南方电网科学研究院科学技术奖一等奖">
+								</div>
+							</a>
+						</div>
+						<div class="ratio" style="margin-top:100%;"></div>
+					</div>
+					<div class="cont">
+						<a style="cursor:default;">
+							<div class="name titleSet">南网科研院</div>
+						</a>
+							<div class="subName detailSet">大系统实时数字仿真&#40;RTDS&#41;建模技术研究，获南方电网科学研究院科学技术奖一等奖</div>
+					</div>
+				</div>
+			</li>
+			<li class="imgTextLi mia_li_cont">
+				<div class="mia_li_item modSet">
+					<div class="left">
+						<div class="image-box">
+							<a style="cursor:default;">
+								<div class="imgTBox">
+									<img class="imgSet" src="https://cdn.yun.sooce.cn/6/66541/png/1772096953605435bacd90284ae68.png" alt="多馈入直流输电下广州电网电压稳定分析及控制研究，获广州供电局科技进步奖一等奖">
+								</div>
+							</a>
+						</div>
+						<div class="ratio" style="margin-top:100%;"></div>
+					</div>
+					<div class="cont">
+						<a style="cursor:default;">
+							<div class="name titleSet">广州供电局</div>
+						</a>
+							<div class="subName detailSet">多馈入直流输电下广州电网电压稳定分析及控制研究，获广州供电局科技进步奖一等奖</div>
+					</div>
+				</div>
+			</li>
+			<li class="imgTextLi mia_li_cont">
+				<div class="mia_li_item modSet">
+					<div class="left">
+						<div class="image-box">
+							<a style="cursor:default;">
+								<div class="imgTBox">
+									<img class="imgSet" src="https://cdn.yun.sooce.cn/6/66541/png/1772096953605435bacd90284ae68.png" alt="电力调度人工智能机器人关键技术研究与应用">
+								</div>
+							</a>
+						</div>
+						<div class="ratio" style="margin-top:100%;"></div>
+					</div>
+					<div class="cont">
+						<a style="cursor:default;">
+							<div class="name titleSet">广州供电局</div>
+						</a>
+							<div class="subName detailSet">电力调度人工智能机器人关键技术研究与应用</div>
+					</div>
+				</div>
+			</li>
+			<li class="imgTextLi mia_li_cont">
+				<div class="mia_li_item modSet">
+					<div class="left">
+						<div class="image-box">
+							<a style="cursor:default;">
+								<div class="imgTBox">
+									<img class="imgSet" src="https://cdn.yun.sooce.cn/6/66541/png/1772096953605387f62a30f6bf623.png" alt="多控制目标场景下的稳控策略自动生成技术">
+								</div>
+							</a>
+						</div>
+						<div class="ratio" style="margin-top:100%;"></div>
+					</div>
+					<div class="cont">
+						<a style="cursor:default;">
+							<div class="name titleSet">南网科研院</div>
+						</a>
+							<div class="subName detailSet">多控制目标场景下的稳控策略自动生成技术</div>
+					</div>
+				</div>
+			</li>
+			<li class="imgTextLi mia_li_cont">
+				<div class="mia_li_item modSet">
+					<div class="left">
+						<div class="image-box">
+							<a style="cursor:default;">
+								<div class="imgTBox">
+									<img class="imgSet" src="https://cdn.yun.sooce.cn/6/66541/png/1772096953587f5393aa0f82098ac.png" alt="新能源多时间尺度运行场景筛选及气象灾害下的承载能力评估">
+								</div>
+							</a>
+						</div>
+						<div class="ratio" style="margin-top:100%;"></div>
+					</div>
+					<div class="cont">
+						<a style="cursor:default;">
+							<div class="name titleSet">南方电网</div>
+						</a>
+							<div class="subName detailSet">新能源多时间尺度运行场景筛选及气象灾害下的承载能力评估</div>
+					</div>
+				</div>
+			</li>
+			<li class="imgTextLi mia_li_cont">
+				<div class="mia_li_item modSet">
+					<div class="left">
+						<div class="image-box">
+							<a style="cursor:default;">
+								<div class="imgTBox">
+									<img class="imgSet" src="https://cdn.yun.sooce.cn/6/66541/png/1772096953605da68df9947cfc226.png" alt="大电网频率稳定在线智能分析系统关键技术研究及应用">
+								</div>
+							</a>
+						</div>
+						<div class="ratio" style="margin-top:100%;"></div>
+					</div>
+					<div class="cont">
+						<a style="cursor:default;">
+							<div class="name titleSet">南网总调</div>
+						</a>
+							<div class="subName detailSet">大电网频率稳定在线智能分析系统关键技术研究及应用</div>
+					</div>
+				</div>
+			</li>
+			<li class="imgTextLi mia_li_cont">
+				<div class="mia_li_item modSet">
+					<div class="left">
+						<div class="image-box">
+							<a style="cursor:default;">
+								<div class="imgTBox">
+									<img class="imgSet" src="https://cdn.yun.sooce.cn/6/66541/png/1772096953605f07d41d2a3755d1f.png" alt="新型电力系统基于数据驱动的稳定分析研究">
+								</div>
+							</a>
+						</div>
+						<div class="ratio" style="margin-top:100%;"></div>
+					</div>
+					<div class="cont">
+						<a style="cursor:default;">
+							<div class="name titleSet">云南电网</div>
+						</a>
+							<div class="subName detailSet">新型电力系统基于数据驱动的稳定分析研究</div>
+					</div>
+				</div>
+			</li>
+			<li class="imgTextLi mia_li_cont">
+				<div class="mia_li_item modSet">
+					<div class="left">
+						<div class="image-box">
+							<a style="cursor:default;">
+								<div class="imgTBox">
+									<img class="imgSet" src="https://cdn.yun.sooce.cn/6/66541/png/1772096953605da68df9947cfc226.png" alt="数据驱动的大电网安全评估和预警技术研究">
+								</div>
+							</a>
+						</div>
+						<div class="ratio" style="margin-top:100%;"></div>
+					</div>
+					<div class="cont">
+						<a style="cursor:default;">
+							<div class="name titleSet">南网总调</div>
+						</a>
+							<div class="subName detailSet">数据驱动的大电网安全评估和预警技术研究</div>
+					</div>
+				</div>
+			</li>
+		<li></li>
+		<li></li>
+		<li></li>
+		<li></li>
+		<li></li>
+		<li></li>
+		<li></li>
+	</ul>
+</div>
+                </div>
+            </div>
+                            </div>
+            </div>
+                        <div id="layout_1751265220062" class="layout   scrollView" >
+                                <div class="view_contents ">
+                                <div id="titleText_style_08_1751265328796" class="view style_08 titleText  lockHeightView " >
+                                <div names="titleText" class="view_contents " >
+<script class="editor-view-extend">
+    </script><div class="titleStyle_8 modSet">
+	<div class="view_cont">
+		<div class="title_top_view">
+			<div class="line lineleft lineshapeSet"></div>
+			<div class="circle circleleft circledotSet"></div>
+			<div class="titletop bigtitsSet">团队成员</div>
+			<div class="circle circleright circledotSet"></div>
+			<div class="line lineright lineshapeSet"></div>
+		</div>
+	</div>
+</div>
+<!-- // 链接数据处理  开始↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓ -->
+<!-- // 链接数据处理  结束↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑ -->                </div>
+            </div>
+                        <div id="text_style_01_1751265353310" class="view style_01 text  lockHeightView " >
+                                <div names="text" class="view_contents " >
+<script class="editor-view-extend">
+    </script>团队的科研实力雄厚，扎实研究基础，多项专利授权，领域内权威专著，核心成员主要来自于华南理工大学、天津大学、武汉大学、上海交大、意大利都灵理工大学。                </div>
+            </div>
+                        <div id="image_style_25_1751266097616" class="view style_25 image  lockHeightView " >
+                                <div names="image" class="view_contents " >
+                    <div class="imgStyle_25">
+	<div class='tab_view'>
+		<div class='wrap_ul'>
+                            <div class="item modSet normal_item prev" tabKey="0">
+					<div class="item_cont ">
+                        <div class="imgTBoxArea">
+                            <div class="image-box">
+                                <div class="imgTBox">
+                                    <div class='mengceng picSet'></div>
+                                        <img class="picSet picFit" src="https://cdn.yun.sooce.cn/6/66541/png/17720969536051868e2f98b10683e.png" alt="华南理工大学硕士研究生，曾任职于国电南瑞科技股份有限公司，2024年加入益帕瓦公司，任职产品经理兼技术经理。
+主要研究方向为电力系统智能化，特别是在智能告警和事件化告警方面有丰富的实践经验。在南瑞工作期间，积极参与多项电力系统项目，致力于提升电力系统的运行效率和可靠性。
+发表多篇学术论文，参与编写相关技术报告和专著。在工作中，获得多项技术奖励和表彰。">
+                                </div>
+                            </div>
+                            <div class="ratio" style="margin-top:100%;"></div>
+                        </div>
+					</div>
+				</div>
+					<div class="item modSet center_item" tabKey="1">
+					<div class="item_cont ">
+                        <div class="imgTBoxArea">
+                            <div class="image-box">
+                                <div class="imgTBox">
+                                    <div class='mengceng picSet'></div>
+                                        <img class="picSet picFit" src="https://cdn.yun.sooce.cn/6/66541/jpg/1772096953605a3c5e67147d338e4.jpg" alt="主要从事以新型电力系统智能化为中心的电网运行分析与控制、大规模可再生能源的电力系统稳定性、复杂网络理论在电力系统中的应用、电力系统仿真与高性能计算应用、人工智能AI+电力系统的应用技术、分布式智能电网等领域科研与教学工作。
+发表学术论文100余篇、专著教材2部，在国内外期刊和重要国际会议发表三大检索收录论文120余篇。">
+                                </div>
+                            </div>
+                            <div class="ratio" style="margin-top:100%;"></div>
+                        </div>
+					</div>
+				</div>
+                            <div class="item modSet normal_item next" tabKey="2">
+					<div class="item_cont ">
+                        <div class="imgTBoxArea">
+                            <div class="image-box">
+                                <div class="imgTBox">
+                                    <div class='mengceng picSet'></div>
+                                        <img class="picSet picFit" src="https://cdn.yun.sooce.cn/6/66541/jpg/1772096953605ac14721c66a17aa3.jpg" alt="武汉大学电气工程与自动化学院，电气工程师，曾就职于GE和中国航空工业智能技术子公司，曾从事过大型变压器设计工作，在智能公司主要负责能源数字化、数据治理、数据处理模型构建等工作，2025年加入益帕瓦公司任职方案总监兼华东区项目经理。
+目前主要研究方向为电力系统数字化、电力系统物联网技术、电力系统故障诊断、数据治理、电力人工智能等技术和方案形成。
+获得过多项电力设备技术专利，有多项软件软著，参与编写过相关技术报告和专著。">
+                                </div>
+                            </div>
+                            <div class="ratio" style="margin-top:100%;"></div>
+                        </div>
+					</div>
+				</div>
+                        <div class="item modSet hide_item" tabKey="3">
+					<div class="item_cont ">
+                        <div class="imgTBoxArea">
+                            <div class="image-box">
+                                <div class="imgTBox">
+                                    <div class='mengceng picSet'></div>
+                                        <img class="picSet picFit" src="https://cdn.yun.sooce.cn/6/66541/jpg/177209695360636dbc830261db93c.jpg" alt="本科毕业于上海交通大学电子信息工程专业，是全国信息奥赛保送生，之后在南京邮电大学取得了在职硕士学位。曾任职于埃森哲公司的交付总监，以及IMAX中国公司的产品技术专家顾问，主要参与金融行业的数字化和人工智能项目的交付工作，2025年加入益帕瓦公司任产品&交付总监。目前主要研究方向是公司自主知识产权的AI通用产品规划、设计、构建、研发及知识产权管理。">
+                                </div>
+                            </div>
+                            <div class="ratio" style="margin-top:100%;"></div>
+                        </div>
+					</div>
+				</div>
+                        <div class="item modSet hide_item" tabKey="4">
+					<div class="item_cont ">
+                        <div class="imgTBoxArea">
+                            <div class="image-box">
+                                <div class="imgTBox">
+                                    <div class='mengceng picSet'></div>
+                                        <img class="picSet picFit" src="https://cdn.yun.sooce.cn/6/66541/jpg/1772096953606d1b70895430c6f4c.jpg" alt="意大利都灵理工大学电气工程硕士，曾任职国网冀北公司，深耕变电检修、项目管理等领域，主导村网改造、参与安全管理提升等项目，兼具一线实操与管理经验。2025年加入益帕瓦公司任职助理方案经理，以扎实技术功底与国际视野，助力电网行业技术方案和项目管理工作。">
+                                </div>
+                            </div>
+                            <div class="ratio" style="margin-top:100%;"></div>
+                        </div>
+					</div>
+				</div>
+                        <div class="item modSet hide_item" tabKey="5">
+					<div class="item_cont ">
+                        <div class="imgTBoxArea">
+                            <div class="image-box">
+                                <div class="imgTBox">
+                                    <div class='mengceng picSet'></div>
+                                        <img class="picSet picFit" src="https://cdn.yun.sooce.cn/6/66541/png/17720969536051868e2f98b10683e.png" alt="华南理工大学硕士研究生，曾任职于国电南瑞科技股份有限公司，2024年加入益帕瓦公司，任职产品经理兼技术经理。
+主要研究方向为电力系统智能化，特别是在智能告警和事件化告警方面有丰富的实践经验。在南瑞工作期间，积极参与多项电力系统项目，致力于提升电力系统的运行效率和可靠性。
+发表多篇学术论文，参与编写相关技术报告和专著。在工作中，获得多项技术奖励和表彰。">
+                                </div>
+                            </div>
+                            <div class="ratio" style="margin-top:100%;"></div>
+                        </div>
+					</div>
+				</div>
+                        <div class="item modSet hide_item" tabKey="6">
+					<div class="item_cont ">
+                        <div class="imgTBoxArea">
+                            <div class="image-box">
+                                <div class="imgTBox">
+                                    <div class='mengceng picSet'></div>
+                                        <img class="picSet picFit" src="https://cdn.yun.sooce.cn/6/66541/jpg/1772096953605a3c5e67147d338e4.jpg" alt="主要从事以新型电力系统智能化为中心的电网运行分析与控制、大规模可再生能源的电力系统稳定性、复杂网络理论在电力系统中的应用、电力系统仿真与高性能计算应用、人工智能AI+电力系统的应用技术、分布式智能电网等领域科研与教学工作。
+发表学术论文100余篇、专著教材2部，在国内外期刊和重要国际会议发表三大检索收录论文120余篇。">
+                                </div>
+                            </div>
+                            <div class="ratio" style="margin-top:100%;"></div>
+                        </div>
+					</div>
+				</div>
+                        <div class="item modSet hide_item" tabKey="7">
+					<div class="item_cont ">
+                        <div class="imgTBoxArea">
+                            <div class="image-box">
+                                <div class="imgTBox">
+                                    <div class='mengceng picSet'></div>
+                                        <img class="picSet picFit" src="https://cdn.yun.sooce.cn/6/66541/jpg/1772096953605ac14721c66a17aa3.jpg" alt="武汉大学电气工程与自动化学院，电气工程师，曾就职于GE和中国航空工业智能技术子公司，曾从事过大型变压器设计工作，在智能公司主要负责能源数字化、数据治理、数据处理模型构建等工作，2025年加入益帕瓦公司任职方案总监兼华东区项目经理。
+目前主要研究方向为电力系统数字化、电力系统物联网技术、电力系统故障诊断、数据治理、电力人工智能等技术和方案形成。
+获得过多项电力设备技术专利，有多项软件软著，参与编写过相关技术报告和专著。">
+                                </div>
+                            </div>
+                            <div class="ratio" style="margin-top:100%;"></div>
+                        </div>
+					</div>
+				</div>
+                        <div class="item modSet hide_item" tabKey="8">
+					<div class="item_cont ">
+                        <div class="imgTBoxArea">
+                            <div class="image-box">
+                                <div class="imgTBox">
+                                    <div class='mengceng picSet'></div>
+                                        <img class="picSet picFit" src="https://cdn.yun.sooce.cn/6/66541/jpg/177209695360636dbc830261db93c.jpg" alt="本科毕业于上海交通大学电子信息工程专业，是全国信息奥赛保送生，之后在南京邮电大学取得了在职硕士学位。曾任职于埃森哲公司的交付总监，以及IMAX中国公司的产品技术专家顾问，主要参与金融行业的数字化和人工智能项目的交付工作，2025年加入益帕瓦公司任产品&交付总监。目前主要研究方向是公司自主知识产权的AI通用产品规划、设计、构建、研发及知识产权管理。">
+                                </div>
+                            </div>
+                            <div class="ratio" style="margin-top:100%;"></div>
+                        </div>
+					</div>
+				</div>
+                        <div class="item modSet hide_item" tabKey="9">
+					<div class="item_cont ">
+                        <div class="imgTBoxArea">
+                            <div class="image-box">
+                                <div class="imgTBox">
+                                    <div class='mengceng picSet'></div>
+                                        <img class="picSet picFit" src="https://cdn.yun.sooce.cn/6/66541/jpg/1772096953606d1b70895430c6f4c.jpg" alt="意大利都灵理工大学电气工程硕士，曾任职国网冀北公司，深耕变电检修、项目管理等领域，主导村网改造、参与安全管理提升等项目，兼具一线实操与管理经验。2025年加入益帕瓦公司任职助理方案经理，以扎实技术功底与国际视野，助力电网行业技术方案和项目管理工作。">
+                                </div>
+                            </div>
+                            <div class="ratio" style="margin-top:100%;"></div>
+                        </div>
+					</div>
+				</div>
+		</div>
+            <div class="controls_icon prev_icon arrowSet"><i class='fa fa-angle-left awesome-font'></i><span class="text-font"><</span></div>
+            <div class="controls_icon next_icon arrowSet"><i class='fa fa-angle-right awesome-font'></i><span class="text-font">></span></div>
+	</div>
+    <div class="cont_view">
+                <div class="cont_item" contKey="0">
+                    <a style="cursor:default;display: block;">
+                            <div class="name titProSet">产品&技术经理</div>
+                            <div class="subName defProSet">华南理工大学硕士研究生，曾任职于国电南瑞科技股份有限公司，2024年加入益帕瓦公司，任职产品经理兼技术经理。
+主要研究方向为电力系统智能化，特别是在智能告警和事件化告警方面有丰富的实践经验。在南瑞工作期间，积极参与多项电力系统项目，致力于提升电力系统的运行效率和可靠性。
+发表多篇学术论文，参与编写相关技术报告和专著。在工作中，获得多项技术奖励和表彰。</div>
+                    </a>
+                </div>
+            	<div class="cont_item center_cont" contKey="1">
+                    <a style="cursor:default;display: block;">
+                            <div class="name titProSet">武志刚，华南理工大学电力学院副教授、院长助理、博士生导师</div>
+                            <div class="subName defProSet">主要从事以新型电力系统智能化为中心的电网运行分析与控制、大规模可再生能源的电力系统稳定性、复杂网络理论在电力系统中的应用、电力系统仿真与高性能计算应用、人工智能AI+电力系统的应用技术、分布式智能电网等领域科研与教学工作。
+发表学术论文100余篇、专著教材2部，在国内外期刊和重要国际会议发表三大检索收录论文120余篇。</div>
+                    </a>
+                </div>
+                <div class="cont_item" contKey="2">
+                    <a style="cursor:default;display: block;">
+                            <div class="name titProSet">方案总监</div>
+                            <div class="subName defProSet">武汉大学电气工程与自动化学院，电气工程师，曾就职于GE和中国航空工业智能技术子公司，曾从事过大型变压器设计工作，在智能公司主要负责能源数字化、数据治理、数据处理模型构建等工作，2025年加入益帕瓦公司任职方案总监兼华东区项目经理。
+目前主要研究方向为电力系统数字化、电力系统物联网技术、电力系统故障诊断、数据治理、电力人工智能等技术和方案形成。
+获得过多项电力设备技术专利，有多项软件软著，参与编写过相关技术报告和专著。</div>
+                    </a>
+                </div>
+                <div class="cont_item" contKey="3">
+                    <a style="cursor:default;display: block;">
+                            <div class="name titProSet">产品&交付总监</div>
+                            <div class="subName defProSet">本科毕业于上海交通大学电子信息工程专业，是全国信息奥赛保送生，之后在南京邮电大学取得了在职硕士学位。曾任职于埃森哲公司的交付总监，以及IMAX中国公司的产品技术专家顾问，主要参与金融行业的数字化和人工智能项目的交付工作，2025年加入益帕瓦公司任产品&交付总监。目前主要研究方向是公司自主知识产权的AI通用产品规划、设计、构建、研发及知识产权管理。</div>
+                    </a>
+                </div>
+                <div class="cont_item" contKey="4">
+                    <a style="cursor:default;display: block;">
+                            <div class="name titProSet">助理方案经理</div>
+                            <div class="subName defProSet">意大利都灵理工大学电气工程硕士，曾任职国网冀北公司，深耕变电检修、项目管理等领域，主导村网改造、参与安全管理提升等项目，兼具一线实操与管理经验。2025年加入益帕瓦公司任职助理方案经理，以扎实技术功底与国际视野，助力电网行业技术方案和项目管理工作。</div>
+                    </a>
+                </div>
+                <div class="cont_item" contKey="5">
+                    <a style="cursor:default;display: block;">
+                            <div class="name titProSet">产品&技术经理</div>
+                            <div class="subName defProSet">华南理工大学硕士研究生，曾任职于国电南瑞科技股份有限公司，2024年加入益帕瓦公司，任职产品经理兼技术经理。
+主要研究方向为电力系统智能化，特别是在智能告警和事件化告警方面有丰富的实践经验。在南瑞工作期间，积极参与多项电力系统项目，致力于提升电力系统的运行效率和可靠性。
+发表多篇学术论文，参与编写相关技术报告和专著。在工作中，获得多项技术奖励和表彰。</div>
+                    </a>
+                </div>
+                <div class="cont_item" contKey="6">
+                    <a style="cursor:default;display: block;">
+                            <div class="name titProSet">武志刚，华南理工大学电力学院副教授、院长助理、博士生导师</div>
+                            <div class="subName defProSet">主要从事以新型电力系统智能化为中心的电网运行分析与控制、大规模可再生能源的电力系统稳定性、复杂网络理论在电力系统中的应用、电力系统仿真与高性能计算应用、人工智能AI+电力系统的应用技术、分布式智能电网等领域科研与教学工作。
+发表学术论文100余篇、专著教材2部，在国内外期刊和重要国际会议发表三大检索收录论文120余篇。</div>
+                    </a>
+                </div>
+                <div class="cont_item" contKey="7">
+                    <a style="cursor:default;display: block;">
+                            <div class="name titProSet">方案总监</div>
+                            <div class="subName defProSet">武汉大学电气工程与自动化学院，电气工程师，曾就职于GE和中国航空工业智能技术子公司，曾从事过大型变压器设计工作，在智能公司主要负责能源数字化、数据治理、数据处理模型构建等工作，2025年加入益帕瓦公司任职方案总监兼华东区项目经理。
+目前主要研究方向为电力系统数字化、电力系统物联网技术、电力系统故障诊断、数据治理、电力人工智能等技术和方案形成。
+获得过多项电力设备技术专利，有多项软件软著，参与编写过相关技术报告和专著。</div>
+                    </a>
+                </div>
+                <div class="cont_item" contKey="8">
+                    <a style="cursor:default;display: block;">
+                            <div class="name titProSet">产品&交付总监</div>
+                            <div class="subName defProSet">本科毕业于上海交通大学电子信息工程专业，是全国信息奥赛保送生，之后在南京邮电大学取得了在职硕士学位。曾任职于埃森哲公司的交付总监，以及IMAX中国公司的产品技术专家顾问，主要参与金融行业的数字化和人工智能项目的交付工作，2025年加入益帕瓦公司任产品&交付总监。目前主要研究方向是公司自主知识产权的AI通用产品规划、设计、构建、研发及知识产权管理。</div>
+                    </a>
+                </div>
+                <div class="cont_item" contKey="9">
+                    <a style="cursor:default;display: block;">
+                            <div class="name titProSet">助理方案经理</div>
+                            <div class="subName defProSet">意大利都灵理工大学电气工程硕士，曾任职国网冀北公司，深耕变电检修、项目管理等领域，主导村网改造、参与安全管理提升等项目，兼具一线实操与管理经验。2025年加入益帕瓦公司任职助理方案经理，以扎实技术功底与国际视野，助力电网行业技术方案和项目管理工作。</div>
+                    </a>
+                </div>
+    </div>
+</div>
+                </div>
+            </div>
+                        <div id="titleText_style_08_1751355728712" class="view style_08 titleText  lockHeightView " >
+                                <div names="titleText" class="view_contents " >
+<script class="editor-view-extend">
+    </script><div class="titleStyle_8 modSet">
+	<div class="view_cont">
+		<div class="title_top_view">
+			<div class="line lineleft lineshapeSet"></div>
+			<div class="circle circleleft circledotSet"></div>
+			<div class="titletop bigtitsSet">团队资质</div>
+			<div class="circle circleright circledotSet"></div>
+			<div class="line lineright lineshapeSet"></div>
+		</div>
+	</div>
+</div>
+<!-- // 链接数据处理  开始↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓ -->
+<!-- // 链接数据处理  结束↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑ -->                </div>
+            </div>
+                        <div id="text_style_01_1751355740908" class="view style_01 text  lockHeightView " >
+                                <div names="text" class="view_contents " >
+<script class="editor-view-extend">
+    </script>团队利用深厚的电力系统专业知识，结合经济、管理、决策、信息、安全等领域认知，进行电网分析、调度优化、负荷预测、智能化输配电管理等领域科研，为电力系统分析做服务支撑，并拥有大量知识产权。                </div>
+            </div>
+                        <div id="image_style_12_1_1751356032113" class="view style_12_1 image  lockHeightView " >
+                                <div names="image" class="view_contents " >
+                    <!-- pageSet pagecurSet -->
+<div class="imgStyle_12_1">
+	<ul class="imgTextUl">
+			<li class="imgTextLi mia_li_cont">
+				<div class="mia_li_item modSet">
+					<a style="cursor:default;display: block;">
+						<div class="imgTBoxArea">
+							<div class="image-box">
+								<div class="imgTBox">
+									<img class="picSet picFit" src="https://cdn.yun.sooce.cn/6/60303/webp/c683e7d53795903b80abb03066965b91.webp" alt="20+项">
+								</div>
+							</div>
+							<div class="ratio" style="margin-top:100%;"></div>
+						</div>
+						<div class="cont">
+							<div class="name titProSet">专利技术</div>
+							<div class="hide_view">
+									<div class="subName defProSet">20+项</div>
+							</div>
+						</div>
+					</a>
+				</div>
+			</li>
+			<li class="imgTextLi mia_li_cont">
+				<div class="mia_li_item modSet">
+					<a style="cursor:default;display: block;">
+						<div class="imgTBoxArea">
+							<div class="image-box">
+								<div class="imgTBox">
+									<img class="picSet picFit" src="https://cdn.yun.sooce.cn/6/60303/webp/74125ffb83fb46903fb2627382f70a9b.webp" alt="100+篇">
+								</div>
+							</div>
+							<div class="ratio" style="margin-top:100%;"></div>
+						</div>
+						<div class="cont">
+							<div class="name titProSet">学术论文</div>
+							<div class="hide_view">
+									<div class="subName defProSet">100+篇</div>
+							</div>
+						</div>
+					</a>
+				</div>
+			</li>
+			<li class="imgTextLi mia_li_cont">
+				<div class="mia_li_item modSet">
+					<a style="cursor:default;display: block;">
+						<div class="imgTBoxArea">
+							<div class="image-box">
+								<div class="imgTBox">
+									<img class="picSet picFit" src="https://cdn.yun.sooce.cn/6/60303/webp/7f1b118604a404abacac5e29f532b9f6.webp" alt="120+篇">
+								</div>
+							</div>
+							<div class="ratio" style="margin-top:100%;"></div>
+						</div>
+						<div class="cont">
+							<div class="name titProSet">国内外期刊</div>
+							<div class="hide_view">
+									<div class="subName defProSet">120+篇</div>
+							</div>
+						</div>
+					</a>
+				</div>
+			</li>
+			<li class="imgTextLi mia_li_cont">
+				<div class="mia_li_item modSet">
+					<a style="cursor:default;display: block;">
+						<div class="imgTBoxArea">
+							<div class="image-box">
+								<div class="imgTBox">
+									<img class="picSet picFit" src="https://cdn.yun.sooce.cn/6/60303/webp/e5c8198094a7514f87911cdcc01278be.webp" alt="6项">
+								</div>
+							</div>
+							<div class="ratio" style="margin-top:100%;"></div>
+						</div>
+						<div class="cont">
+							<div class="name titProSet">软件著作</div>
+							<div class="hide_view">
+									<div class="subName defProSet">6项</div>
+							</div>
+						</div>
+					</a>
+				</div>
+			</li>
+		<li></li>
+		<li></li>
+		<li></li>
+		<li></li>
+		<li></li>
+		<li></li>
+		<li></li>
+		<li></li>
+		<li></li>
+		<li></li>
+	</ul>
+</div>
+                </div>
+            </div>
+                        <div id="image_style_28_1751360887272" class="view style_28 image  lockHeightView " >
+                                <div names="image" class="view_contents " >
+<!-- modSet titleSet imgSet--><!-- pageSet pagecurSet -->
+<div class="imgStyle_28">
+	<input type='hidden' id='current_page_1751360887272' value="12"/>
+	<input type='hidden' id='show_per_page_1751360887272' value="16"/>
+	<ul class="imgTextUl" id="content_1751360887272">
+			<li class="imgItems mia_li_cont ">
+				<div class="mia_li_item modSet">
+					<div class="left imgSet">
+						<div class="imgCont">
+							<a style="cursor:default;">
+								<div class="imgTBox">
+									<img src="https://cdn.yun.sooce.cn/6/66541/jpg/1773816749679ed9f9a7047693c8e3b962172923b31e8.jpg?version=0"  class="imgItems"  alt="仿真生成专利证书"/>
+								</div>
+							</a>
+						</div>
+						<div class="ratio" style="margin-top:100%;"></div>
+					</div>
+					<div class="cont">
+					</div>
+				</div>
+			</li>
+			<li class="imgItems mia_li_cont ">
+				<div class="mia_li_item modSet">
+					<div class="left imgSet">
+						<div class="imgCont">
+							<a style="cursor:default;">
+								<div class="imgTBox">
+									<img src="https://cdn.yun.sooce.cn/6/66541/png/1772096953606d7d1b7fcb52a8d6d.png"  class="imgItems"  alt="1772096953606b7fcb52a8d6df396"/>
+								</div>
+							</a>
+						</div>
+						<div class="ratio" style="margin-top:100%;"></div>
+					</div>
+					<div class="cont">
+					</div>
+				</div>
+			</li>
+			<li class="imgItems mia_li_cont ">
+				<div class="mia_li_item modSet">
+					<div class="left imgSet">
+						<div class="imgCont">
+							<a style="cursor:default;">
+								<div class="imgTBox">
+									<img src="https://cdn.yun.sooce.cn/6/66541/png/1772096953606a7142958c567bb0b.png"  class="imgItems"  alt="177209695360699b27c1a7142958c"/>
+								</div>
+							</a>
+						</div>
+						<div class="ratio" style="margin-top:100%;"></div>
+					</div>
+					<div class="cont">
+					</div>
+				</div>
+			</li>
+			<li class="imgItems mia_li_cont ">
+				<div class="mia_li_item modSet">
+					<div class="left imgSet">
+						<div class="imgCont">
+							<a style="cursor:default;">
+								<div class="imgTBox">
+									<img src="https://cdn.yun.sooce.cn/6/66541/png/177209695360677a1c068f4b1c1cf.png"  class="imgItems"  alt="17720969536064b1c1cff5fc01999"/>
+								</div>
+							</a>
+						</div>
+						<div class="ratio" style="margin-top:100%;"></div>
+					</div>
+					<div class="cont">
+					</div>
+				</div>
+			</li>
+			<li class="imgItems mia_li_cont ">
+				<div class="mia_li_item modSet">
+					<div class="left imgSet">
+						<div class="imgCont">
+							<a style="cursor:default;">
+								<div class="imgTBox">
+									<img src="https://cdn.yun.sooce.cn/6/66541/png/17720969536069ed0feb1351f62ae.png"  class="imgItems"  alt="1772096953606d1a3e9ed0feb1351"/>
+								</div>
+							</a>
+						</div>
+						<div class="ratio" style="margin-top:100%;"></div>
+					</div>
+					<div class="cont">
+					</div>
+				</div>
+			</li>
+			<li class="imgItems mia_li_cont ">
+				<div class="mia_li_item modSet">
+					<div class="left imgSet">
+						<div class="imgCont">
+							<a style="cursor:default;">
+								<div class="imgTBox">
+									<img src="https://cdn.yun.sooce.cn/6/66541/png/17720969536060b79fe57a7f0e1d2.png"  class="imgItems"  alt="1772096953606e0b79fe57a7f0e1d"/>
+								</div>
+							</a>
+						</div>
+						<div class="ratio" style="margin-top:100%;"></div>
+					</div>
+					<div class="cont">
+					</div>
+				</div>
+			</li>
+			<li class="imgItems mia_li_cont ">
+				<div class="mia_li_item modSet">
+					<div class="left imgSet">
+						<div class="imgCont">
+							<a style="cursor:default;">
+								<div class="imgTBox">
+									<img src="https://cdn.yun.sooce.cn/6/66541/jpg/17738167915963871a56cf6a0c0399ee7e17dd40c9683.jpg?version=0"  class="imgItems"  alt="配电网故障处理运行建议系统V1.0_软著证书"/>
+								</div>
+							</a>
+						</div>
+						<div class="ratio" style="margin-top:100%;"></div>
+					</div>
+					<div class="cont">
+					</div>
+				</div>
+			</li>
+			<li class="imgItems mia_li_cont ">
+				<div class="mia_li_item modSet">
+					<div class="left imgSet">
+						<div class="imgCont">
+							<a style="cursor:default;">
+								<div class="imgTBox">
+									<img src="https://cdn.yun.sooce.cn/6/66541/jpg/1773816820734eacbc1c32daab309ec0b273506312ab0.jpg?version=0"  class="imgItems"  alt="配电网故障检测与管理平台V1.0_软著证书"/>
+								</div>
+							</a>
+						</div>
+						<div class="ratio" style="margin-top:100%;"></div>
+					</div>
+					<div class="cont">
+					</div>
+				</div>
+			</li>
+			<li class="imgItems mia_li_cont ">
+				<div class="mia_li_item modSet">
+					<div class="left imgSet">
+						<div class="imgCont">
+							<a style="cursor:default;">
+								<div class="imgTBox">
+									<img src="https://cdn.yun.sooce.cn/6/66541/jpg/1773816833870ae55671eb992508e16a3201ed6342d0d.jpg?version=0"  class="imgItems"  alt="配电网线路异常预警与故障预测系统V1.0_软著证书"/>
+								</div>
+							</a>
+						</div>
+						<div class="ratio" style="margin-top:100%;"></div>
+					</div>
+					<div class="cont">
+					</div>
+				</div>
+			</li>
+			<li class="imgItems mia_li_cont ">
+				<div class="mia_li_item modSet">
+					<div class="left imgSet">
+						<div class="imgCont">
+							<a style="cursor:default;">
+								<div class="imgTBox">
+									<img src="https://cdn.yun.sooce.cn/6/66541/jpg/17738168461123b140e2b050cd37d325575e0d71178d7.jpg?version=0"  class="imgItems"  alt="配电网智能故障诊断系统V1.0_软著证书"/>
+								</div>
+							</a>
+						</div>
+						<div class="ratio" style="margin-top:100%;"></div>
+					</div>
+					<div class="cont">
+					</div>
+				</div>
+			</li>
+			<li class="imgItems mia_li_cont ">
+				<div class="mia_li_item modSet">
+					<div class="left imgSet">
+						<div class="imgCont">
+							<a style="cursor:default;">
+								<div class="imgTBox">
+									<img src="https://cdn.yun.sooce.cn/6/66541/jpg/17738168582818854fb03cd0d46828707aea39e42a652.jpg?version=0"  class="imgItems"  alt="配电网智能规划系统V1.0_软著证书"/>
+								</div>
+							</a>
+						</div>
+						<div class="ratio" style="margin-top:100%;"></div>
+					</div>
+					<div class="cont">
+					</div>
+				</div>
+			</li>
+			<li class="imgItems mia_li_cont ">
+				<div class="mia_li_item modSet">
+					<div class="left imgSet">
+						<div class="imgCont">
+							<a style="cursor:default;">
+								<div class="imgTBox">
+									<img src="https://cdn.yun.sooce.cn/6/66541/jpg/17738168697420196f40c102d967c9f01ad429306f7f5.jpg?version=0"  class="imgItems"  alt="新能源功率预测系统V1.0_软著证书"/>
+								</div>
+							</a>
+						</div>
+						<div class="ratio" style="margin-top:100%;"></div>
+					</div>
+					<div class="cont">
+					</div>
+				</div>
+			</li>
+		<li></li>
+		<li></li>
+		<li></li>
+		<li></li>
+		<li></li>
+		<li></li>
+		<li></li>
+	</ul>
+</div>
+                </div>
+            </div>
+                            </div>
+            </div>
+                        <div id="layout_1751361325068" class="layout   scrollView" >
+                                <div class="view_contents ">
+                                <div id="titleText_style_08_1751361339237" class="view style_08 titleText  lockHeightView " >
+                                <div names="titleText" class="view_contents " >
+<script class="editor-view-extend">
+    </script><div class="titleStyle_8 modSet">
+	<div class="view_cont">
+		<div class="title_top_view">
+			<div class="line lineleft lineshapeSet"></div>
+			<div class="circle circleleft circledotSet"></div>
+			<div class="titletop bigtitsSet">获奖荣誉</div>
+			<div class="circle circleright circledotSet"></div>
+			<div class="line lineright lineshapeSet"></div>
+		</div>
+	</div>
+</div>
+<!-- // 链接数据处理  开始↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓ -->
+<!-- // 链接数据处理  结束↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑ -->                </div>
+            </div>
+                        <div id="text_style_01_1751361437968" class="view style_01 text  lockHeightView " >
+                                <div names="text" class="view_contents " >
+<script class="editor-view-extend">
+    </script>团队参与多项国家级科技部重大项目、省级以及南方电网委托的科研项目，获得过中国高等教育博览会“校企合作 双百计划”省部级一等奖、南方电网科学研究院专利奖一等奖、科学技术奖一等奖、广州供电局科技进步奖一等奖等奖励。                </div>
+            </div>
+                        <div id="image_style_22_1751361506702" class="view style_22 image  lockHeightView " >
+                                <div names="image" class="view_contents " >
+<!-- modSet titleSet imgSet detailSet--><!-- pageSet pagecurSet -->
+<div class="imgStyle_22">
+	<input type='hidden' id='current_page_1751361506702' value="4"/>
+	<input type='hidden' id='show_per_page_1751361506702' value="12"/>
+	<ul class="imgTextUl" id="content_1751361506702">
+			<li class="imgTextLi mia_li_cont ">
+				<div class="mia_li_item modSet">
+					<div class="left">
+						<div class="image-box">
+							<a style="cursor:default;">
+								<div class="imgTBox">
+									<img class="imgSet" src="https://cdn.yun.sooce.cn/6/66541/png/177209695360798c9a66d197cfd8a.png" alt="这是可编辑的介绍，这是可编辑的介绍，这是可编辑的介绍"/>
+								</div>
+							</a>
+						</div>
+						<div class="ratio" style="margin-top:75%;"></div>
+					</div>
+					<div class="cont">
+						<div class="title">
+							<div class="name titleSet">南网科研院专利奖一等奖</div>
+						</div>
+					</div>
+				</div>
+			</li>
+			<li class="imgTextLi mia_li_cont ">
+				<div class="mia_li_item modSet">
+					<div class="left">
+						<div class="image-box">
+							<a style="cursor:default;">
+								<div class="imgTBox">
+									<img class="imgSet" src="https://cdn.yun.sooce.cn/6/66541/png/1772096953607cf06779f7e46be8f.png" alt="这是可编辑的介绍，这是可编辑的介绍，这是可编辑的介绍"/>
+								</div>
+							</a>
+						</div>
+						<div class="ratio" style="margin-top:75%;"></div>
+					</div>
+					<div class="cont">
+						<div class="title">
+							<div class="name titleSet">南网科研院专利奖一等奖</div>
+						</div>
+					</div>
+				</div>
+			</li>
+			<li class="imgTextLi mia_li_cont ">
+				<div class="mia_li_item modSet">
+					<div class="left">
+						<div class="image-box">
+							<a style="cursor:default;">
+								<div class="imgTBox">
+									<img class="imgSet" src="https://cdn.yun.sooce.cn/6/66541/png/177209695360705c0edb1726a4720.png" alt="这是可编辑的介绍，这是可编辑的介绍，这是可编辑的介绍"/>
+								</div>
+							</a>
+						</div>
+						<div class="ratio" style="margin-top:75%;"></div>
+					</div>
+					<div class="cont">
+						<div class="title">
+							<div class="name titleSet">南网科研院科学技术奖一等奖</div>
+						</div>
+					</div>
+				</div>
+			</li>
+			<li class="imgTextLi mia_li_cont ">
+				<div class="mia_li_item modSet">
+					<div class="left">
+						<div class="image-box">
+							<a style="cursor:default;">
+								<div class="imgTBox">
+									<img class="imgSet" src="https://cdn.yun.sooce.cn/6/66541/jpg/177209695360767ba346bc9930f55.jpg" alt="这是可编辑的介绍，这是可编辑的介绍，这是可编辑的介绍"/>
+								</div>
+							</a>
+						</div>
+						<div class="ratio" style="margin-top:75%;"></div>
+					</div>
+					<div class="cont">
+						<div class="title">
+							<div class="name titleSet">广州供电局科技进步奖一等奖</div>
+						</div>
+					</div>
+				</div>
+			</li>
+		<li></li>
+		<li></li>
+		<li></li>
+		<li></li>
+		<li></li>
+		<li></li>
+		<li></li>
+	</ul>
+</div>
+                </div>
+            </div>
+                        <div id="titleText_style_08_1751362067774" class="view style_08 titleText  lockHeightView " >
+                                <div names="titleText" class="view_contents " >
+<script class="editor-view-extend">
+    </script><div class="titleStyle_8 modSet">
+	<div class="view_cont">
+		<div class="title_top_view">
+			<div class="line lineleft lineshapeSet"></div>
+			<div class="circle circleleft circledotSet"></div>
+			<div class="titletop bigtitsSet">合作伙伴</div>
+			<div class="circle circleright circledotSet"></div>
+			<div class="line lineright lineshapeSet"></div>
+		</div>
+	</div>
+</div>
+<!-- // 链接数据处理  开始↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓ -->
+<!-- // 链接数据处理  结束↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑ -->                </div>
+            </div>
+                        <div id="text_style_01_1751362081214" class="view style_01 text  lockHeightView " >
+                                <div names="text" class="view_contents " >
+<script class="editor-view-extend">
+    </script>团队秉承着“聚焦电网、智能物联、精益求精、共创共赢”的经营理念，系统全面地开展业务工作，以解决客户痛点为己任，面向市场趋势，提炼客户需求，不断精进自身科研技术水平，持续提升服务品质，努力创造客户超预期价值。                </div>
+            </div>
+                        <div id="image_style_22_1751362443839" class="view style_22 image  lockHeightView " >
+                                <div names="image" class="view_contents " >
+<!-- modSet titleSet imgSet detailSet--><!-- pageSet pagecurSet -->
+<div class="imgStyle_22">
+	<input type='hidden' id='current_page_1751362443839' value="20"/>
+	<input type='hidden' id='show_per_page_1751362443839' value="20"/>
+	<ul class="imgTextUl" id="content_1751362443839">
+			<li class="imgTextLi mia_li_cont ">
+				<div class="mia_li_item modSet">
+					<div class="left">
+						<div class="image-box">
+							<a style="cursor:default;">
+								<div class="imgTBox">
+									<img class="imgSet" src="https://cdn.yun.sooce.cn/6/66541/png/177209695360725d17cee71210246.png" alt="这是可编辑的介绍，这是可编辑的介绍，这是可编辑的介绍"/>
+								</div>
+							</a>
+						</div>
+						<div class="ratio" style="margin-top:100%;"></div>
+					</div>
+					<div class="cont">
+						<div class="title">
+							<div class="name titleSet"> </div>
+						</div>
+					</div>
+				</div>
+			</li>
+			<li class="imgTextLi mia_li_cont ">
+				<div class="mia_li_item modSet">
+					<div class="left">
+						<div class="image-box">
+							<a style="cursor:default;">
+								<div class="imgTBox">
+									<img src="https://cdn.yun.sooce.cn/6/66541/png/17720969536076d4df59e1558a9ac.png"  class="imgSet"  alt="17720969536071c35f6d4df59e155"/>
+								</div>
+							</a>
+						</div>
+						<div class="ratio" style="margin-top:100%;"></div>
+					</div>
+					<div class="cont">
+						<div class="title">
+							<div class="name titleSet"> </div>
+						</div>
+					</div>
+				</div>
+			</li>
+			<li class="imgTextLi mia_li_cont ">
+				<div class="mia_li_item modSet">
+					<div class="left">
+						<div class="image-box">
+							<a style="cursor:default;">
+								<div class="imgTBox">
+									<img src="https://cdn.yun.sooce.cn/6/66541/jpg/1772096953607f13b1e053d5616b3.jpg"  class="imgSet"  alt="17720969536071c0fbf13b1e053d5"/>
+								</div>
+							</a>
+						</div>
+						<div class="ratio" style="margin-top:100%;"></div>
+					</div>
+					<div class="cont">
+						<div class="title">
+							<div class="name titleSet"> </div>
+						</div>
+					</div>
+				</div>
+			</li>
+			<li class="imgTextLi mia_li_cont ">
+				<div class="mia_li_item modSet">
+					<div class="left">
+						<div class="image-box">
+							<a style="cursor:default;">
+								<div class="imgTBox">
+									<img src="https://cdn.yun.sooce.cn/6/66541/jpg/1772096953607d3511a4e02f8f7db.jpg"  class="imgSet"  alt="1772096953607511a4e02f8f7dba9"/>
+								</div>
+							</a>
+						</div>
+						<div class="ratio" style="margin-top:100%;"></div>
+					</div>
+					<div class="cont">
+						<div class="title">
+							<div class="name titleSet"> </div>
+						</div>
+					</div>
+				</div>
+			</li>
+			<li class="imgTextLi mia_li_cont ">
+				<div class="mia_li_item modSet">
+					<div class="left">
+						<div class="image-box">
+							<a style="cursor:default;">
+								<div class="imgTBox">
+									<img src="https://cdn.yun.sooce.cn/6/66541/jpg/1772096953607ea662aa80ff2527a.jpg"  class="imgSet"  alt="17720969536071ea662aa80ff2527"/>
+								</div>
+							</a>
+						</div>
+						<div class="ratio" style="margin-top:100%;"></div>
+					</div>
+					<div class="cont">
+						<div class="title">
+							<div class="name titleSet"> </div>
+						</div>
+					</div>
+				</div>
+			</li>
+			<li class="imgTextLi mia_li_cont ">
+				<div class="mia_li_item modSet">
+					<div class="left">
+						<div class="image-box">
+							<a style="cursor:default;">
+								<div class="imgTBox">
+									<img class="imgSet" src="https://cdn.yun.sooce.cn/6/66541/png/1772096953587f5393aa0f82098ac.png" alt="这是可编辑的介绍，这是可编辑的介绍，这是可编辑的介绍"/>
+								</div>
+							</a>
+						</div>
+						<div class="ratio" style="margin-top:100%;"></div>
+					</div>
+					<div class="cont">
+						<div class="title">
+							<div class="name titleSet"> </div>
+						</div>
+					</div>
+				</div>
+			</li>
+			<li class="imgTextLi mia_li_cont ">
+				<div class="mia_li_item modSet">
+					<div class="left">
+						<div class="image-box">
+							<a style="cursor:default;">
+								<div class="imgTBox">
+									<img src="https://cdn.yun.sooce.cn/6/66541/png/1772096953607121d5ddb214ebd2e.png"  class="imgSet"  alt="1772096953607d5ddb214ebd2e1dc"/>
+								</div>
+							</a>
+						</div>
+						<div class="ratio" style="margin-top:100%;"></div>
+					</div>
+					<div class="cont">
+						<div class="title">
+							<div class="name titleSet"> </div>
+						</div>
+					</div>
+				</div>
+			</li>
+			<li class="imgTextLi mia_li_cont ">
+				<div class="mia_li_item modSet">
+					<div class="left">
+						<div class="image-box">
+							<a style="cursor:default;">
+								<div class="imgTBox">
+									<img src="https://cdn.yun.sooce.cn/6/66541/png/1772096953605435bacd90284ae68.png"  class="imgSet"  alt="1772096953605d90284ae683e3dcf"/>
+								</div>
+							</a>
+						</div>
+						<div class="ratio" style="margin-top:100%;"></div>
+					</div>
+					<div class="cont">
+						<div class="title">
+							<div class="name titleSet"> </div>
+						</div>
+					</div>
+				</div>
+			</li>
+			<li class="imgTextLi mia_li_cont ">
+				<div class="mia_li_item modSet">
+					<div class="left">
+						<div class="image-box">
+							<a style="cursor:default;">
+								<div class="imgTBox">
+									<img class="imgSet" src="https://cdn.yun.sooce.cn/6/66541/png/177209695360520bcd6f5b737122e.png" alt="这是可编辑的介绍，这是可编辑的介绍，这是可编辑的介绍"/>
+								</div>
+							</a>
+						</div>
+						<div class="ratio" style="margin-top:100%;"></div>
+					</div>
+					<div class="cont">
+						<div class="title">
+							<div class="name titleSet"> </div>
+						</div>
+					</div>
+				</div>
+			</li>
+			<li class="imgTextLi mia_li_cont ">
+				<div class="mia_li_item modSet">
+					<div class="left">
+						<div class="image-box">
+							<a style="cursor:default;">
+								<div class="imgTBox">
+									<img src="https://cdn.yun.sooce.cn/6/66541/png/1772096953605e9c830a8dc42dc9b.png"  class="imgSet"  alt="17720969536050a8dc42dc9b46919"/>
+								</div>
+							</a>
+						</div>
+						<div class="ratio" style="margin-top:100%;"></div>
+					</div>
+					<div class="cont">
+						<div class="title">
+							<div class="name titleSet"> </div>
+						</div>
+					</div>
+				</div>
+			</li>
+			<li class="imgTextLi mia_li_cont ">
+				<div class="mia_li_item modSet">
+					<div class="left">
+						<div class="image-box">
+							<a style="cursor:default;">
+								<div class="imgTBox">
+									<img src="https://cdn.yun.sooce.cn/6/66541/png/1772096953605387f62a30f6bf623.png"  class="imgSet"  alt="177209695360513d22387f62a30f6"/>
+								</div>
+							</a>
+						</div>
+						<div class="ratio" style="margin-top:100%;"></div>
+					</div>
+					<div class="cont">
+						<div class="title">
+							<div class="name titleSet"> </div>
+						</div>
+					</div>
+				</div>
+			</li>
+			<li class="imgTextLi mia_li_cont ">
+				<div class="mia_li_item modSet">
+					<div class="left">
+						<div class="image-box">
+							<a style="cursor:default;">
+								<div class="imgTBox">
+									<img src="https://cdn.yun.sooce.cn/6/66541/png/1772096953605da68df9947cfc226.png"  class="imgSet"  alt="1772096953605d6e57da68df9947c"/>
+								</div>
+							</a>
+						</div>
+						<div class="ratio" style="margin-top:100%;"></div>
+					</div>
+					<div class="cont">
+						<div class="title">
+							<div class="name titleSet"> </div>
+						</div>
+					</div>
+				</div>
+			</li>
+			<li class="imgTextLi mia_li_cont ">
+				<div class="mia_li_item modSet">
+					<div class="left">
+						<div class="image-box">
+							<a style="cursor:default;">
+								<div class="imgTBox">
+									<img src="https://cdn.yun.sooce.cn/6/66541/png/17720969536071cf53373408547b4.png"  class="imgSet"  alt="17720969536073408547b4e8b95b2"/>
+								</div>
+							</a>
+						</div>
+						<div class="ratio" style="margin-top:100%;"></div>
+					</div>
+					<div class="cont">
+						<div class="title">
+							<div class="name titleSet"> </div>
+						</div>
+					</div>
+				</div>
+			</li>
+			<li class="imgTextLi mia_li_cont ">
+				<div class="mia_li_item modSet">
+					<div class="left">
+						<div class="image-box">
+							<a style="cursor:default;">
+								<div class="imgTBox">
+									<img src="https://cdn.yun.sooce.cn/6/66541/png/1772096953607e8bac22739add37c.png"  class="imgSet"  alt="177209695360753563e8bac22739a"/>
+								</div>
+							</a>
+						</div>
+						<div class="ratio" style="margin-top:100%;"></div>
+					</div>
+					<div class="cont">
+						<div class="title">
+							<div class="name titleSet"> </div>
+						</div>
+					</div>
+				</div>
+			</li>
+			<li class="imgTextLi mia_li_cont ">
+				<div class="mia_li_item modSet">
+					<div class="left">
+						<div class="image-box">
+							<a style="cursor:default;">
+								<div class="imgTBox">
+									<img src="https://cdn.yun.sooce.cn/6/66541/png/17720969536085324bea5ec79afe6.png"  class="imgSet"  alt="17720969536084fb9645324bea5ec"/>
+								</div>
+							</a>
+						</div>
+						<div class="ratio" style="margin-top:100%;"></div>
+					</div>
+					<div class="cont">
+						<div class="title">
+							<div class="name titleSet"> </div>
+						</div>
+					</div>
+				</div>
+			</li>
+			<li class="imgTextLi mia_li_cont ">
+				<div class="mia_li_item modSet">
+					<div class="left">
+						<div class="image-box">
+							<a style="cursor:default;">
+								<div class="imgTBox">
+									<img src="https://cdn.yun.sooce.cn/6/66541/png/177209695360880c2096c055e8679.png"  class="imgSet"  alt="1772096953608480c2096c055e867"/>
+								</div>
+							</a>
+						</div>
+						<div class="ratio" style="margin-top:100%;"></div>
+					</div>
+					<div class="cont">
+						<div class="title">
+							<div class="name titleSet"> </div>
+						</div>
+					</div>
+				</div>
+			</li>
+			<li class="imgTextLi mia_li_cont ">
+				<div class="mia_li_item modSet">
+					<div class="left">
+						<div class="image-box">
+							<a style="cursor:default;">
+								<div class="imgTBox">
+									<img class="imgSet" src="https://cdn.yun.sooce.cn/6/66541/png/17720969536057a4560d0fd1d06ad.png" alt="这是可编辑的介绍，这是可编辑的介绍，这是可编辑的介绍"/>
+								</div>
+							</a>
+						</div>
+						<div class="ratio" style="margin-top:100%;"></div>
+					</div>
+					<div class="cont">
+						<div class="title">
+							<div class="name titleSet"> </div>
+						</div>
+					</div>
+				</div>
+			</li>
+			<li class="imgTextLi mia_li_cont ">
+				<div class="mia_li_item modSet">
+					<div class="left">
+						<div class="image-box">
+							<a style="cursor:default;">
+								<div class="imgTBox">
+									<img src="https://cdn.yun.sooce.cn/6/66541/jpg/1772096953608cf04d8c6aa5ffe8a.jpg"  class="imgSet"  alt="1772096953608ffe8a7d8f04be11d"/>
+								</div>
+							</a>
+						</div>
+						<div class="ratio" style="margin-top:100%;"></div>
+					</div>
+					<div class="cont">
+						<div class="title">
+							<div class="name titleSet"> </div>
+						</div>
+					</div>
+				</div>
+			</li>
+			<li class="imgTextLi mia_li_cont ">
+				<div class="mia_li_item modSet">
+					<div class="left">
+						<div class="image-box">
+							<a style="cursor:default;">
+								<div class="imgTBox">
+									<img src="https://cdn.yun.sooce.cn/6/66541/png/17720969536083f06b907870be778.png"  class="imgSet"  alt="17720969536086b907870be778f27"/>
+								</div>
+							</a>
+						</div>
+						<div class="ratio" style="margin-top:100%;"></div>
+					</div>
+					<div class="cont">
+						<div class="title">
+							<div class="name titleSet"> </div>
+						</div>
+					</div>
+				</div>
+			</li>
+			<li class="imgTextLi mia_li_cont ">
+				<div class="mia_li_item modSet">
+					<div class="left">
+						<div class="image-box">
+							<a style="cursor:default;">
+								<div class="imgTBox">
+									<img src="https://cdn.yun.sooce.cn/6/66541/png/1772096953608eaeb39dbebc29aaa.png"  class="imgSet"  alt="1772096953608083eaeb39dbebc29"/>
+								</div>
+							</a>
+						</div>
+						<div class="ratio" style="margin-top:100%;"></div>
+					</div>
+					<div class="cont">
+						<div class="title">
+							<div class="name titleSet"> </div>
+						</div>
+					</div>
+				</div>
+			</li>
+		<li></li>
+		<li></li>
+		<li></li>
+		<li></li>
+		<li></li>
+		<li></li>
+		<li></li>
+	</ul>
+</div>
+                </div>
+            </div>
+                            </div>
+            </div>
+                        <div id="comm_layout_footer" class="layout   scrollView" >
+                                <div class="view_contents ">
+                                <div id="copyright_style_01_1750927104200" class="view style_01 copyright  lockHeightView " >
+                                <div names="copyright" class="view_contents " >
+                    <div class="copyrightStyle01 modSet">
+        <div class="copyright_view line_view">Copyright © 2019-2024 佛山市益帕瓦物联科技有限公司 All rights reserved.</div>
+        <div class="icp_view line_view"><a target="_blank" href="https://beian.miit.gov.cn/">粤ICP备2024281946号-1</a></div>
+        <div class="lw_view line_view"><a target="_blank" href="https://www.beian.gov.cn/portal/registerSystemInfo?recordcode=44060602002745"><img class="lw_icon" src="img/copyright/style_01/beiab.png" alt="粤公网安备44060602002745号">粤公网安备44060602002745号</a></div>
+</div>
+                </div>
+            </div>
+                        <div id="image_style_01_1750930325885" class="view style_01 image  " >
+                                <div names="image" class="view_contents " >
+<script class="editor-view-extend">
+    </script><div class="imgStyle CompatibleImg picSet" >
+			<img class="link-type- " src="https://cdn.yun.sooce.cn/6/60303/webp/17509259820490f319747daa3c6babc677667d579f004.webp?version=1750926011" title="" alt="描述" id="imageModeShow" style="border-radius: inherit;"/>
+</div>
+<!-- 新加的js  -->
+                </div>
+            </div>
+                        <div id="image_logo_1750927964854" class="view logo image  " >
+                                <div names="image" class="view_contents " >
+                    <div class="logoStyle modSet">
+<a href='index.html' target="_self"><img class="imgSet" src="img/logo.png?1773816941" title="佛山市益帕瓦物联科技有限公司" alt="佛山市益帕瓦物联科技有限公司" style="width:100%; height:auto"/></a>
+</div>                </div>
+            </div>
+                        <div id="text_style_15_1750927951730" class="view style_15 text  lockHeightView " >
+                                <div names="text" class="view_contents " >
+                    <div class="textList_default15">
+		<div class="list mia_li_cont">
+			<div class="mia_li_item modSet">
+				<div class="title_view">
+					<div class="title titleSet" >
+						<span></span>
+						<span>让电力更智慧，让负荷更智能</span>
+					</div>
+				</div>
+			</div>
+		</div>
+</div>
+                </div>
+            </div>
+                        <div id="footerCustom_footerDh_01_1765785022725" class="view footerDh_01 footerCustom  lockHeightView " >
+                                <div names="footerCustom" class="view_contents " >
+<div id="menu" class="menu footerCustom_01">
+	<div class="menuLayout">
+		<div class="menuUl_box columnSet dhAreaSet showpc">
+			<ul class="menuUl dflex maxWidth ">
+						<li class="rflex isLi" pageid="1098805" showpc="">
+							<a class="mainMenuSet Nosub" href="index.html">
+								首页
+							</a>
+						</li>
+						<li class="rflex isLi" pageid="1098807" showpc="">
+							<a class="mainMenuSet Nosub" href="service.html">
+								服务与方案
+							</a>
+						</li>
+						<li class="rflex isLi" pageid="1098809" showpc="">
+							<a class="mainMenuSet Onsub" href="product.html">
+								产品与技术
+							</a>
+								<ul class="menuUl02 subminSet">
+								</ul>
+						</li>
+						<li class="rflex isLi" pageid="1098811" showpc="">
+							<a class="mainMenuSet Nosub" href="news.html">
+								公司动态
+							</a>
+						</li>
+						<li class="rflex isLi" pageid="1098813" showpc="">
+							<a class="mainMenuSet Nosub" href="culture.html">
+								企业文化
+							</a>
+						</li>
+						<li class="rflex isLi" pageid="1098815" showpc="">
+							<a class="mainMenuSet Nosub" href="about.html">
+								关于我们
+							</a>
+						</li>
+			</ul>
+		</div>
+		<div class="menuUl_box columnSet dhAreaSet showmobile">
+			<ul class="menuUl dflex maxWidth ">
+							<li id="hot" class="rflex isLi" pageid="1098805" showpc="">
+							<a class="mainMenuSet Nosub" href="index.html">
+								首页
+							</a>
+						</li>
+							<li class="rflex isLi" pageid="1098807" showpc="">
+							<a class="mainMenuSet Nosub" href="service.html">
+								服务与方案
+							</a>
+						</li>
+							<li class="rflex isLi" pageid="1098809" showpc="">
+							<a class="mainMenuSet Onsub" href="product.html">
+								产品与技术
+							</a>
+								<ul class="menuUl02 subminSet">
+								</ul>
+						</li>
+							<li class="rflex isLi" pageid="1098811" showpc="">
+							<a class="mainMenuSet Nosub" href="news.html">
+								公司动态
+							</a>
+						</li>
+							<li class="rflex isLi" pageid="1098813" showpc="">
+							<a class="mainMenuSet Nosub" href="culture.html">
+								企业文化
+							</a>
+						</li>
+							<li class="rflex isLi" pageid="1098815" showpc="">
+							<a class="mainMenuSet Nosub" href="about.html">
+								关于我们
+							</a>
+						</li>
+			</ul>
+		</div>
+	</div>
+</div>
+<!-- 导航栏目有下级时禁止跳转 -->
+<!-- 每行显示列数 -->
+<!--  -->
+                </div>
+            </div>
+                            </div>
+            </div>
+            <div class="bottomMenu 123"><ul><li style="height:100%;">
+							<a href="index.html" class="" style=""><div class="menuItem iconTxt"><div class="menuIco"><img src="https://cdn.yun.sooce.cn/6/60303/webp/30c6ea9e9b976230f0426309369af491.webp" alt="首页"></div><input type="hidden" class="menuIcon" value="" ><input type="hidden" class="menuColor" value="#037df2" ><div class="menuName" style="color:#037df2;">首页</div></div></a>
+							<div class="submenuItems" style="display:none;"></div>
+						</li><li style="height:100%;">
+							<a href="service.html" class="" style=""><div class="menuItem iconTxt"><div class="menuIco"><img src="https://cdn.yun.sooce.cn/6/60303/webp/063b7dbb8520cb8e517818442865452f.webp" alt="服务"></div><input type="hidden" class="menuIcon" value="" ><input type="hidden" class="menuColor" value="#037df2" ><div class="menuName" style="color:#666666;">服务</div></div></a>
+							<div class="submenuItems" style="display:none;"></div>
+						</li><li style="height:100%;">
+							<a href="product.html" class="" style=""><div class="menuItem iconTxt"><div class="menuIco"><img src="https://cdn.yun.sooce.cn/6/60303/webp/d040b9f8b450e8db8c1746f8b0ca24f4.webp" alt="产品"></div><input type="hidden" class="menuIcon" value="" ><input type="hidden" class="menuColor" value="#037df2" ><div class="menuName" style="color:#666666;">产品</div></div></a>
+							<div class="submenuItems" style="display:none;"></div>
+						</li><li style="height:100%;">
+							<a href="news.html" class="" style=""><div class="menuItem iconTxt"><div class="menuIco"><img src="https://cdn.yun.sooce.cn/6/60303/webp/a83a7f8fd19bc440e8383dbf78d807a9.webp" alt="动态"></div><input type="hidden" class="menuIcon" value="" ><input type="hidden" class="menuColor" value="#037df2" ><div class="menuName" style="color:#666666;">动态</div></div></a>
+							<div class="submenuItems" style="display:none;"></div>
+						</li><li style="height:100%;">
+							<a href="about.html" class="" style=""><div class="menuItem iconTxt"><div class="menuIco"><img src="https://cdn.yun.sooce.cn/6/60303/webp/dde82ec7e391f84e4d30281a7a26220f.webp" alt="关于"></div><input type="hidden" class="menuIcon" value="" ><input type="hidden" class="menuColor" value="#037df2" ><div class="menuName" style="color:#666666;">关于</div></div></a>
+							<div class="submenuItems" style="display:none;"></div>
+						</li></ul></div>
+<script>
+$(function(){
+    // 当设备为iphoneX，ios13以上时，会出现黑色横条
+    let isIPhoneMobile = /iphone/gi.test(window.navigator.userAgent) && window.devicePixelRatio;
+    let isIPhoneX_XS = isIPhoneMobile && window.devicePixelRatio === 3 && window.screen.width === 375 && window.screen.height === 812;
+    let isIPhoneXSMax = isIPhoneMobile && window.devicePixelRatio === 3 && window.screen.width === 414 && window.screen.height === 896;
+    let isIPhoneXR = isIPhoneMobile && window.devicePixelRatio === 2 && window.screen.width === 414 && window.screen.height === 896;
+    let ver = (navigator.appVersion).match(/OS (\d+)_(\d+)_?(\d+)?/);
+    let type = ver?parseInt(ver[1],10):0;
+    if(isIPhoneX_XS || isIPhoneXSMax || isIPhoneXR || type>=13){
+        $("body").css("cssText", $("body").attr("style") + ";padding-bottom:65px!important;");
+        $(".bottomMenu ul").css("cssText", $(".bottomMenu ul").attr("style") + ";height:65px!important;padding-bottom:15px!important;");
+    }else if($("body").width()<640){
+        $("body").css("cssText", $("body").attr("style") + ";padding-bottom:50px!important;");
+    }
+    $(".showSubMenu").click(function(){
+        $(this).next().toggle();
+		$(this).parent("li").siblings("li").children(".showSubMenu").next().css("display","none");
+    });
+    var bottomLen = $(".bottomMenu > ul > li > a").length;
+    var url = window.location.pathname;
+    var loc = url.substring(url.lastIndexOf("/")+1, url.length);
+    for(var i=0;i<bottomLen;i++){
+        var curObj = $(".bottomMenu ul li a").eq(i);
+        if(loc == curObj.attr("href")){
+            var img = curObj.children(".menuItem").children(".menuIco").children("img").attr("src");
+            var menuIcon = curObj.children(".menuItem").children(".menuIcon").val();
+            var menuColor = curObj.children(".menuItem").children(".menuColor").val();
+            var menuName = curObj.children(".menuItem").children(".menuName").html();
+            if(menuIcon != ""){
+                curObj.children(".menuItem").children(".menuIco").children("img").attr("src",menuIcon);
+            }
+            if(menuColor != ""){
+                curObj.children(".menuItem").children(".menuName").css("color",menuColor);
+            }
+        }
+    }
+});
+$(window).resize(function(){
+    if($("body").width()>=640){
+        $("body").css("padding-bottom","0px");
+    }
+});
+</script>
+<script>
+        $(function() {
+           var lang = 0;
+           if (typeof(Default_isFT) !== 'undefined'){
+              if(lang == '0'){
+				lang = Default_isFT;
+				if(typeof(BodyIsFt) == 'undefined' || BodyIsFt == null){
+				    BodyIsFt = 0;
+                }
+				if(BodyIsFt == '0'){
+					lang = BodyIsFt;
+				}else if(BodyIsFt == '1'){
+					lang = BodyIsFt;
+				}
+			}
+			$('.bottomMenu a').each(function() {
+			  var hrefstr = $(this).attr('href');
+			  var laststr=hrefstr.substring(hrefstr.length-7);
+			  if (laststr == 'langid=') {
+			        hrefstr = hrefstr + lang;
+			    $(this).attr('href',hrefstr)
+			  }
+			})
+           }
+        });
+        </script>
+<script type="text/javascript" src="js/01098805_model.js?1773816941" charset="utf-8"></script>
+<script>
+	$(function(){
+		sendBatch(batchArr);
+	});
+</script>
+<script type="text/javascript" src="js/comm_user.js?1773816941" charset="utf-8"></script>
+<script type="text/javascript" src="https://s143js.nicebox.cn/webapp/UserPanel/share/js.js?2" charset="utf-8"></script>
+    <script type="text/javascript" src="js/comm/transform.js?201603091"></script>
+</body>
+<script>
+            if (window.location.href.indexOf('turnModel') != -1) {
+            let resStr = window.location.href.split('turnModel=')[1];
+            let modelId = resStr.split('&')[0];
+            scrollToElement(modelId);
+        }
+        function scrollToElement(modelId,type) {
+        type = type || 'scrollIntoView'; // 默认使用 scrollIntoView
+        var element = document.getElementById(modelId);
+        var elementPos = element.getBoundingClientRect().top + window.scrollY - document.documentElement.clientTop;
+        var startY = window.scrollY || document.documentElement.scrollTop;
+        // 检查浏览器是否支持 smooth 滚动
+        var supportsSmoothScroll = 'scrollBehavior' in document.documentElement.style && document.documentElement.style.scrollBehavior !== 'auto';
+        if (supportsSmoothScroll && type== 'scrollIntoView' && !is360Browser() && false) {
+            // 使用 scrollIntoView 进行平滑滚动  (360浏览器不支持)
+            // ↓↓↓↓↓↓↓↓↓  临时屏蔽  因为scrollIntoView貌似在某些电脑系统下判断进入了，但是滚动的位置不对，所以暂时屏蔽 20250822 ↓↓↓↓↓↓↓↓↓
+            // element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            // setTimeout(() => {
+            //     let trueY = window.scrollY || document.documentElement.scrollTop;
+            //     if(startY == trueY){
+            //         scrollToElement(modelId,'animate'); // 如果没有滚动成功，使用动画函数进行滚动
+            //     }else{
+            //         element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            //     }
+            // }, 100);
+            // ↑↑↑↑↑↑↑↑↑  临时屏蔽  因为scrollIntoView貌似在某些电脑系统下判断进入了，但是滚动的位置不对，所以暂时屏蔽 20250822 ↑↑↑↑↑↑↑↑
+        } else {
+            // 使用动画函数进行基本滚动
+            function easeInOutQuad(t) { return t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t; }
+            function scroll() {
+                var currentTime = new Date().getTime();
+                var timeElapsed = currentTime - startTime;
+                var run = easeInOutQuad(timeElapsed / duration);
+                window.scrollTo(0, startY + (elementPos - startY) * run);
+                if (timeElapsed < duration) requestAnimationFrame(scroll);
+            }
+            var startTime = new Date().getTime();
+            var duration = 600; // 动画持续时间（毫秒）
+            requestAnimationFrame(scroll);
+        }
+    }
+    function is360Browser() {
+        const userAgent = navigator.userAgent.toLowerCase();
+        return userAgent.includes('360se') || userAgent.includes('360ee');
+    }
+</script>
+<script type="text/javascript" src="js/comm/mouseInteractive.js?250609a"></script>
+</html>

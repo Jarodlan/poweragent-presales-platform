@@ -1,0 +1,940 @@
+<!DOCTYPE html>
+<html>
+<head>
+<!-- 启用极速模式(webkit) 911-->
+<meta name="renderer" content="webkit">
+<meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1">
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<meta name="format-detection" content="telephone=no" />
+<meta name="referrer" content="no-referrer-when-downgrade">
+<meta name="keywords" content="智能电网、咨询服务、高性能计算服务、智能调度、运行优化、决策咨询、大数据智能电力系统分析、分布式理论研究、体系化电网运行调控技术、优化算法引擎、建模优化流程、标准建模语言、系统机组、网络约束、校验机制、算法积累、预测偏差自校正机制、系统解决方案、框架体系设计、关键技术研究、专业策略建议、行业创新咨询、电力市场咨询、电网规划咨询、电力系统分析咨询、智能化数据分析与调整、可视化系统建模与结果分析">
+<meta name="description" content="我们的公司专注于为电网公司运营主体提供智能调度运行优化决策咨询服务，包括高性能计算服务。我们拥有扎实理论支撑，专注分布式理论研究与实践，具备体系化电网运行调控技术和领先的电网运行优化算法引擎。我们的服务内容丰富，包括标准化建模优化流程，完善的数据合理性校验机制和约束条件冲突分析。我们提供数十种适应不同业务场景的算法模型库，以及基于深度学习的预测偏差自校正机制等系统高效解决方案。我们的专业团队可以提供对应曲线的分析方法和策略建议，协助制定系统性改进优化建议。我们的目标是为客户提供合乎理论符合实际高效具体系统全面的解决方案，并不断创新，在电力市场咨询、电网规划咨询等领域提供前瞻性研究。">
+<title>佛山市益帕瓦物联科技有限公司 - 服务与方案</title>
+<link rel="shortcut icon" type="image/x-icon" href="img/upimages/favicon.ico" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black" />
+<meta name='apple-touch-fullscreen' content='yes' />
+<meta name="full-screen" content="yes">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" id="headScreen" />
+<!-- SEO友好提示1 -->
+<meta name="applicable-device" content="pc,mobile">
+<!--[if lt IE 9]>
+<script type="text/javascript" src="/js/comm/html5shiv.js"></script>
+<script type="text/javascript" src="/js/comm/respond.min.js"></script>
+<![endif]-->
+<script type="text/javascript" src="js/comm/jquery.min.js"></script>
+<script type="text/javascript" src="js/comm/jquery.lazyload.min.js"></script>
+<script type="text/javascript" src="js/comm/jquery.nicescroll.min.js"></script>
+<script type="text/javascript" src="js/comm/ubox.js" charset="utf-8"></script>
+<script type="text/javascript" src="js/comm/wow.js" charset="utf-8"></script>
+    <script>
+        var js_comm_alert_okButton = '确认';
+        var js_comm_alert_cancelButton = '取消';
+        var js_comm_alert_login = '登录';
+        var js_comm_alert_goreturn = '返回';
+    </script>
+<script type="text/javascript" src="js/comm/alert.js" charset="utf-8"></script>
+<script type="text/javascript" src="js/01098807.js?1773816941" charset="utf-8"></script>
+<script type="text/javascript" src="js/comm/comm.js?11" charset="utf-8"></script>
+<link rel="stylesheet" type="text/css" href="css/comm/font/css/font-awesome.min.css">
+<link rel="stylesheet" type="text/css" href="css/comm/animate.min.css"/>
+<link rel="stylesheet" type="text/css" href="css/comm/box.css"/>
+<link rel="stylesheet" type="text/css" href="css/comm/alert.css"/>
+<link rel="stylesheet" type="text/css" href="css/comm/comm.css?1773816941"/>
+<link rel="stylesheet" type="text/css" href="css/01098807.css?1773816941"/>
+<link rel="stylesheet" type="text/css" href="css/comm/iconfont.css?1"/>
+<script>
+	var batchArr = [];
+	var checkLoad = 0;//判断是否是回调完成的
+</script>
+<script>
+    var isOpenMobie = 2;
+    var isOpenPad = 1;
+    if(isOpenMobie == 1){
+        if(isOpenPad == 1){
+            $("body").css("width","auto");
+        }else{
+            //是否手机端判断
+            var ua = navigator.userAgent;
+            var ipad = ua.match(/(iPad).*OS\s([\d_]+)/),
+                isIphone =!ipad && ua.match(/(iPhone\sOS)\s([\d_]+)/),
+                isAndroid = ua.match(/(Android)\s+([\d.]+)/),
+                isMobile = isIphone || isAndroid;
+            if(isMobile){
+                // ?
+                // $("body").css("width","1280px");
+                // $("body").css("zoom", $(window).width() / 1280);
+                var scale = window.screen.width / 1280;
+                $("head").append("<meta id='headScreen' class='c6x' content='width=1280, initial-scale="+scale+", maximum-scale="+scale+", user-scalable=no' name='viewport' />");
+            }else{
+                $("body").css("width","auto");
+            }
+        }
+    }else{
+        $("body").css("width","auto");
+        $("head").append("<meta id='headScreen' content='width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no' name='viewport' />");
+    }
+    //手机屏幕尺寸兼容 purewinter 2019-03-26
+    $(window).on('load',function(){
+        bodyScale();
+    });
+    function bodyScale(){
+        var windowWidth = $(window).width();
+        $("#bodyScale").remove();
+        if(windowWidth < 680){
+            var scale = windowWidth / 375;
+            $("#headScreen").remove();
+            $("head").append("<meta id='headScreen' content='width=375, initial-scale="+scale+", maximum-scale="+scale+", user-scalable=no' name='viewport' />");
+        }else if(windowWidth < 960){
+            var scale = windowWidth / 960;
+            $("#headScreen").remove();
+            $("head").append("<meta id='headScreen' content='width=960, initial-scale="+scale+", maximum-scale="+scale+", user-scalable=no' name='viewport' />");
+        }
+        $("body").css('visibility','visible');
+    }
+</script>
+<script>
+String.prototype.replaceAll= function(s1,s2){
+    return this.replace(new RegExp(s1,"gm"),s2);
+}
+function getQueryVariable(variable)
+{
+    var query = window.location.search.substring(1);
+    var vars = query.split("&");
+    for (var i=0;i<vars.length;i++) {
+        var pair = vars[i].split("=");
+        if(pair[0] == variable){return pair[1];}
+    }
+    return(false);
+}
+var FIDUser = getQueryVariable('FIDUser');
+var param = "idweb=66541&langid=0&UPermission=all&FIDUser=" + FIDUser;
+document.getElementsByTagName('head')[0].appendChild(document. createElement('script')).src="https://s143js.nicebox.cn/exusers/login_html_v9_diy.php?" + param;
+// 字体大小限制不跟随系统
+$(document).ready(function(){
+    if (typeof WeixinJSBridge == "object" && typeof WeixinJSBridge.invoke == "function") {
+        handleFontSize();
+    } else {
+        document.addEventListener("WeixinJSBridgeReady", handleFontSize, false);
+    }
+    function handleFontSize() {
+        // 设置网页字体为默认大小
+        WeixinJSBridge.invoke('setFontSizeCallback', { 'fontSize' : 0 });
+        // 重写设置网页字体大小的事件
+        WeixinJSBridge.on('menu:setfont', function() {
+            WeixinJSBridge.invoke('setFontSizeCallback', { 'fontSize' : 0 });
+        });
+    }
+})
+const screenZoom = 1;
+//制作屏幕缩放导致错乱的，不过还有问题，暂时屏蔽5个文件	20230625
+// const screenZoom = 100 / Number(detectZoom());
+// document.body.style.zoom = screenZoom;
+// function detectZoom(){	//获取屏幕放大比例
+// 	//是否手机端判断
+// 	var ua = navigator.userAgent;
+// 	var ipad = ua.match(/(iPad).*OS\s([\d_]+)/),
+// 	    isIphone =!ipad && ua.match(/(iPhone\sOS)\s([\d_]+)/),
+// 	    isAndroid = ua.match(/(Android)\s+([\d.]+)/),
+// 	    isMobile = isIphone || isAndroid;
+// 	if(ipad || isMobile){ return 100; }		//如果是ipad或手机真机/模拟机，不用调整
+// 	let ratio = 0;
+// 	if (window.devicePixelRatio !== undefined) {
+// 		ratio = window.devicePixelRatio;
+// 		console.log('ratio::'+ratio);
+// 	}
+// 	if (ratio) {
+// 		ratio = Math.round(ratio * 100);
+// 	}
+// 	return ratio;	//返回电脑系统的放大比例
+// }
+$(window).on('load',function(){
+    if (!(/msie [6|7|8|9]/i.test(navigator.userAgent))){
+        setTimeout(function(){
+            new WOW().init()
+        },150)
+    };
+});
+var DIY_WEBSITE_ID = "66541";
+var DIY_JS_SERVER = "s143js.nicebox.cn";
+var DIY_SCHEME = "https:";
+</script>
+            <script src="https://s143js.nicebox.cn/exusers/login_html_v9_diy.php?idweb=66541&langid=0&UPermission=all"></script>
+    </head>
+<body>
+<!--这里专门处理百度分享文章显示缩略图不正确的问题，因为百度分享读取的是第一张图片，缩略图尽量在400x400,但是至好宽高都要大于400，前提是具有微信分享功能，图片地址通过jq传入 $(".baiduImg").attr("src",shareImg);-->
+<div class="baiduImgSet" style="display: none;">
+    <img class="baiduImg" src="">
+</div>
+<script type="text/javascript">var Default_isFT = 0;</script>
+            <div id="comm_layout_header" class="layout   scrollView" >
+                                <div class="view_contents ">
+                                <div id="dh_style_46_1750925581146" class="view style_46 dh  lockHeightView " >
+                                <div names="dh" class="view_contents " >
+<div id="menu" class="menu menuStyle_46">
+	<div class="menuLayout">
+		<ul class="miniMenu columnSet showmobile">
+			<li class="leftBox">
+				<div class="nav"></div>
+				<div class="sidebar icoMenuSet"><i class="fa fa-navicon" onclick="setDhListen('style_01',this)"></i></div>
+				<div class="menuScroll">
+					<ul class="menuUlCopy">
+								<li class="rflex" pageid="1098805" showmobile=""><a class="mainMenuSet" href="index.html">
+								首页</a>
+								</li>
+								<li id="hot" class="rflex" pageid="1098807" showmobile=""><a class="mainMenuSet" href="service.html">
+								服务与方案</a>
+								</li>
+								<li class="rflex" pageid="1098809" showmobile=""><a class="mainMenuSet" href="product.html">
+								产品与技术</a>
+								</li>
+								<li class="rflex" pageid="1098811" showmobile=""><a class="mainMenuSet" href="news.html">
+								公司动态</a>
+								</li>
+								<li class="rflex" pageid="1098813" showmobile=""><a class="mainMenuSet" href="culture.html">
+								企业文化</a>
+								</li>
+								<li class="rflex" pageid="1098815" showmobile=""><a class="mainMenuSet" href="about.html">
+								关于我们</a>
+								</li>
+					</ul>
+				</div>
+			</li>
+		</ul>
+		<div class="menuUl_box columnSet dhAreaSet showpc">
+			<ul class="menuUl dflex maxWidth ">
+						<li class="rflex isLi" pageid="1098805" showpc="">
+							<a class="mainMenuSet" href="index.html">
+								首页
+							</a>
+						</li>
+						<li id="hot" class="rflex isLi" pageid="1098807" showpc="">
+							<a class="mainMenuSet" href="service.html">
+								服务与方案
+							</a>
+						</li>
+						<li class="rflex isLi" pageid="1098809" showpc="">
+							<a class="mainMenuSet" href="product.html">
+								产品与技术
+							</a>
+						</li>
+						<li class="rflex isLi" pageid="1098811" showpc="">
+							<a class="mainMenuSet" href="news.html">
+								公司动态
+							</a>
+						</li>
+						<li class="rflex isLi" pageid="1098813" showpc="">
+							<a class="mainMenuSet" href="culture.html">
+								企业文化
+							</a>
+						</li>
+						<li class="rflex isLi" pageid="1098815" showpc="">
+							<a class="mainMenuSet" href="about.html">
+								关于我们
+							</a>
+						</li>
+			</ul>
+			<!-- 二级内容 -->
+				<ul class="menuUl dflex menuUlSubView twoBgSet">
+						<li class="rflex isLi" pageid="1098805" showpc="">
+						</li>
+						<li class="rflex isLi" pageid="1098807" showpc="">
+						</li>
+						<li class="rflex isLi" pageid="1098809" showpc="">
+						</li>
+						<li class="rflex isLi" pageid="1098811" showpc="">
+						</li>
+						<li class="rflex isLi" pageid="1098813" showpc="">
+						</li>
+						<li class="rflex isLi" pageid="1098815" showpc="">
+						</li>
+				</ul>
+		</div>
+	</div>
+</div>
+<!-- 导航栏目有下级时禁止跳转 -->
+<!-- 二级菜单宽度自适应 -->
+<!-- 二级菜单图片宽度 -->
+                </div>
+            </div>
+                        <div id="image_logo_1750925937949" class="view logo image  " >
+                                <div names="image" class="view_contents " >
+                    <div class="logoStyle modSet">
+<a href='index.html' target="_self"><img class="imgSet" src="img/logo.png?1773816941" title="佛山市益帕瓦物联科技有限公司" alt="佛山市益帕瓦物联科技有限公司" style="width:100%; height:auto"/></a>
+</div>                </div>
+            </div>
+                        <div id="text_style_15_1750926478882" class="view style_15 text  lockHeightView " >
+                                <div names="text" class="view_contents " >
+                    <div class="textList_default15">
+		<div class="list mia_li_cont">
+			<div class="mia_li_item modSet">
+				<div class="title_view">
+					<div class="title titleSet" >
+						<span></span>
+						<span>让电力更智慧，让负荷更智能</span>
+					</div>
+				</div>
+			</div>
+		</div>
+</div>
+                </div>
+            </div>
+                            </div>
+            </div>
+                        <div id="layout_diy_1750924919" class="layout   scrollView" >
+                                <div class="view_contents ">
+                                <div id="banner_style_17_1750926781880" class="view style_17 banner  " >
+                                <div names="banner" class="view_contents " >
+                    <div id="banner" class="bannerStyle_17">
+	<div class="main_visual">
+		<div class="main_image">
+			<ul class="main_ul">
+					<li>
+                            <div class="img_box picSet"><img class="" src="https://cdn.yun.sooce.cn/6/60303/webp/1750925981059c3ca97dc5d3c4128f7c26401cfd0caad.webp?version=1750926011" alt="面向电网公司、运营主体提供智能调度运行优化决策咨询服务、大数据智能电力系统分析高性能计算服务"></div>
+                                <div class="info twoBgSet">
+                                		<div class="title titProSet">智能电网咨询服务、高性能计算服务</div>
+                                		<div class="subTitle defProSet">面向电网公司、运营主体提供智能调度运行优化决策咨询服务、大数据智能电力系统分析高性能计算服务</div>
+                                </div>
+					</li>
+			</ul>
+		</div>
+		<div class="flicking_con">
+				<div class="dot crIco" href="javascript:;">
+                    <i class="schedule altTipOn"></i>
+                </div>
+		</div>
+		<div class="arrow arrowLeft arrowSet"><i class='fa fa-angle-left awesome-font'></i><span class="text-font"><</span></div>
+		<div class="arrow arrowRight arrowSet"><i class='fa fa-angle-right awesome-font'></i><span class="text-font">></span></div>
+	</div>
+</div>
+                    </div>
+            </div>
+                            </div>
+            </div>
+                        <div id="layout_1750926761114" class="layout   scrollView" >
+                                <div class="view_contents ">
+                                <div id="titleText_style_08_1751010317684" class="view style_08 titleText  lockHeightView " >
+                                <div names="titleText" class="view_contents " >
+<script class="editor-view-extend">
+    </script><div class="titleStyle_8 modSet">
+	<div class="view_cont">
+		<div class="title_top_view">
+			<div class="line lineleft lineshapeSet"></div>
+			<div class="circle circleleft circledotSet"></div>
+			<div class="titletop bigtitsSet">服务内容</div>
+			<div class="circle circleright circledotSet"></div>
+			<div class="line lineright lineshapeSet"></div>
+		</div>
+	</div>
+</div>
+<!-- // 链接数据处理  开始↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓ -->
+<!-- // 链接数据处理  结束↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑ -->                </div>
+            </div>
+                        <div id="titleText_style_08_1751013617272" class="view style_08 titleText  lockHeightView " >
+                                <div names="titleText" class="view_contents " >
+<script class="editor-view-extend">
+    </script><div class="titleStyle_8 modSet">
+	<div class="view_cont">
+		<div class="title_top_view">
+			<div class="line lineleft lineshapeSet"></div>
+			<div class="circle circleleft circledotSet"></div>
+			<div class="titletop bigtitsSet">技术优势</div>
+			<div class="circle circleright circledotSet"></div>
+			<div class="line lineright lineshapeSet"></div>
+		</div>
+	</div>
+</div>
+<!-- // 链接数据处理  开始↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓ -->
+<!-- // 链接数据处理  结束↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑ -->                </div>
+            </div>
+                        <div id="image_style_12_1_1751013772795" class="view style_12_1 image  lockHeightView " >
+                                <div names="image" class="view_contents " >
+                    <!-- pageSet pagecurSet -->
+<div class="imgStyle_12_1">
+	<ul class="imgTextUl">
+			<li class="imgTextLi mia_li_cont">
+				<div class="mia_li_item modSet">
+					<a style="cursor:default;display: block;">
+						<div class="imgTBoxArea">
+							<div class="image-box">
+								<div class="imgTBox">
+									<img class="picSet picFit" src="https://cdn.yun.sooce.cn/6/60303/webp/8f1fb0d754ab427bc3acccf37924e936.webp" alt="专注分布式理论研究与实践，先进经验">
+								</div>
+							</div>
+							<div class="ratio" style="margin-top:100%;"></div>
+						</div>
+						<div class="cont">
+							<div class="name titProSet">理论支撑扎实</div>
+							<div class="hide_view">
+									<div class="subName defProSet">专注分布式理论研究与实践，先进经验</div>
+							</div>
+						</div>
+					</a>
+				</div>
+			</li>
+			<li class="imgTextLi mia_li_cont">
+				<div class="mia_li_item modSet">
+					<a style="cursor:default;display: block;">
+						<div class="imgTBoxArea">
+							<div class="image-box">
+								<div class="imgTBox">
+									<img class="picSet picFit" src="https://cdn.yun.sooce.cn/6/60303/webp/326c68bdf75463ec2dae9a6ee443af25.webp" alt="理论及应用领先的电网运行优化算法引擎，完善的智能高效优化技术">
+								</div>
+							</div>
+							<div class="ratio" style="margin-top:100%;"></div>
+						</div>
+						<div class="cont">
+							<div class="name titProSet">体系化电网运行调控技术</div>
+							<div class="hide_view">
+									<div class="subName defProSet">理论及应用领先的电网运行优化算法引擎，完善的智能高效优化技术</div>
+							</div>
+						</div>
+					</a>
+				</div>
+			</li>
+			<li class="imgTextLi mia_li_cont">
+				<div class="mia_li_item modSet">
+					<a style="cursor:default;display: block;">
+						<div class="imgTBoxArea">
+							<div class="image-box">
+								<div class="imgTBox">
+									<img class="picSet picFit" src="https://cdn.yun.sooce.cn/6/60303/webp/2dc5db4909e81802116c12aca3cd3736.webp" alt="标准建模语言，全面考虑各类系统、机组与网络约束，保障优化结果可行性">
+								</div>
+							</div>
+							<div class="ratio" style="margin-top:100%;"></div>
+						</div>
+						<div class="cont">
+							<div class="name titProSet">标准化建模优化流程</div>
+							<div class="hide_view">
+									<div class="subName defProSet">标准建模语言，全面考虑各类系统、机组与网络约束，保障优化结果可行性</div>
+							</div>
+						</div>
+					</a>
+				</div>
+			</li>
+			<li class="imgTextLi mia_li_cont">
+				<div class="mia_li_item modSet">
+					<a style="cursor:default;display: block;">
+						<div class="imgTBoxArea">
+							<div class="image-box">
+								<div class="imgTBox">
+									<img class="picSet picFit" src="https://cdn.yun.sooce.cn/6/60303/webp/174dd6d47700e299f8d11d8181169403.webp" alt="完善的数据合理性校验机制，约束条件冲突分析与错误提示机制">
+								</div>
+							</div>
+							<div class="ratio" style="margin-top:100%;"></div>
+						</div>
+						<div class="cont">
+							<div class="name titProSet">完善的校验机制</div>
+							<div class="hide_view">
+									<div class="subName defProSet">完善的数据合理性校验机制，约束条件冲突分析与错误提示机制</div>
+							</div>
+						</div>
+					</a>
+				</div>
+			</li>
+			<li class="imgTextLi mia_li_cont">
+				<div class="mia_li_item modSet">
+					<a style="cursor:default;display: block;">
+						<div class="imgTBoxArea">
+							<div class="image-box">
+								<div class="imgTBox">
+									<img class="picSet picFit" src="https://cdn.yun.sooce.cn/6/60303/webp/89e196f6e43a104bac351ab9be8a68ce.webp" alt="通过参数控制灵活添加约束条件，设置约束优先级，支持断点续算、模型调优等功能">
+								</div>
+							</div>
+							<div class="ratio" style="margin-top:100%;"></div>
+						</div>
+						<div class="cont">
+							<div class="name titProSet">灵活的约束与参数控制</div>
+							<div class="hide_view">
+									<div class="subName defProSet">通过参数控制灵活添加约束条件，设置约束优先级，支持断点续算、模型调优等功能</div>
+							</div>
+						</div>
+					</a>
+				</div>
+			</li>
+			<li class="imgTextLi mia_li_cont">
+				<div class="mia_li_item modSet">
+					<a style="cursor:default;display: block;">
+						<div class="imgTBoxArea">
+							<div class="image-box">
+								<div class="imgTBox">
+									<img class="picSet picFit" src="https://cdn.yun.sooce.cn/6/60303/webp/7f1b118604a404abacac5e29f532b9f6.webp" alt="数十种适应不同业务场景的算法模型库，基于深度学习的预测偏差自校正机制">
+								</div>
+							</div>
+							<div class="ratio" style="margin-top:100%;"></div>
+						</div>
+						<div class="cont">
+							<div class="name titProSet">丰富的算法积累</div>
+							<div class="hide_view">
+									<div class="subName defProSet">数十种适应不同业务场景的算法模型库，基于深度学习的预测偏差自校正机制</div>
+							</div>
+						</div>
+					</a>
+				</div>
+			</li>
+		<li></li>
+		<li></li>
+		<li></li>
+		<li></li>
+		<li></li>
+		<li></li>
+		<li></li>
+		<li></li>
+		<li></li>
+		<li></li>
+	</ul>
+</div>
+                </div>
+            </div>
+                        <div id="image_style_12_1_1751422845493" class="view style_12_1 image  lockHeightView " >
+                                <div names="image" class="view_contents " >
+                    <!-- pageSet pagecurSet -->
+<div class="imgStyle_12_1">
+	<ul class="imgTextUl">
+			<li class="imgTextLi mia_li_cont">
+				<div class="mia_li_item modSet">
+					<a style="cursor:default;display: block;">
+						<div class="imgTBoxArea">
+							<div class="image-box">
+								<div class="imgTBox">
+									<img class="picSet picFit" src="https://cdn.yun.sooce.cn/6/60303/webp/c005087fd947e3bc5eb1bd024836e1f7.webp" alt="提出合乎理论、符合实际、高效具体、系统全面的解决方案">
+								</div>
+							</div>
+							<div class="ratio" style="margin-top:100%;"></div>
+						</div>
+						<div class="cont">
+							<div class="name titProSet">系统高效解决方案</div>
+							<div class="hide_view">
+									<div class="subName defProSet">提出合乎理论、符合实际、高效具体、系统全面的解决方案</div>
+							</div>
+						</div>
+					</a>
+				</div>
+			</li>
+			<li class="imgTextLi mia_li_cont">
+				<div class="mia_li_item modSet">
+					<a style="cursor:default;display: block;">
+						<div class="imgTBoxArea">
+							<div class="image-box">
+								<div class="imgTBox">
+									<img class="picSet picFit" src="https://cdn.yun.sooce.cn/6/60303/webp/c947caf79b6b874b31087e032491e914.webp" alt="提供对应曲线的分析方法和策略建议，协助制定系统性改进优化建议">
+								</div>
+							</div>
+							<div class="ratio" style="margin-top:100%;"></div>
+						</div>
+						<div class="cont">
+							<div class="name titProSet">专业策略建议</div>
+							<div class="hide_view">
+									<div class="subName defProSet">提供对应曲线的分析方法和策略建议，协助制定系统性改进优化建议</div>
+							</div>
+						</div>
+					</a>
+				</div>
+			</li>
+			<li class="imgTextLi mia_li_cont">
+				<div class="mia_li_item modSet">
+					<a style="cursor:default;display: block;">
+						<div class="imgTBoxArea">
+							<div class="image-box">
+								<div class="imgTBox">
+									<img class="picSet picFit" src="https://cdn.yun.sooce.cn/6/60303/webp/7a73eece7cd6aa1fcb80d9c0839b915c.webp" alt="关键指标测算，提供高性能优化算法，计算输出相关指标">
+								</div>
+							</div>
+							<div class="ratio" style="margin-top:100%;"></div>
+						</div>
+						<div class="cont">
+							<div class="name titProSet">高性能计算</div>
+							<div class="hide_view">
+									<div class="subName defProSet">关键指标测算，提供高性能优化算法，计算输出相关指标</div>
+							</div>
+						</div>
+					</a>
+				</div>
+			</li>
+			<li class="imgTextLi mia_li_cont">
+				<div class="mia_li_item modSet">
+					<a style="cursor:default;display: block;">
+						<div class="imgTBoxArea">
+							<div class="image-box">
+								<div class="imgTBox">
+									<img class="picSet picFit" src="https://cdn.yun.sooce.cn/6/60303/webp/7295a5223e4b935c9ee44e92d95ff437.webp" alt="电力市场咨询、电网规划咨询、电力系统分析咨询等">
+								</div>
+							</div>
+							<div class="ratio" style="margin-top:100%;"></div>
+						</div>
+						<div class="cont">
+							<div class="name titProSet">行业创新咨询</div>
+							<div class="hide_view">
+									<div class="subName defProSet">电力市场咨询、电网规划咨询、电力系统分析咨询等</div>
+							</div>
+						</div>
+					</a>
+				</div>
+			</li>
+			<li class="imgTextLi mia_li_cont">
+				<div class="mia_li_item modSet">
+					<a style="cursor:default;display: block;">
+						<div class="imgTBoxArea">
+							<div class="image-box">
+								<div class="imgTBox">
+									<img class="picSet picFit" src="https://cdn.yun.sooce.cn/6/60303/webp/f38a3dbc2e5ca5757a2804dc6847aa31.webp" alt="设计电力系统分析、电网智能调度和能源互联网等领域的关键技术前瞻性研究">
+								</div>
+							</div>
+							<div class="ratio" style="margin-top:100%;"></div>
+						</div>
+						<div class="cont">
+							<div class="name titProSet">关键技术研究</div>
+							<div class="hide_view">
+									<div class="subName defProSet">设计电力系统分析、电网智能调度和能源互联网等领域的关键技术前瞻性研究</div>
+							</div>
+						</div>
+					</a>
+				</div>
+			</li>
+			<li class="imgTextLi mia_li_cont">
+				<div class="mia_li_item modSet">
+					<a style="cursor:default;display: block;">
+						<div class="imgTBoxArea">
+							<div class="image-box">
+								<div class="imgTBox">
+									<img class="picSet picFit" src="https://cdn.yun.sooce.cn/6/60303/webp/59291a8feeaf0af8b4f880b977d16525.webp" alt="智能化数据分析与调整方案反馈优化">
+								</div>
+							</div>
+							<div class="ratio" style="margin-top:100%;"></div>
+						</div>
+						<div class="cont">
+							<div class="name titProSet">智能化数据分析</div>
+							<div class="hide_view">
+									<div class="subName defProSet">智能化数据分析与调整方案反馈优化</div>
+							</div>
+						</div>
+					</a>
+				</div>
+			</li>
+			<li class="imgTextLi mia_li_cont">
+				<div class="mia_li_item modSet">
+					<a style="cursor:default;display: block;">
+						<div class="imgTBoxArea">
+							<div class="image-box">
+								<div class="imgTBox">
+									<img class="picSet picFit" src="https://cdn.yun.sooce.cn/6/60303/webp/d040b9f8b450e8db8c1746f8b0ca24f4.webp" alt="可视化系统建模与结果分析">
+								</div>
+							</div>
+							<div class="ratio" style="margin-top:100%;"></div>
+						</div>
+						<div class="cont">
+							<div class="name titProSet">可视化系统建模</div>
+							<div class="hide_view">
+									<div class="subName defProSet">可视化系统建模与结果分析</div>
+							</div>
+						</div>
+					</a>
+				</div>
+			</li>
+			<li class="imgTextLi mia_li_cont">
+				<div class="mia_li_item modSet">
+					<a style="cursor:default;display: block;">
+						<div class="imgTBoxArea">
+							<div class="image-box">
+								<div class="imgTBox">
+									<img class="picSet picFit" src="https://cdn.yun.sooce.cn/6/60303/webp/7ee62e7d2f0f2ad564a869e9b42386d9.webp" alt="全面完整的算法库，丰富的的技术分析模型">
+								</div>
+							</div>
+							<div class="ratio" style="margin-top:100%;"></div>
+						</div>
+						<div class="cont">
+							<div class="name titProSet">智能化预测算法</div>
+							<div class="hide_view">
+									<div class="subName defProSet">全面完整的算法库，丰富的的技术分析模型</div>
+							</div>
+						</div>
+					</a>
+				</div>
+			</li>
+		<li></li>
+		<li></li>
+		<li></li>
+		<li></li>
+		<li></li>
+		<li></li>
+		<li></li>
+		<li></li>
+		<li></li>
+		<li></li>
+	</ul>
+</div>
+                </div>
+            </div>
+                            </div>
+            </div>
+                        <div id="comm_layout_footer" class="layout   scrollView" >
+                                <div class="view_contents ">
+                                <div id="copyright_style_01_1750927104200" class="view style_01 copyright  lockHeightView " >
+                                <div names="copyright" class="view_contents " >
+                    <div class="copyrightStyle01 modSet">
+        <div class="copyright_view line_view">Copyright © 2019-2024 佛山市益帕瓦物联科技有限公司 All rights reserved.</div>
+        <div class="icp_view line_view"><a target="_blank" href="https://beian.miit.gov.cn/">粤ICP备2024281946号-1</a></div>
+        <div class="lw_view line_view"><a target="_blank" href="https://www.beian.gov.cn/portal/registerSystemInfo?recordcode=44060602002745"><img class="lw_icon" src="img/copyright/style_01/beiab.png" alt="粤公网安备44060602002745号">粤公网安备44060602002745号</a></div>
+</div>
+                </div>
+            </div>
+                        <div id="image_style_01_1750930325885" class="view style_01 image  " >
+                                <div names="image" class="view_contents " >
+<script class="editor-view-extend">
+    </script><div class="imgStyle CompatibleImg picSet" >
+			<img class="link-type- " src="https://cdn.yun.sooce.cn/6/60303/webp/17509259820490f319747daa3c6babc677667d579f004.webp?version=1750926011" title="" alt="描述" id="imageModeShow" style="border-radius: inherit;"/>
+</div>
+<!-- 新加的js  -->
+                </div>
+            </div>
+                        <div id="image_logo_1750927964854" class="view logo image  " >
+                                <div names="image" class="view_contents " >
+                    <div class="logoStyle modSet">
+<a href='index.html' target="_self"><img class="imgSet" src="img/logo.png?1773816941" title="佛山市益帕瓦物联科技有限公司" alt="佛山市益帕瓦物联科技有限公司" style="width:100%; height:auto"/></a>
+</div>                </div>
+            </div>
+                        <div id="text_style_15_1750927951730" class="view style_15 text  lockHeightView " >
+                                <div names="text" class="view_contents " >
+                    <div class="textList_default15">
+		<div class="list mia_li_cont">
+			<div class="mia_li_item modSet">
+				<div class="title_view">
+					<div class="title titleSet" >
+						<span></span>
+						<span>让电力更智慧，让负荷更智能</span>
+					</div>
+				</div>
+			</div>
+		</div>
+</div>
+                </div>
+            </div>
+                        <div id="footerCustom_footerDh_01_1765785022725" class="view footerDh_01 footerCustom  lockHeightView " >
+                                <div names="footerCustom" class="view_contents " >
+<div id="menu" class="menu footerCustom_01">
+	<div class="menuLayout">
+		<div class="menuUl_box columnSet dhAreaSet showpc">
+			<ul class="menuUl dflex maxWidth ">
+						<li class="rflex isLi" pageid="1098805" showpc="">
+							<a class="mainMenuSet Nosub" href="index.html">
+								首页
+							</a>
+						</li>
+						<li class="rflex isLi" pageid="1098807" showpc="">
+							<a class="mainMenuSet Nosub" href="service.html">
+								服务与方案
+							</a>
+						</li>
+						<li class="rflex isLi" pageid="1098809" showpc="">
+							<a class="mainMenuSet Onsub" href="product.html">
+								产品与技术
+							</a>
+								<ul class="menuUl02 subminSet">
+								</ul>
+						</li>
+						<li class="rflex isLi" pageid="1098811" showpc="">
+							<a class="mainMenuSet Nosub" href="news.html">
+								公司动态
+							</a>
+						</li>
+						<li class="rflex isLi" pageid="1098813" showpc="">
+							<a class="mainMenuSet Nosub" href="culture.html">
+								企业文化
+							</a>
+						</li>
+						<li class="rflex isLi" pageid="1098815" showpc="">
+							<a class="mainMenuSet Nosub" href="about.html">
+								关于我们
+							</a>
+						</li>
+			</ul>
+		</div>
+		<div class="menuUl_box columnSet dhAreaSet showmobile">
+			<ul class="menuUl dflex maxWidth ">
+							<li class="rflex isLi" pageid="1098805" showpc="">
+							<a class="mainMenuSet Nosub" href="index.html">
+								首页
+							</a>
+						</li>
+							<li id="hot" class="rflex isLi" pageid="1098807" showpc="">
+							<a class="mainMenuSet Nosub" href="service.html">
+								服务与方案
+							</a>
+						</li>
+							<li class="rflex isLi" pageid="1098809" showpc="">
+							<a class="mainMenuSet Onsub" href="product.html">
+								产品与技术
+							</a>
+								<ul class="menuUl02 subminSet">
+								</ul>
+						</li>
+							<li class="rflex isLi" pageid="1098811" showpc="">
+							<a class="mainMenuSet Nosub" href="news.html">
+								公司动态
+							</a>
+						</li>
+							<li class="rflex isLi" pageid="1098813" showpc="">
+							<a class="mainMenuSet Nosub" href="culture.html">
+								企业文化
+							</a>
+						</li>
+							<li class="rflex isLi" pageid="1098815" showpc="">
+							<a class="mainMenuSet Nosub" href="about.html">
+								关于我们
+							</a>
+						</li>
+			</ul>
+		</div>
+	</div>
+</div>
+<!-- 导航栏目有下级时禁止跳转 -->
+<!-- 每行显示列数 -->
+<!--  -->
+                </div>
+            </div>
+                            </div>
+            </div>
+            <div class="bottomMenu 123"><ul><li style="height:100%;">
+							<a href="index.html" class="" style=""><div class="menuItem iconTxt"><div class="menuIco"><img src="https://cdn.yun.sooce.cn/6/60303/webp/30c6ea9e9b976230f0426309369af491.webp" alt="首页"></div><input type="hidden" class="menuIcon" value="" ><input type="hidden" class="menuColor" value="#037df2" ><div class="menuName" style="color:#666666;">首页</div></div></a>
+							<div class="submenuItems" style="display:none;"></div>
+						</li><li style="height:100%;">
+							<a href="service.html" class="" style=""><div class="menuItem iconTxt"><div class="menuIco"><img src="https://cdn.yun.sooce.cn/6/60303/webp/063b7dbb8520cb8e517818442865452f.webp" alt="服务"></div><input type="hidden" class="menuIcon" value="" ><input type="hidden" class="menuColor" value="#037df2" ><div class="menuName" style="color:#037df2;">服务</div></div></a>
+							<div class="submenuItems" style="display:none;"></div>
+						</li><li style="height:100%;">
+							<a href="product.html" class="" style=""><div class="menuItem iconTxt"><div class="menuIco"><img src="https://cdn.yun.sooce.cn/6/60303/webp/d040b9f8b450e8db8c1746f8b0ca24f4.webp" alt="产品"></div><input type="hidden" class="menuIcon" value="" ><input type="hidden" class="menuColor" value="#037df2" ><div class="menuName" style="color:#666666;">产品</div></div></a>
+							<div class="submenuItems" style="display:none;"></div>
+						</li><li style="height:100%;">
+							<a href="news.html" class="" style=""><div class="menuItem iconTxt"><div class="menuIco"><img src="https://cdn.yun.sooce.cn/6/60303/webp/a83a7f8fd19bc440e8383dbf78d807a9.webp" alt="动态"></div><input type="hidden" class="menuIcon" value="" ><input type="hidden" class="menuColor" value="#037df2" ><div class="menuName" style="color:#666666;">动态</div></div></a>
+							<div class="submenuItems" style="display:none;"></div>
+						</li><li style="height:100%;">
+							<a href="about.html" class="" style=""><div class="menuItem iconTxt"><div class="menuIco"><img src="https://cdn.yun.sooce.cn/6/60303/webp/dde82ec7e391f84e4d30281a7a26220f.webp" alt="关于"></div><input type="hidden" class="menuIcon" value="" ><input type="hidden" class="menuColor" value="#037df2" ><div class="menuName" style="color:#666666;">关于</div></div></a>
+							<div class="submenuItems" style="display:none;"></div>
+						</li></ul></div>
+<script>
+$(function(){
+    // 当设备为iphoneX，ios13以上时，会出现黑色横条
+    let isIPhoneMobile = /iphone/gi.test(window.navigator.userAgent) && window.devicePixelRatio;
+    let isIPhoneX_XS = isIPhoneMobile && window.devicePixelRatio === 3 && window.screen.width === 375 && window.screen.height === 812;
+    let isIPhoneXSMax = isIPhoneMobile && window.devicePixelRatio === 3 && window.screen.width === 414 && window.screen.height === 896;
+    let isIPhoneXR = isIPhoneMobile && window.devicePixelRatio === 2 && window.screen.width === 414 && window.screen.height === 896;
+    let ver = (navigator.appVersion).match(/OS (\d+)_(\d+)_?(\d+)?/);
+    let type = ver?parseInt(ver[1],10):0;
+    if(isIPhoneX_XS || isIPhoneXSMax || isIPhoneXR || type>=13){
+        $("body").css("cssText", $("body").attr("style") + ";padding-bottom:65px!important;");
+        $(".bottomMenu ul").css("cssText", $(".bottomMenu ul").attr("style") + ";height:65px!important;padding-bottom:15px!important;");
+    }else if($("body").width()<640){
+        $("body").css("cssText", $("body").attr("style") + ";padding-bottom:50px!important;");
+    }
+    $(".showSubMenu").click(function(){
+        $(this).next().toggle();
+		$(this).parent("li").siblings("li").children(".showSubMenu").next().css("display","none");
+    });
+    var bottomLen = $(".bottomMenu > ul > li > a").length;
+    var url = window.location.pathname;
+    var loc = url.substring(url.lastIndexOf("/")+1, url.length);
+    for(var i=0;i<bottomLen;i++){
+        var curObj = $(".bottomMenu ul li a").eq(i);
+        if(loc == curObj.attr("href")){
+            var img = curObj.children(".menuItem").children(".menuIco").children("img").attr("src");
+            var menuIcon = curObj.children(".menuItem").children(".menuIcon").val();
+            var menuColor = curObj.children(".menuItem").children(".menuColor").val();
+            var menuName = curObj.children(".menuItem").children(".menuName").html();
+            if(menuIcon != ""){
+                curObj.children(".menuItem").children(".menuIco").children("img").attr("src",menuIcon);
+            }
+            if(menuColor != ""){
+                curObj.children(".menuItem").children(".menuName").css("color",menuColor);
+            }
+        }
+    }
+});
+$(window).resize(function(){
+    if($("body").width()>=640){
+        $("body").css("padding-bottom","0px");
+    }
+});
+</script>
+<script>
+        $(function() {
+           var lang = 0;
+           if (typeof(Default_isFT) !== 'undefined'){
+              if(lang == '0'){
+				lang = Default_isFT;
+				if(typeof(BodyIsFt) == 'undefined' || BodyIsFt == null){
+				    BodyIsFt = 0;
+                }
+				if(BodyIsFt == '0'){
+					lang = BodyIsFt;
+				}else if(BodyIsFt == '1'){
+					lang = BodyIsFt;
+				}
+			}
+			$('.bottomMenu a').each(function() {
+			  var hrefstr = $(this).attr('href');
+			  var laststr=hrefstr.substring(hrefstr.length-7);
+			  if (laststr == 'langid=') {
+			        hrefstr = hrefstr + lang;
+			    $(this).attr('href',hrefstr)
+			  }
+			})
+           }
+        });
+        </script>
+<script type="text/javascript" src="js/01098807_model.js?1773816941" charset="utf-8"></script>
+<script>
+	$(function(){
+		sendBatch(batchArr);
+	});
+</script>
+<script type="text/javascript" src="js/comm_user.js?1773816941" charset="utf-8"></script>
+<script type="text/javascript" src="https://s143js.nicebox.cn/webapp/UserPanel/share/js.js?2" charset="utf-8"></script>
+    <script type="text/javascript" src="js/comm/transform.js?201603091"></script>
+</body>
+<script>
+            if (window.location.href.indexOf('turnModel') != -1) {
+            let resStr = window.location.href.split('turnModel=')[1];
+            let modelId = resStr.split('&')[0];
+            scrollToElement(modelId);
+        }
+        function scrollToElement(modelId,type) {
+        type = type || 'scrollIntoView'; // 默认使用 scrollIntoView
+        var element = document.getElementById(modelId);
+        var elementPos = element.getBoundingClientRect().top + window.scrollY - document.documentElement.clientTop;
+        var startY = window.scrollY || document.documentElement.scrollTop;
+        // 检查浏览器是否支持 smooth 滚动
+        var supportsSmoothScroll = 'scrollBehavior' in document.documentElement.style && document.documentElement.style.scrollBehavior !== 'auto';
+        if (supportsSmoothScroll && type== 'scrollIntoView' && !is360Browser() && false) {
+            // 使用 scrollIntoView 进行平滑滚动  (360浏览器不支持)
+            // ↓↓↓↓↓↓↓↓↓  临时屏蔽  因为scrollIntoView貌似在某些电脑系统下判断进入了，但是滚动的位置不对，所以暂时屏蔽 20250822 ↓↓↓↓↓↓↓↓↓
+            // element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            // setTimeout(() => {
+            //     let trueY = window.scrollY || document.documentElement.scrollTop;
+            //     if(startY == trueY){
+            //         scrollToElement(modelId,'animate'); // 如果没有滚动成功，使用动画函数进行滚动
+            //     }else{
+            //         element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            //     }
+            // }, 100);
+            // ↑↑↑↑↑↑↑↑↑  临时屏蔽  因为scrollIntoView貌似在某些电脑系统下判断进入了，但是滚动的位置不对，所以暂时屏蔽 20250822 ↑↑↑↑↑↑↑↑
+        } else {
+            // 使用动画函数进行基本滚动
+            function easeInOutQuad(t) { return t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t; }
+            function scroll() {
+                var currentTime = new Date().getTime();
+                var timeElapsed = currentTime - startTime;
+                var run = easeInOutQuad(timeElapsed / duration);
+                window.scrollTo(0, startY + (elementPos - startY) * run);
+                if (timeElapsed < duration) requestAnimationFrame(scroll);
+            }
+            var startTime = new Date().getTime();
+            var duration = 600; // 动画持续时间（毫秒）
+            requestAnimationFrame(scroll);
+        }
+    }
+    function is360Browser() {
+        const userAgent = navigator.userAgent.toLowerCase();
+        return userAgent.includes('360se') || userAgent.includes('360ee');
+    }
+</script>
+<script type="text/javascript" src="js/comm/mouseInteractive.js?250609a"></script>
+</html>
