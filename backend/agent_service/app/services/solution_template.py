@@ -34,12 +34,30 @@ def _extract_section_titles(template_text: str) -> list[str]:
     return titles
 
 
+def _extract_template_block(template_text: str, heading: str) -> str:
+    marker = f"## {heading}"
+    start = template_text.find(marker)
+    if start == -1:
+        return ""
+    remaining = template_text[start:].splitlines()
+    collected: list[str] = []
+    for idx, line in enumerate(remaining):
+        if idx > 0 and line.startswith("## "):
+            break
+        collected.append(line)
+    return "\n".join(collected).strip()
+
+
 @lru_cache(maxsize=1)
 def get_solution_template() -> dict[str, object]:
     enabled = settings.solution_template_enabled
     template_text = _read_text(settings.solution_template_path)
     reference_text = _read_text(settings.solution_template_source_path)
     section_titles = _extract_section_titles(template_text) or DEFAULT_SECTION_TITLES
+    section_blocks = {
+        title: _extract_template_block(template_text, title)
+        for title in section_titles
+    }
 
     return {
         "enabled": enabled,
@@ -48,6 +66,7 @@ def get_solution_template() -> dict[str, object]:
         "template_text": template_text,
         "reference_text": reference_text,
         "section_titles": section_titles,
+        "section_blocks": section_blocks,
         "template_excerpt": template_text[:5000],
         "reference_excerpt": reference_text[:3500],
     }

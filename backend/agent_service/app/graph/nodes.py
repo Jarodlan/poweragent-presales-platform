@@ -38,6 +38,22 @@ def _chat_json_or_text(
     return response.get("content", "").strip()
 
 
+def _template_sections() -> list[str]:
+    sections = solution_template.get("section_titles", PROMPTS["generate_outline"]["sections"])
+    return [section for section in sections if section not in {"使用原则", "写作约束"}]
+
+
+def _section_requirement(section_title: str) -> str:
+    return PROMPTS["expand_sections"].get("section_requirements", {}).get(section_title, "")
+
+
+def _section_template_block(section_title: str) -> str:
+    blocks = solution_template.get("section_blocks", {})
+    if not isinstance(blocks, dict):
+        return ""
+    return str(blocks.get(section_title, ""))
+
+
 def intent_identify(state: AgentState) -> AgentState:
     user_query = state["query"]
     content = _chat_json_or_text(
@@ -122,11 +138,12 @@ def merge_evidence(state: AgentState) -> AgentState:
 
 def generate_outline(state: AgentState) -> AgentState:
     evidence_excerpt = _truncate(state.get("evidence", {}).get("merged_text", ""), 1800)
-    template_section_titles = solution_template.get("section_titles", PROMPTS["generate_outline"]["sections"])
+    template_section_titles = _template_sections()
     template_excerpt = _truncate(str(solution_template.get("template_excerpt", "")), 2200)
     prompt = (
         f"{PROMPTS['generate_outline']['system']}\n"
         f"参考固定章节：{template_section_titles}\n"
+        f"大纲规则：{PROMPTS['generate_outline']['rules']}\n"
         f"用户需求：{state['query']}\n"
         f"标准化场景：{state.get('normalized_intent', '')}\n"
         f"上下文：{state.get('normalized_context', {})}\n"
@@ -150,10 +167,52 @@ def generate_outline(state: AgentState) -> AgentState:
     return state
 
 
+def _generate_section_content(
+    state: AgentState,
+    *,
+    section_title: str,
+    outline_excerpt: str,
+    evidence_excerpt: str,
+    template_excerpt: str,
+    reference_excerpt: str,
+) -> str:
+    section_block = _truncate(_section_template_block(section_title), 1500)
+    section_requirement = _section_requirement(section_title)
+    previous_sections = _truncate(state.get("generated_sections_context", ""), 1600)
+    content = _chat_json_or_text(
+        [
+            {"role": "system", "content": PROMPTS["expand_sections"]["system"]},
+            {
+                "role": "user",
+                "content": (
+                    f"当前章节：{section_title}\n"
+                    f"章节写作要求：{section_requirement}\n"
+                    f"用户需求：{state['query']}\n"
+                    f"标准化场景：{state.get('normalized_intent', '')}\n"
+                    f"上下文：{state.get('normalized_context', {})}\n"
+                    f"方案大纲：\n{outline_excerpt}\n"
+                    f"检索证据：\n{evidence_excerpt}\n"
+                    f"模板中的本章节要求：\n{section_block}\n"
+                    f"参考方案摘要：\n{reference_excerpt}\n"
+                    f"已完成章节摘要：\n{previous_sections}\n"
+                    f"通用规则：{PROMPTS['expand_sections']['rules']}\n"
+                    "请只输出当前章节的 Markdown 内容，必须以二级标题开头，且写完整。"
+                ),
+            },
+        ],
+        model=settings.qwen_default_model,
+        fallback_model=settings.minimax_default_model,
+        max_tokens=1200 if section_title in {"技术实施方案", "效益评估指标"} else 900,
+    )
+    return content.strip()
+
+
 def expand_sections(state: AgentState) -> AgentState:
     evidence_excerpt = _truncate(state.get("evidence", {}).get("merged_text", ""), 1800)
     outline_excerpt = _truncate(state.get("outline", ""), 1200)
     template_excerpt = _truncate(str(solution_template.get("template_excerpt", "")), 3000)
+    reference_excerpt = _truncate(str(solution_template.get("reference_excerpt", "")), 2200)
+    template_section_titles = _template_sections()
     summary = _chat_json_or_text(
         [
             {"role": "system", "content": "你是电力行业方案摘要生成助手。请输出 4 到 6 句项目化摘要。"},
@@ -166,27 +225,25 @@ def expand_sections(state: AgentState) -> AgentState:
         fallback_model=settings.minimax_fast_model,
         max_tokens=300,
     )
-    final_markdown = _chat_json_or_text(
-        [
-            {"role": "system", "content": PROMPTS["expand_sections"]["system"]},
-            {
-                "role": "user",
-                "content": (
-                    f"用户需求：{state['query']}\n"
-                    f"标准化场景：{state.get('normalized_intent', '')}\n"
-                    f"上下文：{state.get('normalized_context', {})}\n"
-                    f"检索证据：{evidence_excerpt}\n"
-                    f"方案大纲：\n{outline_excerpt}\n"
-                    f"必须遵循的解决方案模板：\n{template_excerpt}\n"
-                    f"规则：{PROMPTS['expand_sections']['rules']}\n"
-                    "请输出完整 Markdown 方案正文。"
-                ),
-            },
-        ],
-        model=settings.qwen_default_model,
-        fallback_model=settings.minimax_default_model,
-        max_tokens=1800,
-    )
+    section_contents: list[str] = []
+    state["generated_sections_context"] = ""
+    for section_title in template_section_titles:
+        section_content = _generate_section_content(
+            state,
+            section_title=section_title,
+            outline_excerpt=outline_excerpt,
+            evidence_excerpt=evidence_excerpt,
+            template_excerpt=template_excerpt,
+            reference_excerpt=reference_excerpt,
+        )
+        if not section_content.startswith("## "):
+            section_content = f"## {section_title}\n\n{section_content}"
+        section_contents.append(section_content)
+        state["generated_sections_context"] += (
+            f"{section_title}: "
+            f"{_truncate(section_content.replace('\\n', ' '), 240)}\n"
+        )
+    final_markdown = "# 智能配电网故障诊断解决方案\n\n" + "\n\n".join(section_contents)
     state["summary"] = summary or f"本方案围绕“{state['query']}”生成。"
     state["final_markdown"] = final_markdown or (
         "# 电力行业解决方案生成 Agent MVP\n\n"
@@ -197,7 +254,7 @@ def expand_sections(state: AgentState) -> AgentState:
 
 
 def review_solution(state: AgentState) -> AgentState:
-    template_section_titles = solution_template.get("section_titles", [])
+    template_section_titles = _template_sections()
     review = _chat_json_or_text(
         [
             {"role": "system", "content": PROMPTS["review_solution"]["system"]},
@@ -215,6 +272,27 @@ def review_solution(state: AgentState) -> AgentState:
         max_tokens=512,
     )
     state["status"] = "reviewing_solution"
+    if review:
+        refined_markdown = _chat_json_or_text(
+            [
+                {"role": "system", "content": PROMPTS["refine_solution"]["system"]},
+                {
+                    "role": "user",
+                    "content": (
+                        f"模板必备章节：{template_section_titles}\n"
+                        f"修订规则：{PROMPTS['refine_solution']['rules']}\n"
+                        f"校核意见：\n{review}\n"
+                        f"当前正文：\n{_truncate(state['final_markdown'], 6500)}\n"
+                        "请补齐缺失内容、修复截断，并输出修订后的完整Markdown正文。"
+                    ),
+                },
+            ],
+            model=settings.qwen_review_model,
+            fallback_model=settings.minimax_default_model,
+            max_tokens=2400,
+        )
+        if refined_markdown.startswith("#"):
+            state["final_markdown"] = refined_markdown
     docs = state.get("documents", [])
     state["evidence_cards"] = [
         {
