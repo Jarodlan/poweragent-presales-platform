@@ -60,6 +60,10 @@
   - Agent Service 骨架
   - 含运行接口、LangGraph 工作流占位、模型适配占位
 
+- `ragflow/`
+  - 项目内独立的 RAGFlow 准备环境
+  - 含 docker compose、环境变量模板、nginx 配置和启动说明
+
 ## 本地启动参考
 
 ### Django 平台层
@@ -84,3 +88,15 @@ pip install -r requirements.txt
 cp .env.example .env
 uvicorn app.main:app --host 0.0.0.0 --port 9000 --reload
 ```
+
+### RAGFlow
+
+```bash
+cd ragflow
+cp .env.example .env
+docker compose -f docker-compose.yml up -d
+```
+
+默认对接地址：
+
+- `RAGFLOW_BASE_URL=http://127.0.0.1:9381`
