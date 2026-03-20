@@ -50,3 +50,37 @@
 - `backend/platform/`
 - `backend/agent_service/`
 
+## 当前已生成的项目骨架
+
+- `backend/platform/`
+  - Django 平台层骨架
+  - 含会话、消息、任务、配置等基础 app
+
+- `backend/agent_service/`
+  - Agent Service 骨架
+  - 含运行接口、LangGraph 工作流占位、模型适配占位
+
+## 本地启动参考
+
+### Django 平台层
+
+```bash
+cd backend/platform
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env
+python manage.py migrate
+python manage.py runserver 0.0.0.0:8000
+```
+
+### Agent Service
+
+```bash
+cd backend/agent_service
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env
+uvicorn app.main:app --host 0.0.0.0 --port 9000 --reload
+```
