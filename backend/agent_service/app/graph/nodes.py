@@ -3,10 +3,12 @@ from app.graph.prompts import PROMPTS
 from app.graph.state import AgentState
 from app.services.llm_gateway import LLMGateway
 from app.services.retrieval_service import RetrievalService
+from app.services.solution_template import get_solution_template
 
 
 gateway = LLMGateway()
 retrieval_service = RetrievalService()
+solution_template = get_solution_template()
 
 
 def _truncate(text: str, limit: int) -> str:
@@ -120,14 +122,17 @@ def merge_evidence(state: AgentState) -> AgentState:
 
 def generate_outline(state: AgentState) -> AgentState:
     evidence_excerpt = _truncate(state.get("evidence", {}).get("merged_text", ""), 1800)
+    template_section_titles = solution_template.get("section_titles", PROMPTS["generate_outline"]["sections"])
+    template_excerpt = _truncate(str(solution_template.get("template_excerpt", "")), 2200)
     prompt = (
         f"{PROMPTS['generate_outline']['system']}\n"
-        f"参考固定章节：{PROMPTS['generate_outline']['sections']}\n"
+        f"参考固定章节：{template_section_titles}\n"
         f"用户需求：{state['query']}\n"
         f"标准化场景：{state.get('normalized_intent', '')}\n"
         f"上下文：{state.get('normalized_context', {})}\n"
         f"检索证据：{evidence_excerpt}\n"
-        "请输出有编号的大纲。"
+        f"解决方案模板摘录：\n{template_excerpt}\n"
+        "请严格遵循模板的章节顺序与专业风格输出有编号的大纲。"
     )
     content = _chat_json_or_text(
         [
@@ -139,7 +144,7 @@ def generate_outline(state: AgentState) -> AgentState:
         max_tokens=1200,
     )
     state["outline"] = content or "\n".join(
-        f"{idx + 1}. {title}" for idx, title in enumerate(PROMPTS["generate_outline"]["sections"])
+        f"{idx + 1}. {title}" for idx, title in enumerate(template_section_titles)
     )
     state["status"] = "generating_outline"
     return state
@@ -148,6 +153,7 @@ def generate_outline(state: AgentState) -> AgentState:
 def expand_sections(state: AgentState) -> AgentState:
     evidence_excerpt = _truncate(state.get("evidence", {}).get("merged_text", ""), 1800)
     outline_excerpt = _truncate(state.get("outline", ""), 1200)
+    template_excerpt = _truncate(str(solution_template.get("template_excerpt", "")), 3000)
     summary = _chat_json_or_text(
         [
             {"role": "system", "content": "你是电力行业方案摘要生成助手。请输出 4 到 6 句项目化摘要。"},
@@ -171,6 +177,7 @@ def expand_sections(state: AgentState) -> AgentState:
                     f"上下文：{state.get('normalized_context', {})}\n"
                     f"检索证据：{evidence_excerpt}\n"
                     f"方案大纲：\n{outline_excerpt}\n"
+                    f"必须遵循的解决方案模板：\n{template_excerpt}\n"
                     f"规则：{PROMPTS['expand_sections']['rules']}\n"
                     "请输出完整 Markdown 方案正文。"
                 ),
@@ -190,6 +197,7 @@ def expand_sections(state: AgentState) -> AgentState:
 
 
 def review_solution(state: AgentState) -> AgentState:
+    template_section_titles = solution_template.get("section_titles", [])
     review = _chat_json_or_text(
         [
             {"role": "system", "content": PROMPTS["review_solution"]["system"]},
@@ -197,6 +205,7 @@ def review_solution(state: AgentState) -> AgentState:
                 "role": "user",
                 "content": (
                     f"请检查以下内容：\n{_truncate(state['final_markdown'], 5000)}\n"
+                    f"模板必备章节：{template_section_titles}\n"
                     f"{PROMPTS['review_solution']['output_rule']}"
                 ),
             },

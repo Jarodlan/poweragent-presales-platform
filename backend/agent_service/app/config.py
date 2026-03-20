@@ -1,9 +1,11 @@
 import os
+from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
+    repo_root: Path = Path(__file__).resolve().parents[3]
     app_env: str = "dev"
     app_port: int = 9000
     llm_http_timeout_sec: int = 300
@@ -21,6 +23,9 @@ class Settings(BaseSettings):
     ragflow_dataset_standards: str = ""
     ragflow_dataset_cases: str = ""
     ragflow_dataset_solutions: str = ""
+    solution_template_enabled: bool = True
+    solution_template_path: str = str(Path(__file__).resolve().parents[3] / "智能电网故障诊断解决方案模板.md")
+    solution_template_source_path: str = str(Path(__file__).resolve().parents[3] / "参考解决方案模板的内容.md")
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
