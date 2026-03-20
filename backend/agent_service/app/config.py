@@ -11,7 +11,7 @@ class Settings(BaseSettings):
     llm_http_timeout_sec: int = 300
     qwen_api_key: str = os.getenv("QWEN_API_KEY") or os.getenv("DASHSCOPE_API_KEY") or ""
     qwen_base_url: str = "https://dashscope.aliyuncs.com/compatible-mode/v1"
-    qwen_default_model: str = "qwen3.5-plus"
+    qwen_default_model: str = "qwen3-max"
     qwen_review_model: str = "qwen3-max"
     minimax_api_key: str = ""
     minimax_base_url: str = "https://api.minimaxi.com/v1"

@@ -33,6 +33,32 @@ def describe_step(step: str, status: str = "running") -> dict[str, Any]:
             "label": detail["label"],
             "progress": detail["progress"],
         }
+    if step.startswith("generate_section:"):
+        section_title = step.split(":", 1)[1]
+        return {
+            "step": step,
+            "label": f"章节生成中：{section_title}",
+            "progress": 82,
+        }
+    if step.startswith("generate_section_completed:"):
+        section_title = step.split(":", 1)[1]
+        return {
+            "step": step,
+            "label": f"章节生成完成：{section_title}",
+            "progress": 90,
+        }
+    if step == "assemble_solution":
+        return {
+            "step": step,
+            "label": "章节拼装中",
+            "progress": 94,
+        }
+    if step == "assemble_solution_completed":
+        return {
+            "step": step,
+            "label": "章节拼装完成",
+            "progress": 95,
+        }
     fallback_label = "执行完成" if status == "completed" else "正在执行工作流"
     fallback_progress = 100 if status == "completed" else 10
     return {

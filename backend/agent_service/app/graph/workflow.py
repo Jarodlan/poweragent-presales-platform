@@ -1,8 +1,9 @@
 from collections.abc import Callable
 
 from .nodes import (
-    expand_sections,
+    assemble_solution,
     generate_outline,
+    generate_section,
     intent_identify,
     merge_evidence,
     normalize_context,
@@ -29,8 +30,6 @@ def run_workflow(
         ("retrieve_documents", retrieve_documents),
         ("merge_evidence", merge_evidence),
         ("generate_outline", generate_outline),
-        ("expand_sections", expand_sections),
-        ("review_solution", review_solution),
     ]
     for step_name, step_func in steps:
         if progress_callback:
@@ -38,5 +37,22 @@ def run_workflow(
         state = step_func(state)
         if progress_callback:
             progress_callback(f"{step_name}_completed", state)
+    for section_title in state.get("section_order", []):
+        step_name = f"generate_section:{section_title}"
+        if progress_callback:
+            progress_callback(step_name, state)
+        state = generate_section(state, section_title)
+        if progress_callback:
+            progress_callback(f"generate_section_completed:{section_title}", state)
+    if progress_callback:
+        progress_callback("assemble_solution", state)
+    state = assemble_solution(state)
+    if progress_callback:
+        progress_callback("assemble_solution_completed", state)
+    if progress_callback:
+        progress_callback("review_solution", state)
+    state = review_solution(state)
+    if progress_callback:
+        progress_callback("review_solution_completed", state)
     state["status"] = "completed"
     return state

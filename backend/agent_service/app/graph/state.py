@@ -12,6 +12,10 @@ class AgentState(TypedDict, total=False):
     documents: list[dict[str, Any]]
     evidence: dict[str, Any]
     outline: str
+    section_order: list[str]
+    section_contents: dict[str, str]
+    current_section_title: str
+    generated_sections_context: str
     summary: str
     final_markdown: str
     evidence_cards: list[dict[str, Any]]
