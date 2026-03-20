@@ -3,6 +3,7 @@ from typing import Any
 
 import httpx
 from app.graph.workflow import run_workflow
+from app.services.progress import describe_step
 
 
 RUN_STORE: dict[str, dict] = {}
@@ -10,10 +11,13 @@ RUN_STORE: dict[str, dict] = {}
 
 def create_run(payload: dict[str, Any]) -> dict[str, Any]:
     run_id = str(uuid.uuid4())
+    progress_meta = describe_step("workflow_started", "running")
     RUN_STORE[run_id] = {
         "run_id": run_id,
         "status": "running",
         "step": "workflow_started",
+        "step_label": progress_meta["label"],
+        "progress": progress_meta["progress"],
         "request": payload,
         "result": None,
     }
@@ -33,12 +37,18 @@ def execute_run(run_id: str) -> dict[str, Any]:
     }
     try:
         def update_progress(step: str, current_state: dict[str, Any]) -> None:
+            progress_meta = describe_step(step, current_state.get("status", "running"))
             RUN_STORE[run_id]["step"] = step
             RUN_STORE[run_id]["status"] = current_state.get("status", "running")
+            RUN_STORE[run_id]["step_label"] = progress_meta["label"]
+            RUN_STORE[run_id]["progress"] = progress_meta["progress"]
 
         result = run_workflow(state, progress_callback=update_progress)
+        finalize_meta = describe_step("finalize_output", result.get("status", "completed"))
         RUN_STORE[run_id]["status"] = result.get("status", "completed")
         RUN_STORE[run_id]["step"] = "finalize_output"
+        RUN_STORE[run_id]["step_label"] = finalize_meta["label"]
+        RUN_STORE[run_id]["progress"] = finalize_meta["progress"]
         RUN_STORE[run_id]["result"] = result
         post_callback(
             payload["callback_url"],
@@ -46,6 +56,8 @@ def execute_run(run_id: str) -> dict[str, Any]:
                 "run_id": run_id,
                 "status": RUN_STORE[run_id]["status"],
                 "current_step": RUN_STORE[run_id]["step"],
+                "current_step_label": RUN_STORE[run_id]["step_label"],
+                "progress": RUN_STORE[run_id]["progress"],
                 "result": {
                     "summary": result.get("summary", ""),
                     "final_markdown": result.get("final_markdown", ""),
@@ -57,8 +69,11 @@ def execute_run(run_id: str) -> dict[str, Any]:
             },
         )
     except Exception as exc:
+        failed_meta = describe_step("failed", "failed")
         RUN_STORE[run_id]["status"] = "failed"
         RUN_STORE[run_id]["step"] = "failed"
+        RUN_STORE[run_id]["step_label"] = failed_meta["label"]
+        RUN_STORE[run_id]["progress"] = failed_meta["progress"]
         RUN_STORE[run_id]["result"] = None
         post_callback(
             payload["callback_url"],
@@ -66,6 +81,8 @@ def execute_run(run_id: str) -> dict[str, Any]:
                 "run_id": run_id,
                 "status": "failed",
                 "current_step": "failed",
+                "current_step_label": RUN_STORE[run_id]["step_label"],
+                "progress": RUN_STORE[run_id]["progress"],
                 "error_code": "AGENT_RUN_FAILED",
                 "error_message": str(exc),
             },

@@ -10,6 +10,7 @@ from rest_framework.views import APIView
 from apps.conversations.models import Message
 
 from .models import Task, TaskEvent
+from .progress import describe_step
 from .serializers import TaskSerializer
 from .services import apply_agent_callback
 
@@ -49,13 +50,14 @@ class TaskStreamView(APIView):
                 assistant_message = Message.objects.get(id=task.assistant_message_id)
 
                 if task.current_step != last_step or task.status != last_status:
+                    progress_meta = describe_step(task.current_step or "running", task.status)
                     payload = {
                         "conversation_id": str(task.conversation_id),
                         "assistant_message_id": str(task.assistant_message_id),
                         "task_id": str(task.id),
                         "step": task.current_step or "running",
-                        "message": "正在执行工作流",
-                        "progress": 10,
+                        "message": progress_meta["label"],
+                        "progress": progress_meta["progress"],
                     }
                     yield f"data: {json.dumps({'event': 'status', 'data': payload}, ensure_ascii=False)}\n\n"
                     last_step = task.current_step

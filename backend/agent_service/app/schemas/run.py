@@ -21,4 +21,6 @@ class AgentRunStatusResponse(BaseModel):
     run_id: str
     status: str
     step: str
+    step_label: str = ""
+    progress: int = 0
     result: dict[str, Any] | None = None

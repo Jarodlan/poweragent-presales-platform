@@ -2,6 +2,7 @@ from fastapi import APIRouter, BackgroundTasks, HTTPException
 
 from app.schemas.run import AgentRunCreateRequest, AgentRunResponse, AgentRunStatusResponse
 from app.services.agent_runner import create_run, execute_run, get_run
+from app.services.progress import describe_step
 
 
 router = APIRouter()
@@ -25,9 +26,12 @@ def get_run_status(run_id: str) -> AgentRunStatusResponse:
         run = get_run(run_id)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail="run not found") from exc
+    progress_meta = describe_step(run["step"], run["status"])
     return AgentRunStatusResponse(
         run_id=run["run_id"],
         status=run["status"],
         step=run["step"],
+        step_label=progress_meta["label"],
+        progress=progress_meta["progress"],
         result=run["result"],
     )
