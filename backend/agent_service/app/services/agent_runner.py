@@ -42,7 +42,14 @@ def execute_run(run_id: str) -> dict[str, Any]:
                 "run_id": run_id,
                 "status": RUN_STORE[run_id]["status"],
                 "current_step": RUN_STORE[run_id]["step"],
-                "result": result,
+                "result": {
+                    "summary": result.get("summary", ""),
+                    "final_markdown": result.get("final_markdown", ""),
+                    "evidence_cards": result.get("evidence_cards", []),
+                    "assumptions": result.get("assumptions", []),
+                    "normalized_intent": result.get("normalized_intent", ""),
+                    "normalized_context": result.get("normalized_context", {}),
+                },
             },
         )
     except Exception as exc:

@@ -14,5 +14,7 @@ class AgentState(TypedDict, total=False):
     summary: str
     final_markdown: str
     evidence_cards: list[dict[str, Any]]
+    assumptions: list[str]
+    metadata: dict[str, Any]
     status: str
     errors: list[str]
