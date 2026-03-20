@@ -9,15 +9,28 @@ gateway = LLMGateway()
 retrieval_service = RetrievalService()
 
 
-def _chat_json_or_text(messages: list[dict], *, model: str, fallback_model: str) -> str:
+def _truncate(text: str, limit: int) -> str:
+    if len(text) <= limit:
+        return text
+    return f"{text[:limit]}\n...[truncated]"
+
+
+def _chat_json_or_text(
+    messages: list[dict],
+    *,
+    model: str,
+    fallback_model: str,
+    max_tokens: int = 2048,
+    temperature: float = 0.2,
+) -> str:
     response = gateway.chat_with_fallback(
         {
             "provider": "qwen",
             "model": model,
             "fallback_model": fallback_model,
             "messages": messages,
-            "temperature": 0.2,
-            "max_tokens": 2048,
+            "temperature": temperature,
+            "max_tokens": max_tokens,
         }
     )
     return response.get("content", "").strip()
@@ -35,6 +48,7 @@ def intent_identify(state: AgentState) -> AgentState:
         ],
         model=settings.qwen_default_model,
         fallback_model=settings.minimax_fast_model,
+        max_tokens=64,
     )
     state["normalized_intent"] = content or "fault_diagnosis_solution"
     state["status"] = "intent_identifying"
@@ -62,7 +76,10 @@ def normalize_context(state: AgentState) -> AgentState:
 
 
 def retrieve_documents(state: AgentState) -> AgentState:
-    retrieval_query = state.get("normalized_intent") or state["query"]
+    retrieval_query = state["query"]
+    normalized_intent = state.get("normalized_intent", "").strip()
+    if normalized_intent and normalized_intent not in retrieval_query:
+        retrieval_query = f"{retrieval_query}\n场景标签：{normalized_intent}"
     state["documents"] = retrieval_service.search(
         query=retrieval_query,
         filters=state.get("normalized_context", {}),
@@ -74,8 +91,8 @@ def retrieve_documents(state: AgentState) -> AgentState:
 def merge_evidence(state: AgentState) -> AgentState:
     docs = state.get("documents", [])
     docs_text = "\n".join(
-        f"[{item['source_type']}] {item.get('title', '')}\n{item.get('snippet', '')[:400]}"
-        for item in docs[:10]
+        f"[{item['source_type']}] {item.get('title', '')}\n{item.get('snippet', '')[:220]}"
+        for item in docs[:6]
     )
     content = _chat_json_or_text(
         [
@@ -91,23 +108,25 @@ def merge_evidence(state: AgentState) -> AgentState:
         ],
         model=settings.qwen_default_model,
         fallback_model=settings.minimax_fast_model,
+        max_tokens=900,
     )
     state["evidence"] = {
-        "merged_text": content,
-        "documents": docs[:10],
+        "merged_text": _truncate(content, 2200),
+        "documents": docs[:6],
     }
     state["status"] = "merging_evidence"
     return state
 
 
 def generate_outline(state: AgentState) -> AgentState:
+    evidence_excerpt = _truncate(state.get("evidence", {}).get("merged_text", ""), 1800)
     prompt = (
         f"{PROMPTS['generate_outline']['system']}\n"
         f"参考固定章节：{PROMPTS['generate_outline']['sections']}\n"
         f"用户需求：{state['query']}\n"
         f"标准化场景：{state.get('normalized_intent', '')}\n"
         f"上下文：{state.get('normalized_context', {})}\n"
-        f"检索证据：{state.get('evidence', {}).get('merged_text', '')}\n"
+        f"检索证据：{evidence_excerpt}\n"
         "请输出有编号的大纲。"
     )
     content = _chat_json_or_text(
@@ -117,6 +136,7 @@ def generate_outline(state: AgentState) -> AgentState:
         ],
         model=settings.qwen_review_model,
         fallback_model=settings.minimax_default_model,
+        max_tokens=1200,
     )
     state["outline"] = content or "\n".join(
         f"{idx + 1}. {title}" for idx, title in enumerate(PROMPTS["generate_outline"]["sections"])
@@ -126,6 +146,8 @@ def generate_outline(state: AgentState) -> AgentState:
 
 
 def expand_sections(state: AgentState) -> AgentState:
+    evidence_excerpt = _truncate(state.get("evidence", {}).get("merged_text", ""), 1800)
+    outline_excerpt = _truncate(state.get("outline", ""), 1200)
     summary = _chat_json_or_text(
         [
             {"role": "system", "content": "你是电力行业方案摘要生成助手。请输出 4 到 6 句项目化摘要。"},
@@ -136,6 +158,7 @@ def expand_sections(state: AgentState) -> AgentState:
         ],
         model=settings.qwen_default_model,
         fallback_model=settings.minimax_fast_model,
+        max_tokens=300,
     )
     final_markdown = _chat_json_or_text(
         [
@@ -146,8 +169,8 @@ def expand_sections(state: AgentState) -> AgentState:
                     f"用户需求：{state['query']}\n"
                     f"标准化场景：{state.get('normalized_intent', '')}\n"
                     f"上下文：{state.get('normalized_context', {})}\n"
-                    f"检索证据：{state.get('evidence', {}).get('merged_text', '')}\n"
-                    f"方案大纲：\n{state['outline']}\n"
+                    f"检索证据：{evidence_excerpt}\n"
+                    f"方案大纲：\n{outline_excerpt}\n"
                     f"规则：{PROMPTS['expand_sections']['rules']}\n"
                     "请输出完整 Markdown 方案正文。"
                 ),
@@ -155,6 +178,7 @@ def expand_sections(state: AgentState) -> AgentState:
         ],
         model=settings.qwen_default_model,
         fallback_model=settings.minimax_default_model,
+        max_tokens=1800,
     )
     state["summary"] = summary or f"本方案围绕“{state['query']}”生成。"
     state["final_markdown"] = final_markdown or (
@@ -171,11 +195,15 @@ def review_solution(state: AgentState) -> AgentState:
             {"role": "system", "content": PROMPTS["review_solution"]["system"]},
             {
                 "role": "user",
-                "content": f"请检查以下内容：\n{state['final_markdown']}\n{PROMPTS['review_solution']['output_rule']}",
+                "content": (
+                    f"请检查以下内容：\n{_truncate(state['final_markdown'], 5000)}\n"
+                    f"{PROMPTS['review_solution']['output_rule']}"
+                ),
             },
         ],
         model=settings.qwen_review_model,
         fallback_model=settings.minimax_default_model,
+        max_tokens=512,
     )
     state["status"] = "reviewing_solution"
     docs = state.get("documents", [])

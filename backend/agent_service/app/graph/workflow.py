@@ -1,3 +1,5 @@
+from collections.abc import Callable
+
 from .nodes import (
     expand_sections,
     generate_outline,
@@ -10,19 +12,31 @@ from .nodes import (
 from .state import AgentState
 
 
-def run_workflow(state: AgentState) -> AgentState:
+ProgressCallback = Callable[[str, AgentState], None]
+
+
+def run_workflow(
+    state: AgentState,
+    *,
+    progress_callback: ProgressCallback | None = None,
+) -> AgentState:
     """
-    Sequential MVP skeleton.
-    TODO:
-    - Replace with LangGraph graph composition
-    - Insert retrieval and LLM-backed nodes
+    Sequential MVP workflow.
     """
-    state = intent_identify(state)
-    state = normalize_context(state)
-    state = retrieve_documents(state)
-    state = merge_evidence(state)
-    state = generate_outline(state)
-    state = expand_sections(state)
-    state = review_solution(state)
+    steps = [
+        ("intent_identify", intent_identify),
+        ("normalize_context", normalize_context),
+        ("retrieve_documents", retrieve_documents),
+        ("merge_evidence", merge_evidence),
+        ("generate_outline", generate_outline),
+        ("expand_sections", expand_sections),
+        ("review_solution", review_solution),
+    ]
+    for step_name, step_func in steps:
+        if progress_callback:
+            progress_callback(step_name, state)
+        state = step_func(state)
+        if progress_callback:
+            progress_callback(f"{step_name}_completed", state)
     state["status"] = "completed"
     return state

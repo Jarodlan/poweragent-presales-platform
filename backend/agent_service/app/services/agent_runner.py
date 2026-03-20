@@ -32,7 +32,11 @@ def execute_run(run_id: str) -> dict[str, Any]:
         "errors": [],
     }
     try:
-        result = run_workflow(state)
+        def update_progress(step: str, current_state: dict[str, Any]) -> None:
+            RUN_STORE[run_id]["step"] = step
+            RUN_STORE[run_id]["status"] = current_state.get("status", "running")
+
+        result = run_workflow(state, progress_callback=update_progress)
         RUN_STORE[run_id]["status"] = result.get("status", "completed")
         RUN_STORE[run_id]["step"] = "finalize_output"
         RUN_STORE[run_id]["result"] = result

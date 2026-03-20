@@ -2,6 +2,7 @@ import re
 from typing import Any
 
 import httpx
+from app.config import settings
 
 
 class BaseLLMAdapter:
@@ -29,7 +30,8 @@ class BaseLLMAdapter:
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json",
         }
-        with httpx.Client(timeout=60) as client:
+        timeout = httpx.Timeout(connect=15, read=settings.llm_http_timeout_sec, write=60, pool=60)
+        with httpx.Client(timeout=timeout) as client:
             response = client.post(url, headers=headers, json=body)
             response.raise_for_status()
             return response.json()
