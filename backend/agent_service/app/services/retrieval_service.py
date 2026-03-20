@@ -34,13 +34,28 @@ class RetrievalService:
                 or item.get("snippet")
                 or ""
             )
+            title = (
+                item.get("document_name")
+                or item.get("title")
+                or item.get("doc_name")
+                or item.get("document_keyword")
+                or item.get("filename")
+                or ""
+            )
+            metadata = dict(item.get("metadata") or {})
+            if item.get("document_id"):
+                metadata.setdefault("document_id", item.get("document_id"))
+            if item.get("dataset_id"):
+                metadata.setdefault("dataset_id", item.get("dataset_id"))
+            if item.get("positions"):
+                metadata.setdefault("positions", item.get("positions"))
             normalized.append(
                 {
                     "source_type": source_type,
-                    "title": item.get("document_name") or item.get("title") or item.get("doc_name") or "",
+                    "title": title,
                     "snippet": content,
                     "score": item.get("score") or item.get("similarity") or 0,
-                    "metadata": item.get("metadata") or {},
+                    "metadata": metadata,
                     "reference": item,
                 }
             )
