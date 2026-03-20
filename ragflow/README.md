@@ -25,12 +25,21 @@
 
 为了避免和你外部历史环境冲突，这里默认使用一组项目内端口：
 
-- `RAGFlow`: `9381`
+- `RAGFlow Web / API Gateway`: `9381`
 - `Elasticsearch`: `1201`
-- `MySQL`: `5456`
+- `MySQL`: `5456`（宿主机映射）
 - `Redis`: `6380`
 - `MinIO API`: `9002`
 - `MinIO Console`: `9003`
+
+说明：
+
+- `SVR_HTTP_PORT=9381`
+  - 映射到容器内部 `80`，用于浏览器访问和统一 API 入口
+- `MYSQL_PORT=3306`
+  - 这是容器内部给 RAGFlow 连接 MySQL 使用的端口
+- `MYSQL_EXPOSE_PORT=5456`
+  - 这是宿主机映射端口，方便你从本机外部调试 MySQL
 
 ## 启动方式
 

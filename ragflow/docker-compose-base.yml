@@ -80,7 +80,7 @@ services:
       --tls_version="TLSv1.2,TLSv1.3"
       --init-file /data/application/init.sql
     ports:
-      - ${MYSQL_PORT}:3306
+      - ${MYSQL_EXPOSE_PORT}:3306
     volumes:
       - mysql_data:/var/lib/mysql
       - ./init.sql:/data/application/init.sql
