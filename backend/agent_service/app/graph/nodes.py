@@ -4,6 +4,7 @@ from app.graph.state import AgentState
 from app.services.llm_gateway import LLMGateway
 from app.services.retrieval_service import RetrievalService
 from app.services.solution_template import get_solution_template
+import re
 
 
 gateway = LLMGateway()
@@ -86,6 +87,57 @@ def _section_max_tokens(section_title: str) -> int:
     if section_title in {"背景介绍", "总体技术架构", "技术创新方向"}:
         return 1000
     return 800
+
+
+def _programmatic_section_issues(section_title: str, content: str) -> list[str]:
+    issues: list[str] = []
+    text = (content or "").strip()
+    if not text:
+        return ["章节为空"]
+    if not text.startswith(f"## {section_title}"):
+        issues.append("未以正确的二级标题开头")
+    if text.endswith(("：", ":", "-", "（", "(")):
+        issues.append("章节结尾疑似截断")
+    if section_title == "技术创新方向":
+        item_count = len(
+            re.findall(
+                r"(?m)^\s*(?:\*\*)?(?:\d+\.)|^\s*(?:\*\*)?[一二三四五六七八九十]+、",
+                text,
+            )
+        )
+        if item_count < 3:
+            issues.append("技术创新方向不足3项")
+    if section_title == "成功案例介绍":
+        case_count = len(re.findall(r"案例[一二三四五六七八九十\d]", text))
+        if case_count < 2:
+            issues.append("成功案例数量不足2个")
+    if section_title == "技术实施方案":
+        step_count = len(
+            re.findall(r"(?m)^\s*###\s*步骤(?:[一二三四五六七八九十]|\d+)", text)
+        )
+        if step_count < 5:
+            issues.append("技术实施方案未完整覆盖5个步骤")
+    if section_title == "效益分析" and len(text) < 220:
+        issues.append("效益分析内容偏短")
+    if section_title == "效益评估指标":
+        if "KPI名称 | 目标值 | 测量方式" not in text:
+            issues.append("缺少KPI表头")
+        table_rows = sum(1 for line in text.splitlines() if "|" in line)
+        if table_rows < 7:
+            issues.append("KPI表格行数不足")
+    if section_title == "总结" and len(text) < 140:
+        issues.append("总结内容偏短")
+    return issues
+
+
+def _assemble_markdown_from_sections(state: AgentState) -> str:
+    ordered_sections = state.get("section_order", _template_sections())
+    content_blocks = []
+    for section_title in ordered_sections:
+        section_text = state.get("section_contents", {}).get(section_title, "")
+        if section_text:
+            content_blocks.append(section_text.strip())
+    return "# 智能配电网故障诊断解决方案\n\n" + "\n\n".join(content_blocks)
 
 
 def intent_identify(state: AgentState) -> AgentState:
@@ -206,6 +258,7 @@ def generate_section_content(
     state: AgentState,
     *,
     section_title: str,
+    review_feedback: str = "",
 ) -> str:
     outline_excerpt = _truncate(state.get("outline", ""), 1600)
     evidence_excerpt = _truncate(state.get("evidence", {}).get("merged_text", ""), 2000)
@@ -235,6 +288,7 @@ def generate_section_content(
                     f"检索证据：\n{evidence_excerpt}\n"
                     f"模板中的本章节要求：\n{section_block}\n"
                     f"已完成章节摘要：\n{previous_sections}\n"
+                    f"章节修订意见：\n{review_feedback or '无'}\n"
                     "请只输出当前章节的 Markdown 内容，必须以二级标题开头，且写完整。"
                 ),
             },
@@ -284,6 +338,7 @@ def _generate_special_section(
     section_title: str,
     prompt_key: str,
     max_tokens: int,
+    review_feedback: str = "",
 ) -> AgentState:
     section_contents = state.get("section_contents", {})
     evidence_excerpt = _truncate(state.get("evidence", {}).get("merged_text", ""), 2200)
@@ -312,6 +367,7 @@ def _generate_special_section(
                     f"检索证据：\n{evidence_excerpt}\n"
                     f"模板中的本章节要求：\n{section_block}\n"
                     f"已完成章节摘要：\n{previous_sections}\n"
+                    f"章节修订意见：\n{review_feedback or '无'}\n"
                     f"请只输出章节“{section_title}”的Markdown正文。"
                 ),
             },
@@ -362,57 +418,78 @@ def generate_summary_section(state: AgentState) -> AgentState:
 
 
 def assemble_solution(state: AgentState) -> AgentState:
-    ordered_sections = state.get("section_order", _template_sections())
-    content_blocks = []
-    for section_title in ordered_sections:
-        section_text = state.get("section_contents", {}).get(section_title, "")
-        if section_text:
-            content_blocks.append(section_text)
-    state["final_markdown"] = "# 智能配电网故障诊断解决方案\n\n" + "\n\n".join(content_blocks)
+    state["final_markdown"] = _assemble_markdown_from_sections(state)
     state["status"] = "assembling_solution"
     return state
 
 
 def review_solution(state: AgentState) -> AgentState:
-    template_section_titles = _template_sections()
-    review = _chat_json_or_text(
-        [
-            {"role": "system", "content": PROMPTS["review_solution"]["system"]},
-            {
-                "role": "user",
-                "content": (
-                    f"请检查以下内容：\n{_truncate(state['final_markdown'], 5000)}\n"
-                    f"模板必备章节：{template_section_titles}\n"
-                    f"{PROMPTS['review_solution']['output_rule']}"
-                ),
-            },
-        ],
-        model=settings.qwen_review_model,
-        fallback_model=settings.minimax_default_model,
-        max_tokens=512,
-    )
     state["status"] = "reviewing_solution"
-    if review:
-        refined_markdown = _chat_json_or_text(
+    section_titles = state.get("section_order", _template_sections())
+    review_notes: list[str] = []
+    for section_title in section_titles:
+        content = state.get("section_contents", {}).get(section_title, "")
+        programmatic_issues = _programmatic_section_issues(section_title, content)
+        llm_review = _chat_json_or_text(
             [
-                {"role": "system", "content": PROMPTS["refine_solution"]["system"]},
+                {"role": "system", "content": PROMPTS["review_section"]["system"]},
                 {
                     "role": "user",
                     "content": (
-                        f"模板必备章节：{template_section_titles}\n"
-                        f"修订规则：{PROMPTS['refine_solution']['rules']}\n"
-                        f"校核意见：\n{review}\n"
-                        f"当前正文：\n{_truncate(state['final_markdown'], 6500)}\n"
-                        "请补齐缺失内容、修复截断，并输出修订后的完整Markdown正文。"
+                        f"章节标题：{section_title}\n"
+                        f"章节要求：{_section_requirement(section_title) or _section_template_block(section_title)}\n"
+                        f"当前章节内容：\n{_truncate(content, 3200)}\n"
+                        f"程序规则发现的问题：{programmatic_issues or ['无']}\n"
+                        f"{PROMPTS['review_section']['output_rule']}"
                     ),
                 },
             ],
             model=settings.qwen_review_model,
-            fallback_model=settings.minimax_default_model,
-            max_tokens=2400,
-        )
-        if refined_markdown.startswith("#"):
-            state["final_markdown"] = refined_markdown
+            fallback_model=settings.minimax_fast_model,
+            max_tokens=220,
+        ).strip()
+        if llm_review.upper().startswith("PASS") and not programmatic_issues:
+            continue
+        repair_feedback = "；".join(programmatic_issues) if programmatic_issues else ""
+        if llm_review and not llm_review.upper().startswith("PASS"):
+            repair_feedback = f"{repair_feedback}；{llm_review}".strip("；")
+        review_notes.append(f"{section_title}: {repair_feedback or '章节已校核'}")
+        if section_title == "技术实施方案":
+            state = _generate_special_section(
+                state,
+                section_title=section_title,
+                prompt_key="generate_implementation_section",
+                max_tokens=2200,
+                review_feedback=repair_feedback,
+            )
+        elif section_title == "效益评估指标":
+            state = _generate_special_section(
+                state,
+                section_title=section_title,
+                prompt_key="generate_kpi_section",
+                max_tokens=1200,
+                review_feedback=repair_feedback,
+            )
+        elif section_title == "总结":
+            state = _generate_special_section(
+                state,
+                section_title=section_title,
+                prompt_key="generate_summary_section",
+                max_tokens=900,
+                review_feedback=repair_feedback,
+            )
+        else:
+            repaired = generate_section_content(
+                state,
+                section_title=section_title,
+                review_feedback=repair_feedback,
+            )
+            if not repaired.startswith("## "):
+                repaired = f"## {section_title}\n\n{repaired}"
+            state.setdefault("section_contents", {})
+            state["section_contents"][section_title] = repaired.strip()
+    state["assumptions"] = review_notes
+    state["final_markdown"] = _assemble_markdown_from_sections(state)
     docs = state.get("documents", [])
     state["evidence_cards"] = [
         {
@@ -424,8 +501,4 @@ def review_solution(state: AgentState) -> AgentState:
         }
         for item in docs[:6]
     ]
-    assumptions = state.get("assumptions", [])
-    if review:
-        assumptions.append(f"校核结论：{review}")
-    state["assumptions"] = assumptions
     return state
