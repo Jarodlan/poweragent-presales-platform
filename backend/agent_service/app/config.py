@@ -16,6 +16,10 @@ class Settings(BaseSettings):
     minimax_fast_model: str = "MiniMax-M2.5-highspeed"
     ragflow_base_url: str = "http://127.0.0.1:9380"
     ragflow_api_key: str = ""
+    ragflow_dataset_papers: str = ""
+    ragflow_dataset_standards: str = ""
+    ragflow_dataset_cases: str = ""
+    ragflow_dataset_solutions: str = ""
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 

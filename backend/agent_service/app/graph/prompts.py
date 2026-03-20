@@ -41,6 +41,16 @@ PROMPTS = {
             "必要时明确默认假设",
         ],
     },
+    "merge_evidence": {
+        "system": (
+            "你是电力行业解决方案助手的证据整理节点。"
+            "请将文献、标准、案例、方案材料整理为可用于方案生成的证据摘要。"
+        ),
+        "output_rule": (
+            "请按 technical_basis、standard_basis、case_basis、solution_basis 四类输出，"
+            "每类列出最有价值的证据点。"
+        ),
+    },
     "review_solution": {
         "system": (
             "你是方案校核节点。"

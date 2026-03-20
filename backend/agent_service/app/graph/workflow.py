@@ -1,4 +1,12 @@
-from .nodes import expand_sections, generate_outline, intent_identify, normalize_context, review_solution
+from .nodes import (
+    expand_sections,
+    generate_outline,
+    intent_identify,
+    merge_evidence,
+    normalize_context,
+    retrieve_documents,
+    review_solution,
+)
 from .state import AgentState
 
 
@@ -11,6 +19,8 @@ def run_workflow(state: AgentState) -> AgentState:
     """
     state = intent_identify(state)
     state = normalize_context(state)
+    state = retrieve_documents(state)
+    state = merge_evidence(state)
     state = generate_outline(state)
     state = expand_sections(state)
     state = review_solution(state)

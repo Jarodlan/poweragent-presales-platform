@@ -1,3 +1,4 @@
+import re
 from typing import Any
 
 import httpx
@@ -45,8 +46,8 @@ class BaseLLMAdapter:
             for item in content:
                 if isinstance(item, dict) and item.get("type") == "text":
                     text_parts.append(item.get("text", ""))
-            return "".join(text_parts)
-        return content or ""
+            return BaseLLMAdapter._sanitize_content("".join(text_parts))
+        return BaseLLMAdapter._sanitize_content(content or "")
 
     @staticmethod
     def _extract_reasoning(data: dict[str, Any]) -> str:
@@ -55,3 +56,8 @@ class BaseLLMAdapter:
             return ""
         message = choices[0].get("message", {})
         return message.get("reasoning_content", "") or message.get("reasoning", "") or ""
+
+    @staticmethod
+    def _sanitize_content(content: str) -> str:
+        cleaned = re.sub(r"<think>.*?</think>", "", content or "", flags=re.DOTALL | re.IGNORECASE)
+        return cleaned.strip()

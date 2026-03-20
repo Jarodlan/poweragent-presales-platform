@@ -2,9 +2,11 @@ from app.config import settings
 from app.graph.prompts import PROMPTS
 from app.graph.state import AgentState
 from app.services.llm_gateway import LLMGateway
+from app.services.retrieval_service import RetrievalService
 
 
 gateway = LLMGateway()
+retrieval_service = RetrievalService()
 
 
 def _chat_json_or_text(messages: list[dict], *, model: str, fallback_model: str) -> str:
@@ -59,6 +61,45 @@ def normalize_context(state: AgentState) -> AgentState:
     return state
 
 
+def retrieve_documents(state: AgentState) -> AgentState:
+    retrieval_query = state.get("normalized_intent") or state["query"]
+    state["documents"] = retrieval_service.search(
+        query=retrieval_query,
+        filters=state.get("normalized_context", {}),
+    )
+    state["status"] = "retrieving_documents"
+    return state
+
+
+def merge_evidence(state: AgentState) -> AgentState:
+    docs = state.get("documents", [])
+    docs_text = "\n".join(
+        f"[{item['source_type']}] {item.get('title', '')}\n{item.get('snippet', '')[:400]}"
+        for item in docs[:10]
+    )
+    content = _chat_json_or_text(
+        [
+            {"role": "system", "content": PROMPTS["merge_evidence"]["system"]},
+            {
+                "role": "user",
+                "content": (
+                    f"当前场景：{state.get('normalized_intent', '')}\n"
+                    f"检索结果：\n{docs_text}\n"
+                    f"{PROMPTS['merge_evidence']['output_rule']}"
+                ),
+            },
+        ],
+        model=settings.qwen_default_model,
+        fallback_model=settings.minimax_fast_model,
+    )
+    state["evidence"] = {
+        "merged_text": content,
+        "documents": docs[:10],
+    }
+    state["status"] = "merging_evidence"
+    return state
+
+
 def generate_outline(state: AgentState) -> AgentState:
     prompt = (
         f"{PROMPTS['generate_outline']['system']}\n"
@@ -66,6 +107,7 @@ def generate_outline(state: AgentState) -> AgentState:
         f"用户需求：{state['query']}\n"
         f"标准化场景：{state.get('normalized_intent', '')}\n"
         f"上下文：{state.get('normalized_context', {})}\n"
+        f"检索证据：{state.get('evidence', {}).get('merged_text', '')}\n"
         "请输出有编号的大纲。"
     )
     content = _chat_json_or_text(
@@ -104,6 +146,7 @@ def expand_sections(state: AgentState) -> AgentState:
                     f"用户需求：{state['query']}\n"
                     f"标准化场景：{state.get('normalized_intent', '')}\n"
                     f"上下文：{state.get('normalized_context', {})}\n"
+                    f"检索证据：{state.get('evidence', {}).get('merged_text', '')}\n"
                     f"方案大纲：\n{state['outline']}\n"
                     f"规则：{PROMPTS['expand_sections']['rules']}\n"
                     "请输出完整 Markdown 方案正文。"
@@ -135,7 +178,17 @@ def review_solution(state: AgentState) -> AgentState:
         fallback_model=settings.minimax_default_model,
     )
     state["status"] = "reviewing_solution"
-    state["evidence_cards"] = []
+    docs = state.get("documents", [])
+    state["evidence_cards"] = [
+        {
+            "source_type": item.get("source_type", ""),
+            "title": item.get("title", ""),
+            "summary": item.get("snippet", "")[:180],
+            "used_in_section": "方案生成",
+            "metadata": item.get("metadata", {}),
+        }
+        for item in docs[:6]
+    ]
     assumptions = state.get("assumptions", [])
     if review:
         assumptions.append(f"校核结论：{review}")

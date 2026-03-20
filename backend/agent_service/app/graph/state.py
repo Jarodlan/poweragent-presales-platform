@@ -9,6 +9,7 @@ class AgentState(TypedDict, total=False):
     params: dict[str, Any]
     normalized_intent: str
     normalized_context: dict[str, Any]
+    documents: list[dict[str, Any]]
     evidence: dict[str, Any]
     outline: str
     summary: str
