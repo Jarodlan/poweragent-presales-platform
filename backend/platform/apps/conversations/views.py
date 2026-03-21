@@ -1,8 +1,10 @@
 from django.utils import timezone
 from rest_framework import status
+from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.accounts.services import resolve_visible_conversations
 from apps.tasks.services import create_generation_task
 
 from .models import Conversation, Message
@@ -10,8 +12,15 @@ from .serializers import ConversationSerializer, MessageSerializer
 
 
 class ConversationListCreateView(APIView):
+    permission_classes = [AllowAny]
+
+    def get_queryset(self, request):
+        if request.user and request.user.is_authenticated:
+            return resolve_visible_conversations(request.user)
+        return Conversation.objects.all()
+
     def get(self, request):
-        qs = Conversation.objects.all()[:20]
+        qs = self.get_queryset(request)[:20]
         return Response(
             {
                 "code": 0,
@@ -26,7 +35,10 @@ class ConversationListCreateView(APIView):
         )
 
     def post(self, request):
-        conversation = Conversation.objects.create(title=request.data.get("title", ""))
+        conversation = Conversation.objects.create(
+            title=request.data.get("title", ""),
+            user=request.user if request.user and request.user.is_authenticated else None,
+        )
         return Response(
             {
                 "code": 0,
@@ -38,8 +50,10 @@ class ConversationListCreateView(APIView):
 
 
 class ConversationDetailView(APIView):
+    permission_classes = [AllowAny]
+
     def get(self, request, conversation_id):
-        conversation = Conversation.objects.get(id=conversation_id)
+        conversation = self._get_conversation(request, conversation_id)
         return Response(
             {
                 "code": 0,
@@ -48,10 +62,22 @@ class ConversationDetailView(APIView):
             }
         )
 
+    def _get_conversation(self, request, conversation_id):
+        if request.user and request.user.is_authenticated:
+            return resolve_visible_conversations(request.user).get(id=conversation_id)
+        return Conversation.objects.get(id=conversation_id)
+
 
 class ConversationMessagesView(APIView):
+    permission_classes = [AllowAny]
+
+    def get_conversation(self, request, conversation_id):
+        if request.user and request.user.is_authenticated:
+            return resolve_visible_conversations(request.user).get(id=conversation_id)
+        return Conversation.objects.get(id=conversation_id)
+
     def get(self, request, conversation_id):
-        conversation = Conversation.objects.get(id=conversation_id)
+        conversation = self.get_conversation(request, conversation_id)
         messages = conversation.messages.all()[:50]
         return Response(
             {
@@ -68,7 +94,7 @@ class ConversationMessagesView(APIView):
         )
 
     def post(self, request, conversation_id):
-        conversation = Conversation.objects.get(id=conversation_id)
+        conversation = self.get_conversation(request, conversation_id)
         query = request.data.get("query", "").strip()
         params = request.data.get("params", {})
 
@@ -90,7 +116,9 @@ class ConversationMessagesView(APIView):
         conversation.status = "running"
         if not conversation.title:
             conversation.title = query[:40]
-        conversation.save(update_fields=["last_user_message", "last_message_at", "status", "title", "updated_at"])
+        if request.user and request.user.is_authenticated and conversation.user_id is None:
+            conversation.user = request.user
+        conversation.save(update_fields=["last_user_message", "last_message_at", "status", "title", "user", "updated_at"])
 
         task = create_generation_task(
             conversation=conversation,

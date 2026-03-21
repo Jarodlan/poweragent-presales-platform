@@ -1,10 +1,15 @@
 <script setup lang="ts">
-import { Plus, Search } from '@element-plus/icons-vue'
+import { Plus, Search, SwitchButton } from '@element-plus/icons-vue'
 import { computed, ref } from 'vue'
+import { ElMessageBox } from 'element-plus'
+import { useRouter } from 'vue-router'
 
+import { useAuthStore } from '@/stores/auth'
 import { useWorkspaceStore } from '@/stores/workspace'
 import { formatDateTime, formatRelativeTime } from '@/utils/time'
 
+const router = useRouter()
+const authStore = useAuthStore()
 const workspace = useWorkspaceStore()
 const keyword = ref('')
 
@@ -28,16 +33,41 @@ const groups = computed(() => {
 })
 
 const totalCount = computed(() => workspace.conversations.length)
+
 const activePreview = computed(() => {
   const current = workspace.currentConversation
   if (!current) return '新会话会出现在这里，支持继续追问和历史回看。'
   return current.last_user_message || '这条会话还没有发起第一轮需求。'
 })
+
+async function handleLogout() {
+  try {
+    await ElMessageBox.confirm('确认退出当前登录状态吗？', '退出登录', {
+      type: 'warning',
+      confirmButtonText: '退出',
+      cancelButtonText: '取消',
+    })
+  } catch {
+    return
+  }
+  await authStore.logout()
+  await router.replace('/login')
+}
 </script>
 
 <template>
   <aside class="sidebar">
     <div class="sidebar__top">
+      <div class="sidebar__account panel-card">
+        <div>
+          <strong>{{ authStore.displayName || '未登录用户' }}</strong>
+          <p>{{ authStore.user?.department?.name || '未设置部门' }}</p>
+        </div>
+        <el-button text @click="handleLogout">
+          <el-icon><SwitchButton /></el-icon>
+        </el-button>
+      </div>
+
       <div class="sidebar__brand">
         <p class="section-title">PowerAgent</p>
         <h1>解决方案工作台</h1>
@@ -114,6 +144,26 @@ const activePreview = computed(() => {
   display: flex;
   flex-direction: column;
   gap: 14px;
+}
+
+.sidebar__account {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: 20px;
+}
+
+.sidebar__account strong {
+  display: block;
+  font-size: 14px;
+}
+
+.sidebar__account p {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: var(--muted);
 }
 
 .sidebar__brand {

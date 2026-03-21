@@ -6,9 +6,11 @@ from django.conf import settings
 from django.http import StreamingHttpResponse
 from django.utils import timezone
 from rest_framework import status
+from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.accounts.services import resolve_visible_tasks
 from apps.conversations.models import Message
 
 from .models import Task, TaskEvent
@@ -32,8 +34,15 @@ def fetch_agent_run_status(run_id: str) -> dict | None:
 
 
 class TaskResultView(APIView):
+    permission_classes = [AllowAny]
+
+    def get_task(self, request, task_id):
+        if request.user and request.user.is_authenticated:
+            return resolve_visible_tasks(request.user).get(id=task_id)
+        return Task.objects.get(id=task_id)
+
     def get(self, request, task_id):
-        task = Task.objects.get(id=task_id)
+        task = self.get_task(request, task_id)
         data = TaskSerializer(task).data
         data["conversation_id"] = str(task.conversation_id)
         data["assistant_message_id"] = str(task.assistant_message_id)
@@ -41,8 +50,15 @@ class TaskResultView(APIView):
 
 
 class TaskCancelView(APIView):
+    permission_classes = [AllowAny]
+
+    def get_task(self, request, task_id):
+        if request.user and request.user.is_authenticated:
+            return resolve_visible_tasks(request.user).get(id=task_id)
+        return Task.objects.get(id=task_id)
+
     def post(self, request, task_id):
-        task = Task.objects.get(id=task_id)
+        task = self.get_task(request, task_id)
         task.status = "cancelled"
         task.finished_at = timezone.now()
         task.save(update_fields=["status", "finished_at", "updated_at"])
@@ -51,6 +67,13 @@ class TaskCancelView(APIView):
 
 
 class TaskStreamView(APIView):
+    permission_classes = [AllowAny]
+
+    def get_task(self, request, task_id):
+        if request.user and request.user.is_authenticated:
+            return resolve_visible_tasks(request.user).get(id=task_id)
+        return Task.objects.get(id=task_id)
+
     def get(self, request, task_id):
         def stream():
             last_step = None
@@ -58,12 +81,12 @@ class TaskStreamView(APIView):
             last_progress = None
             content_sent = False
 
-            task = Task.objects.get(id=task_id)
+            task = self.get_task(request, task_id)
             yield f"data: {json.dumps({'event': 'conversation_meta', 'data': {'conversation_id': str(task.conversation_id), 'title': task.conversation.title}}, ensure_ascii=False)}\n\n"
             yield f"data: {json.dumps({'event': 'message_created', 'data': {'conversation_id': str(task.conversation_id), 'assistant_message_id': str(task.assistant_message_id)}}, ensure_ascii=False)}\n\n"
 
             for _ in range(1800):
-                task = Task.objects.get(id=task_id)
+                task = self.get_task(request, task_id)
                 assistant_message = Message.objects.get(id=task.assistant_message_id)
                 agent_status = None
                 current_status = task.status
@@ -118,6 +141,8 @@ class TaskStreamView(APIView):
 
 
 class AgentTaskCallbackView(APIView):
+    permission_classes = [AllowAny]
+
     def post(self, request, task_id):
         task = Task.objects.get(id=task_id)
         apply_agent_callback(

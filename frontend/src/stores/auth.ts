@@ -1,0 +1,77 @@
+import { computed, ref } from 'vue'
+import { defineStore } from 'pinia'
+
+import { fetchCurrentUser, login as loginRequest, logout as logoutRequest } from '@/api/auth'
+import { clearStoredToken, getStoredToken, setStoredToken } from '@/api/http'
+import type { CurrentUser } from '@/types/auth'
+
+export const useAuthStore = defineStore('auth', () => {
+  const token = ref(getStoredToken())
+  const user = ref<CurrentUser | null>(null)
+  const bootstrapped = ref(false)
+  const loading = ref(false)
+
+  const isAuthenticated = computed(() => Boolean(token.value && user.value))
+  const displayName = computed(() => user.value?.display_name || user.value?.username || '')
+
+  async function bootstrap() {
+    if (bootstrapped.value) return
+    token.value = getStoredToken()
+    if (!token.value) {
+      bootstrapped.value = true
+      return
+    }
+    loading.value = true
+    try {
+      user.value = await fetchCurrentUser()
+    } catch {
+      clearStoredToken()
+      token.value = ''
+      user.value = null
+    } finally {
+      bootstrapped.value = true
+      loading.value = false
+    }
+  }
+
+  async function login(username: string, password: string) {
+    loading.value = true
+    try {
+      const data = await loginRequest({ username, password })
+      token.value = data.token
+      user.value = data.user
+      setStoredToken(data.token)
+      bootstrapped.value = true
+      return data.user
+    } finally {
+      loading.value = false
+    }
+  }
+
+  async function logout() {
+    try {
+      if (token.value) {
+        await logoutRequest()
+      }
+    } catch {
+      // ignore logout failures; local cleanup still matters
+    } finally {
+      clearStoredToken()
+      token.value = ''
+      user.value = null
+      bootstrapped.value = true
+    }
+  }
+
+  return {
+    token,
+    user,
+    loading,
+    bootstrapped,
+    isAuthenticated,
+    displayName,
+    bootstrap,
+    login,
+    logout,
+  }
+})
