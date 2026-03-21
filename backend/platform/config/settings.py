@@ -3,6 +3,8 @@ import os
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent
+# PostgreSQL is the default development and local integration database.
+# SQLite remains only as an emergency fallback for quick single-user debugging.
 USE_SQLITE = os.getenv("DJANGO_USE_SQLITE", "false").lower() == "true"
 
 SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "dev-secret-key")

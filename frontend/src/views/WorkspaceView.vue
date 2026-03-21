@@ -20,6 +20,10 @@ onMounted(async () => {
     await workspace.selectConversation(workspace.currentConversationId)
   }
 })
+
+function useExamplePrompt(text: string) {
+  workspace.setComposerText(text)
+}
 </script>
 
 <template>
@@ -42,14 +46,23 @@ onMounted(async () => {
         :label="workspace.currentStepLabel"
         :progress="workspace.currentProgress"
         :running="workspace.sending"
+        :failed="workspace.currentConversation?.status === 'failed'"
+        :stopped="!workspace.sending && workspace.currentStepLabel === '已停止生成'"
       />
 
       <section class="workspace-main__stream">
-        <MessageStream :messages="workspace.currentMessages" @open-evidence="workspace.openEvidence" />
+        <MessageStream
+          :messages="workspace.currentMessages"
+          @open-evidence="workspace.openEvidence"
+          @choose-example="useExamplePrompt"
+          @retry-message="workspace.retryAssistantMessage"
+        />
       </section>
 
       <footer class="workspace-main__composer">
-        <MessageComposer />
+        <div class="workspace-main__composer-inner">
+          <MessageComposer />
+        </div>
       </footer>
     </main>
 
@@ -101,11 +114,21 @@ onMounted(async () => {
   min-height: 0;
   overflow: auto;
   padding-right: 6px;
+  padding-bottom: 24px;
 }
 
 .workspace-main__composer {
   position: sticky;
   bottom: 0;
+  z-index: 12;
+  padding: 8px 0 0;
+  background: transparent;
+  backdrop-filter: none;
+}
+
+.workspace-main__composer-inner {
+  max-width: 980px;
+  margin: 0 auto;
 }
 
 @media (max-width: 960px) {

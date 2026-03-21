@@ -1,5 +1,6 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
+import { ElMessage } from 'element-plus'
 
 import {
   createConversation,
@@ -35,6 +36,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
   const loadingMessages = ref(false)
   const sending = ref(false)
   const currentTaskId = ref<string>('')
+  const currentAssistantMessageId = ref<string>('')
   const currentStepLabel = ref('')
   const currentProgress = ref(0)
   const evidenceDrawerVisible = ref(false)
@@ -44,8 +46,13 @@ export const useWorkspaceStore = defineStore('workspace', () => {
   let eventSource: EventSource | null = null
 
   const groupedConversations = computed(() => {
+    const ordered = [...conversations.value].sort((a, b) => {
+      const aTime = new Date(a.last_message_at || a.updated_at).getTime()
+      const bTime = new Date(b.last_message_at || b.updated_at).getTime()
+      return bTime - aTime
+    })
     const groups = new Map<string, ConversationItem[]>()
-    for (const item of conversations.value) {
+    for (const item of ordered) {
       const label = groupConversationLabel(item.last_message_at || item.updated_at)
       const bucket = groups.get(label) ?? []
       bucket.push(item)
@@ -64,6 +71,10 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     composerText.value = ''
   }
 
+  function setComposerText(text: string) {
+    composerText.value = text
+  }
+
   function applyDefaultParams(defaults?: Record<string, string | string[]>) {
     composerParams.value = {
       grid_environment: (defaults?.grid_environment as string) || DEFAULT_PARAMS.grid_environment,
@@ -71,6 +82,10 @@ export const useWorkspaceStore = defineStore('workspace', () => {
       data_basis: (defaults?.data_basis as string[]) || DEFAULT_PARAMS.data_basis,
       target_capability: (defaults?.target_capability as string[]) || DEFAULT_PARAMS.target_capability,
     }
+  }
+
+  function resetComposerParams(defaults?: Record<string, string | string[]>) {
+    applyDefaultParams(defaults)
   }
 
   async function loadConversationList() {
@@ -157,17 +172,51 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     }
   }
 
+  function setAssistantTerminalState(
+    conversationId: string,
+    assistantMessageId: string,
+    status: 'failed' | 'stopped',
+    content?: string,
+  ) {
+    patchAssistantMessage(conversationId, assistantMessageId, {
+      status,
+      content:
+        content ||
+        (status === 'stopped' ? '本次生成已被手动停止，你可以稍后继续生成。' : '生成过程中出现异常，请重试。'),
+    })
+  }
+
+  function findRetryQuery(conversationId: string, assistantMessageId?: string) {
+    const list = messages.value[conversationId] ?? []
+    if (!list.length) return ''
+    if (assistantMessageId) {
+      const targetIndex = list.findIndex((item) => item.message_id === assistantMessageId)
+      if (targetIndex > 0) {
+        for (let index = targetIndex - 1; index >= 0; index -= 1) {
+          const item = list[index]
+          if (item.role === 'user') {
+            return item.content || item.query_text || ''
+          }
+        }
+      }
+    }
+
+    const lastUser = [...list].reverse().find((item) => item.role === 'user')
+    return lastUser?.content || lastUser?.query_text || ''
+  }
+
   function bindTaskStream(payload: SendMessageResult) {
     closeStream()
+    const conversationId = payload.conversation_id
+    const assistantMessageId = payload.assistant_message_id
     currentTaskId.value = payload.task_id
+    currentAssistantMessageId.value = assistantMessageId
     currentProgress.value = 0
     currentStepLabel.value = '正在启动生成流程'
     eventSource = createTaskEventSource(payload.stream_url)
 
     eventSource.onmessage = (event) => {
       const envelope = JSON.parse(event.data) as StreamEnvelope
-      const conversationId = payload.conversation_id
-      const assistantMessageId = payload.assistant_message_id
       ensureAssistantMessage(conversationId, assistantMessageId)
 
       switch (envelope.event) {
@@ -209,18 +258,17 @@ export const useWorkspaceStore = defineStore('workspace', () => {
           currentStepLabel.value = '生成完成'
           sending.value = false
           currentTaskId.value = ''
+          currentAssistantMessageId.value = ''
           closeStream()
           break
         }
         case 'error': {
-          patchAssistantMessage(conversationId, assistantMessageId, {
-            status: 'failed',
-            content: '生成过程中出现异常，请重试。',
-          })
+          setAssistantTerminalState(conversationId, assistantMessageId, 'failed')
           patchConversation(conversationId, { status: 'failed' })
           currentStepLabel.value = '生成失败'
           sending.value = false
           currentTaskId.value = ''
+          currentAssistantMessageId.value = ''
           closeStream()
           break
         }
@@ -229,16 +277,27 @@ export const useWorkspaceStore = defineStore('workspace', () => {
 
     eventSource.onerror = () => {
       currentStepLabel.value = '流式连接中断'
+      if (sending.value) {
+        setAssistantTerminalState(
+          conversationId,
+          assistantMessageId,
+          'failed',
+          '流式连接中断，结果可能未完整返回，请重新生成。',
+        )
+        patchConversation(conversationId, { status: 'failed' })
+      }
       sending.value = false
+      currentTaskId.value = ''
+      currentAssistantMessageId.value = ''
       closeStream()
     }
   }
 
-  async function submitCurrentMessage() {
+  async function submitQuery(queryText?: string) {
     if (!currentConversationId.value) {
       await createNewConversation()
     }
-    const query = composerText.value.trim()
+    const query = (queryText ?? composerText.value).trim()
     if (!query || !currentConversationId.value) return
 
     const conversationId = currentConversationId.value
@@ -264,21 +323,69 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     sending.value = true
     currentStepLabel.value = '正在发送请求'
     currentProgress.value = 4
+    try {
+      const payload = await sendConversationMessage(conversationId, {
+        query,
+        params: composerParams.value,
+      })
+      resetComposer()
+      bindTaskStream(payload)
+    } catch (error) {
+      const list = messages.value[conversationId] ?? []
+      list.push({
+        message_id: `local-assistant-error-${Date.now()}`,
+        conversation_id: conversationId,
+        role: 'assistant',
+        status: 'failed',
+        query_text: '',
+        summary: '',
+        content: '请求发送失败，请检查服务状态后重试。',
+        assumptions: [],
+        evidence_cards: [],
+        created_at: new Date().toISOString(),
+      })
+      messages.value[conversationId] = [...list]
+      sending.value = false
+      currentTaskId.value = ''
+      currentAssistantMessageId.value = ''
+      currentStepLabel.value = '发送失败'
+      currentProgress.value = 0
+      patchConversation(conversationId, { status: 'failed' })
+      ElMessage.error(error instanceof Error ? error.message : '发送失败，请稍后重试。')
+    }
+  }
 
-    const payload = await sendConversationMessage(conversationId, {
-      query,
-      params: composerParams.value,
-    })
-    resetComposer()
-    bindTaskStream(payload)
+  async function submitCurrentMessage() {
+    await submitQuery()
   }
 
   async function stopCurrentTask() {
     if (!currentTaskId.value) return
+    const conversationId = currentConversationId.value
+    const assistantMessageId = currentAssistantMessageId.value
     await cancelTask(currentTaskId.value)
+    if (conversationId && assistantMessageId) {
+      setAssistantTerminalState(conversationId, assistantMessageId, 'stopped')
+      patchConversation(conversationId, { status: 'idle' })
+    }
     currentStepLabel.value = '已停止生成'
     sending.value = false
+    currentTaskId.value = ''
+    currentAssistantMessageId.value = ''
     closeStream()
+    ElMessage.info('已停止当前生成任务')
+  }
+
+  async function retryAssistantMessage(assistantMessageId: string) {
+    const conversationId = currentConversationId.value
+    if (!conversationId || sending.value) return
+    const query = findRetryQuery(conversationId, assistantMessageId)
+    if (!query) {
+      ElMessage.warning('未找到可重试的原始问题，请重新输入。')
+      return
+    }
+    composerText.value = query
+    await submitQuery(query)
   }
 
   function openEvidence(cards: EvidenceCard[]) {
@@ -307,13 +414,16 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     composerText,
     composerParams,
     applyDefaultParams,
+    resetComposerParams,
     loadConversationList,
     selectConversation,
     createNewConversation,
     submitCurrentMessage,
+    retryAssistantMessage,
     stopCurrentTask,
     openEvidence,
     closeEvidence,
     resetComposer,
+    setComposerText,
   }
 })

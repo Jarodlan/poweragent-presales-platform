@@ -1,6 +1,6 @@
 export type ConversationStatus = 'idle' | 'running' | 'failed'
 export type MessageRole = 'user' | 'assistant' | 'system'
-export type MessageStatus = 'pending' | 'running' | 'completed' | 'failed'
+export type MessageStatus = 'pending' | 'running' | 'completed' | 'failed' | 'stopped'
 
 export interface EvidenceCard {
   source_type: string

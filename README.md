@@ -74,9 +74,27 @@ python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env
+# 先确保本机 PostgreSQL 已启动，并存在 power_agent 数据库与用户
 python manage.py migrate
 python manage.py runserver 0.0.0.0:8000
 ```
+
+默认开发数据库：
+
+- `PostgreSQL`
+
+仅在 PostgreSQL 临时不可用时，才允许使用 SQLite 兜底联调：
+
+```bash
+cd backend/platform
+DJANGO_USE_SQLITE=true python manage.py migrate
+DJANGO_USE_SQLITE=true python manage.py runserver 0.0.0.0:8000
+```
+
+说明：
+
+- `backend/platform/db.sqlite3` 仅作为本地单人兜底文件，不作为默认开发数据库
+- 团队联调、任务回写、会话历史与验收环境统一使用 `PostgreSQL`
 
 ### Agent Service
 
@@ -86,7 +104,7 @@ python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env
-uvicorn app.main:app --host 0.0.0.0 --port 9000 --reload
+uvicorn app.main:app --host 0.0.0.0 --port 9100 --reload
 ```
 
 ### RAGFlow
@@ -100,3 +118,14 @@ docker compose -f docker-compose.yml up -d
 默认对接地址：
 
 - `RAGFLOW_BASE_URL=http://127.0.0.1:9381`
+- `AGENT_SERVICE_BASE_URL=http://127.0.0.1:9100`
+
+## 数据库说明
+
+- `RAGFlow`：使用其自身环境中的 `MySQL`
+- `Django 平台层`：默认使用 `PostgreSQL`
+- `SQLite`：仅作为本机临时兜底，不作为默认开发、联调或验收数据库
+
+更多细节见：
+
+- [PostgreSQL本地开发说明](./PostgreSQL本地开发说明.md)

@@ -10,6 +10,24 @@ export function formatDateTime(value?: string | null) {
   }).format(date)
 }
 
+export function formatRelativeTime(value?: string | null) {
+  if (!value) return '刚刚'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return '刚刚'
+
+  const diff = Date.now() - date.getTime()
+  const minute = 60 * 1000
+  const hour = 60 * minute
+  const day = 24 * hour
+
+  if (diff < minute) return '刚刚'
+  if (diff < hour) return `${Math.max(1, Math.floor(diff / minute))} 分钟前`
+  if (diff < day) return `${Math.max(1, Math.floor(diff / hour))} 小时前`
+  if (diff < day * 7) return `${Math.max(1, Math.floor(diff / day))} 天前`
+
+  return formatDateTime(value)
+}
+
 export function groupConversationLabel(value?: string | null) {
   if (!value) return '更早'
   const date = new Date(value)
