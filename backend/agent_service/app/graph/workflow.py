@@ -2,6 +2,7 @@ from collections.abc import Callable
 
 from .nodes import (
     assemble_solution,
+    generate_case_section,
     generate_implementation_section,
     generate_kpi_section,
     generate_outline,
@@ -40,7 +41,7 @@ def run_workflow(
         state = step_func(state)
         if progress_callback:
             progress_callback(f"{step_name}_completed", state)
-    for section_title in [title for title in state.get("section_order", []) if title not in {"技术实施方案", "效益评估指标", "总结"}]:
+    for section_title in [title for title in state.get("section_order", []) if title not in {"成功案例介绍", "技术实施方案", "效益评估指标", "总结"}]:
         step_name = f"generate_section:{section_title}"
         if progress_callback:
             progress_callback(step_name, state)
@@ -48,6 +49,7 @@ def run_workflow(
         if progress_callback:
             progress_callback(f"generate_section_completed:{section_title}", state)
     specialized_steps = [
+        ("generate_case_section", generate_case_section),
         ("generate_implementation_section", generate_implementation_section),
         ("generate_kpi_section", generate_kpi_section),
         ("generate_summary_section", generate_summary_section),

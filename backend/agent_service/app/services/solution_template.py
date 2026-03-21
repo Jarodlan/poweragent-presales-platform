@@ -18,6 +18,20 @@ DEFAULT_SECTION_TITLES = [
 ]
 
 
+SCENARIO_TEMPLATE_MAP = {
+    "fault_diagnosis_solution": {
+        "document_title": "智能配电网故障诊断解决方案",
+        "template_path": settings.solution_template_path,
+        "source_path": settings.solution_template_source_path,
+    },
+    "storage_aggregation_solution": {
+        "document_title": "分布式储能聚合运营智能体解决方案",
+        "template_path": settings.storage_solution_template_path,
+        "source_path": settings.storage_solution_template_source_path,
+    },
+}
+
+
 def _read_text(path_str: str) -> str:
     path = Path(path_str)
     if not path.exists():
@@ -48,11 +62,29 @@ def _extract_template_block(template_text: str, heading: str) -> str:
     return "\n".join(collected).strip()
 
 
-@lru_cache(maxsize=1)
-def get_solution_template() -> dict[str, object]:
+def infer_template_key(query: str = "", intent: str = "") -> str:
+    normalized = f"{intent} {query}".lower()
+    storage_keywords = [
+        "储能",
+        "聚合",
+        "虚拟电厂",
+        "电价",
+        "现货",
+        "需求响应",
+        "aggregator",
+        "storage",
+    ]
+    if any(keyword in normalized for keyword in storage_keywords):
+        return "storage_aggregation_solution"
+    return "fault_diagnosis_solution"
+
+
+@lru_cache(maxsize=8)
+def get_solution_template(template_key: str = "fault_diagnosis_solution") -> dict[str, object]:
     enabled = settings.solution_template_enabled
-    template_text = _read_text(settings.solution_template_path)
-    reference_text = _read_text(settings.solution_template_source_path)
+    template_meta = SCENARIO_TEMPLATE_MAP.get(template_key, SCENARIO_TEMPLATE_MAP["fault_diagnosis_solution"])
+    template_text = _read_text(str(template_meta["template_path"]))
+    reference_text = _read_text(str(template_meta["source_path"]))
     section_titles = _extract_section_titles(template_text) or DEFAULT_SECTION_TITLES
     section_blocks = {
         title: _extract_template_block(template_text, title)
@@ -61,8 +93,10 @@ def get_solution_template() -> dict[str, object]:
 
     return {
         "enabled": enabled,
-        "template_path": settings.solution_template_path,
-        "source_path": settings.solution_template_source_path,
+        "template_key": template_key,
+        "document_title": template_meta["document_title"],
+        "template_path": str(template_meta["template_path"]),
+        "source_path": str(template_meta["source_path"]),
         "template_text": template_text,
         "reference_text": reference_text,
         "section_titles": section_titles,

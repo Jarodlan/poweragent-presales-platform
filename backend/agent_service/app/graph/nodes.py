@@ -3,13 +3,12 @@ from app.graph.prompts import PROMPTS
 from app.graph.state import AgentState
 from app.services.llm_gateway import LLMGateway
 from app.services.retrieval_service import RetrievalService
-from app.services.solution_template import get_solution_template
+from app.services.solution_template import get_solution_template, infer_template_key
 import re
 
 
 gateway = LLMGateway()
 retrieval_service = RetrievalService()
-solution_template = get_solution_template()
 
 
 def _truncate(text: str, limit: int) -> str:
@@ -39,32 +38,62 @@ def _chat_json_or_text(
     return response.get("content", "").strip()
 
 
-def _template_sections() -> list[str]:
+def _active_template(state: AgentState) -> dict[str, object]:
+    template_key = infer_template_key(
+        query=state.get("query", ""),
+        intent=state.get("normalized_intent", ""),
+    )
+    return get_solution_template(template_key)
+
+
+def _template_sections(state: AgentState) -> list[str]:
+    solution_template = _active_template(state)
     sections = solution_template.get("section_titles", PROMPTS["generate_outline"]["sections"])
     return [section for section in sections if section not in {"使用原则", "写作约束"}]
 
 
 def _specialized_sections() -> list[str]:
-    return ["技术实施方案", "效益评估指标", "总结"]
+    return ["成功案例介绍", "技术实施方案", "效益评估指标", "总结"]
 
 
-def _generic_sections() -> list[str]:
-    return [section for section in _template_sections() if section not in _specialized_sections()]
+def _generic_sections(state: AgentState) -> list[str]:
+    return [section for section in _template_sections(state) if section not in _specialized_sections()]
 
 
 def _section_requirement(section_title: str) -> str:
     return PROMPTS["expand_sections"].get("section_requirements", {}).get(section_title, "")
 
 
-def _section_template_block(section_title: str) -> str:
+def _section_template_block(state: AgentState, section_title: str) -> str:
+    solution_template = _active_template(state)
     blocks = solution_template.get("section_blocks", {})
     if not isinstance(blocks, dict):
         return ""
     return str(blocks.get(section_title, ""))
 
 
-def _shared_cache_prefix() -> str:
-    sections = "、".join(_template_sections())
+def _scenario_section_guidance(state: AgentState, section_title: str) -> str:
+    intent = state.get("normalized_intent", "")
+    if intent != "storage_aggregation_solution":
+        return ""
+    guidance_map = {
+        "背景介绍": "必须同时交代宁波区域负荷特征、新能源渗透、市场化交易背景，以及为什么储能聚合运营需要智能体。",
+        "核心挑战识别": "重点写清电网约束、市场价格波动、储能寿命退化、资源分散接入和收益分配五类挑战。",
+        "建设目标": "必须覆盖电网侧目标、市场侧目标、资产侧目标、平台侧目标，并给出分阶段目标。",
+        "总体技术架构": "建议写成数据底座、规则约束层、多智能体决策层、调度执行层、复盘优化层五层结构，并明确外部数据、现场数据和知识库的角色。",
+        "技术创新方向": "至少写4项，优先围绕市场研判、电网约束分析、寿命机会成本建模、聚合调度优化、收益分摊和Agent协同。",
+        "成功案例介绍": "若缺少完全匹配宁波本地案例，可写同类参考案例，但要明确说明“参考案例”或“可参考场景”，并写出对宁波落地的映射意义。",
+        "技术实施方案": "优先展开资源接入治理、规则建模、预测模型、优化引擎、执行联动、收益复盘中的5步关键路径。",
+        "效益分析": "必须从聚合收益提升、电网调峰支撑、储能寿命友好运行、运维效率提升四个角度量化。",
+        "效益评估指标": "KPI应覆盖收益、执行、设备寿命、电网约束、安全合规和客户侧解释性。",
+        "总结": "必须回扣宁波区域性、电网约束、市场化运营和产品复制前景。",
+    }
+    return guidance_map.get(section_title, "")
+
+
+def _shared_cache_prefix(state: AgentState) -> str:
+    solution_template = _active_template(state)
+    sections = "、".join(_template_sections(state))
     template_excerpt = _truncate(str(solution_template.get("template_excerpt", "")), 2600)
     reference_excerpt = _truncate(str(solution_template.get("reference_excerpt", "")), 2600)
     return (
@@ -80,13 +109,34 @@ def _shared_cache_prefix() -> str:
 
 
 def _section_max_tokens(section_title: str) -> int:
-    if section_title == "技术实施方案":
+    if section_title == "成功案例介绍":
         return 1800
+    if section_title == "技术实施方案":
+        return 2200
     if section_title == "效益评估指标":
         return 700
-    if section_title in {"背景介绍", "总体技术架构", "技术创新方向"}:
-        return 1000
+    if section_title in {"背景介绍", "总体技术架构", "技术创新方向", "效益分析"}:
+        return 1200
     return 800
+
+
+def _normalize_section_heading(section_title: str, content: str) -> str:
+    text = (content or "").strip()
+    if not text:
+        return f"## {section_title}"
+    lines = text.splitlines()
+    first_non_empty_index = next((i for i, line in enumerate(lines) if line.strip()), None)
+    if first_non_empty_index is None:
+        return f"## {section_title}"
+    first_line = lines[first_non_empty_index].strip()
+    heading_pattern = re.compile(
+        rf"^##\s*(?:\d+[.\s、-]+)?(?:第[一二三四五六七八九十\d]+章\s*)?{re.escape(section_title)}\s*$"
+    )
+    if heading_pattern.match(first_line) or first_line.startswith("## "):
+        lines[first_non_empty_index] = f"## {section_title}"
+        return "\n".join(lines).strip()
+    lines.insert(first_non_empty_index, f"## {section_title}")
+    return "\n".join(lines).strip()
 
 
 def _programmatic_section_issues(section_title: str, content: str) -> list[str]:
@@ -111,6 +161,12 @@ def _programmatic_section_issues(section_title: str, content: str) -> list[str]:
         case_count = len(re.findall(r"案例[一二三四五六七八九十\d]", text))
         if case_count < 2:
             issues.append("成功案例数量不足2个")
+        if text.count("量化成效") < 2:
+            issues.append("成功案例量化成效不足2处")
+        if text.count("映射价值") < 2:
+            issues.append("成功案例映射价值不足2处")
+        if text.endswith(("2周内", "第", "阶段：", "实施过程：")):
+            issues.append("成功案例章节疑似在案例二中途截断")
     if section_title == "技术实施方案":
         step_count = len(
             re.findall(r"(?m)^\s*###\s*步骤(?:[一二三四五六七八九十]|\d+)", text)
@@ -131,13 +187,15 @@ def _programmatic_section_issues(section_title: str, content: str) -> list[str]:
 
 
 def _assemble_markdown_from_sections(state: AgentState) -> str:
-    ordered_sections = state.get("section_order", _template_sections())
+    solution_template = _active_template(state)
+    ordered_sections = state.get("section_order", _template_sections(state))
     content_blocks = []
     for section_title in ordered_sections:
         section_text = state.get("section_contents", {}).get(section_title, "")
         if section_text:
             content_blocks.append(section_text.strip())
-    return "# 智能配电网故障诊断解决方案\n\n" + "\n\n".join(content_blocks)
+    document_title = str(solution_template.get("document_title", "电力行业解决方案"))
+    return f"# {document_title}\n\n" + "\n\n".join(content_blocks)
 
 
 def intent_identify(state: AgentState) -> AgentState:
@@ -154,6 +212,9 @@ def intent_identify(state: AgentState) -> AgentState:
         fallback_model=settings.minimax_fast_model,
         max_tokens=64,
     )
+    if not content:
+        query = state["query"]
+        content = infer_template_key(query=query, intent="")
     state["normalized_intent"] = content or "fault_diagnosis_solution"
     state["status"] = "intent_identifying"
     state.setdefault("metadata", {})
@@ -163,23 +224,45 @@ def intent_identify(state: AgentState) -> AgentState:
 
 def normalize_context(state: AgentState) -> AgentState:
     params = state.get("params", {})
-    state["normalized_context"] = {
-        "grid_environment": params.get("grid_environment", "distribution_network"),
-        "equipment_type": params.get("equipment_type", "comprehensive"),
-        "data_basis": params.get(
-            "data_basis",
-            ["scada", "online_monitoring", "historical_workorder"],
-        ),
-        "target_capability": params.get(
-            "target_capability",
-            ["fault_diagnosis", "root_cause_analysis"],
-        ),
-    }
+    if state.get("normalized_intent") == "storage_aggregation_solution":
+        state["normalized_context"] = {
+            "grid_environment": params.get("grid_environment", "urban_distribution_network"),
+            "asset_scope": params.get(
+                "asset_scope",
+                ["user_side_storage", "park_storage", "distributed_pv", "flexible_load"],
+            ),
+            "market_scope": params.get(
+                "market_scope",
+                ["time_of_use_tariff", "spot_market", "demand_response", "green_power_trade"],
+            ),
+            "core_constraints": params.get(
+                "core_constraints",
+                ["grid_constraints", "price_policy", "lifecycle_benefit_maximization"],
+            ),
+            "region": params.get("region", "zhejiang_ningbo"),
+        }
+    else:
+        state["normalized_context"] = {
+            "grid_environment": params.get("grid_environment", "distribution_network"),
+            "equipment_type": params.get("equipment_type", "comprehensive"),
+            "data_basis": params.get(
+                "data_basis",
+                ["scada", "online_monitoring", "historical_workorder"],
+            ),
+            "target_capability": params.get(
+                "target_capability",
+                ["fault_diagnosis", "root_cause_analysis"],
+            ),
+        }
     state["status"] = "context_normalizing"
     return state
 
 
 def retrieve_documents(state: AgentState) -> AgentState:
+    if state.get("params", {}).get("skip_ragflow"):
+        state["documents"] = []
+        state["status"] = "retrieving_documents"
+        return state
     retrieval_query = state["query"]
     normalized_intent = state.get("normalized_intent", "").strip()
     if normalized_intent and normalized_intent not in retrieval_query:
@@ -194,10 +277,13 @@ def retrieve_documents(state: AgentState) -> AgentState:
 
 def merge_evidence(state: AgentState) -> AgentState:
     docs = state.get("documents", [])
+    external_evidence = state.get("params", {}).get("external_evidence", "")
     docs_text = "\n".join(
         f"[{item['source_type']}] {item.get('title', '')}\n{item.get('snippet', '')[:220]}"
         for item in docs[:6]
     )
+    if external_evidence:
+        docs_text = f"{docs_text}\n[external_public_sources]\n{external_evidence}".strip()
     content = _chat_json_or_text(
         [
             {"role": "system", "content": PROMPTS["merge_evidence"]["system"]},
@@ -223,8 +309,9 @@ def merge_evidence(state: AgentState) -> AgentState:
 
 
 def generate_outline(state: AgentState) -> AgentState:
+    solution_template = _active_template(state)
     evidence_excerpt = _truncate(state.get("evidence", {}).get("merged_text", ""), 1800)
-    template_section_titles = _template_sections()
+    template_section_titles = _template_sections(state)
     template_excerpt = _truncate(str(solution_template.get("template_excerpt", "")), 2200)
     prompt = (
         f"{PROMPTS['generate_outline']['system']}\n"
@@ -262,10 +349,11 @@ def generate_section_content(
 ) -> str:
     outline_excerpt = _truncate(state.get("outline", ""), 1600)
     evidence_excerpt = _truncate(state.get("evidence", {}).get("merged_text", ""), 2000)
-    section_block = _truncate(_section_template_block(section_title), 1500)
+    section_block = _truncate(_section_template_block(state, section_title), 1500)
     section_requirement = _section_requirement(section_title)
+    scenario_guidance = _scenario_section_guidance(state, section_title)
     previous_sections = _truncate(state.get("generated_sections_context", ""), 1600)
-    shared_prefix = _shared_cache_prefix()
+    shared_prefix = _shared_cache_prefix(state)
     content = _chat_json_or_text(
         [
             {
@@ -281,6 +369,7 @@ def generate_section_content(
                 "content": (
                     f"当前章节：{section_title}\n"
                     f"章节写作要求：{section_requirement}\n"
+                    f"场景专项要求：{scenario_guidance or '无'}\n"
                     f"用户需求：{state['query']}\n"
                     f"标准化场景：{state.get('normalized_intent', '')}\n"
                     f"上下文：{state.get('normalized_context', {})}\n"
@@ -318,8 +407,7 @@ def generate_section(state: AgentState, section_title: str) -> AgentState:
         )
         state["summary"] = summary or f"本方案围绕“{state['query']}”生成。"
     section_content = generate_section_content(state, section_title=section_title)
-    if not section_content.startswith("## "):
-        section_content = f"## {section_title}\n\n{section_content}"
+    section_content = _normalize_section_heading(section_title, section_content)
     section_contents[section_title] = section_content
     state["section_contents"] = section_contents
     existing_context = state.get("generated_sections_context", "")
@@ -344,8 +432,9 @@ def _generate_special_section(
     evidence_excerpt = _truncate(state.get("evidence", {}).get("merged_text", ""), 2200)
     outline_excerpt = _truncate(state.get("outline", ""), 1800)
     previous_sections = _truncate(state.get("generated_sections_context", ""), 2200)
-    section_block = _truncate(_section_template_block(section_title), 1800)
-    shared_prefix = _shared_cache_prefix()
+    section_block = _truncate(_section_template_block(state, section_title), 1800)
+    scenario_guidance = _scenario_section_guidance(state, section_title)
+    shared_prefix = _shared_cache_prefix(state)
     prompt = PROMPTS[prompt_key]
     content = _chat_json_or_text(
         [
@@ -365,6 +454,7 @@ def _generate_special_section(
                     f"上下文：{state.get('normalized_context', {})}\n"
                     f"方案大纲：\n{outline_excerpt}\n"
                     f"检索证据：\n{evidence_excerpt}\n"
+                    f"场景专项要求：{scenario_guidance or '无'}\n"
                     f"模板中的本章节要求：\n{section_block}\n"
                     f"已完成章节摘要：\n{previous_sections}\n"
                     f"章节修订意见：\n{review_feedback or '无'}\n"
@@ -376,8 +466,7 @@ def _generate_special_section(
         fallback_model=settings.minimax_default_model,
         max_tokens=max_tokens,
     )
-    if not content.startswith("## "):
-        content = f"## {section_title}\n\n{content}"
+    content = _normalize_section_heading(section_title, content)
     section_contents[section_title] = content.strip()
     state["section_contents"] = section_contents
     existing_context = state.get("generated_sections_context", "")
@@ -388,6 +477,15 @@ def _generate_special_section(
     )
     state["status"] = "expanding_sections"
     return state
+
+
+def generate_case_section(state: AgentState) -> AgentState:
+    return _generate_special_section(
+        state,
+        section_title="成功案例介绍",
+        prompt_key="generate_case_section",
+        max_tokens=2000,
+    )
 
 
 def generate_implementation_section(state: AgentState) -> AgentState:
@@ -425,7 +523,7 @@ def assemble_solution(state: AgentState) -> AgentState:
 
 def review_solution(state: AgentState) -> AgentState:
     state["status"] = "reviewing_solution"
-    section_titles = state.get("section_order", _template_sections())
+    section_titles = state.get("section_order", _template_sections(state))
     review_notes: list[str] = []
     for section_title in section_titles:
         content = state.get("section_contents", {}).get(section_title, "")
@@ -437,7 +535,8 @@ def review_solution(state: AgentState) -> AgentState:
                     "role": "user",
                     "content": (
                         f"章节标题：{section_title}\n"
-                        f"章节要求：{_section_requirement(section_title) or _section_template_block(section_title)}\n"
+                        f"章节要求：{_section_requirement(section_title) or _section_template_block(state, section_title)}\n"
+                        f"场景专项要求：{_scenario_section_guidance(state, section_title) or '无'}\n"
                         f"当前章节内容：\n{_truncate(content, 3200)}\n"
                         f"程序规则发现的问题：{programmatic_issues or ['无']}\n"
                         f"{PROMPTS['review_section']['output_rule']}"
@@ -462,6 +561,14 @@ def review_solution(state: AgentState) -> AgentState:
                 max_tokens=2200,
                 review_feedback=repair_feedback,
             )
+        elif section_title == "成功案例介绍":
+            state = _generate_special_section(
+                state,
+                section_title=section_title,
+                prompt_key="generate_case_section",
+                max_tokens=2000,
+                review_feedback=repair_feedback,
+            )
         elif section_title == "效益评估指标":
             state = _generate_special_section(
                 state,
@@ -484,8 +591,7 @@ def review_solution(state: AgentState) -> AgentState:
                 section_title=section_title,
                 review_feedback=repair_feedback,
             )
-            if not repaired.startswith("## "):
-                repaired = f"## {section_title}\n\n{repaired}"
+            repaired = _normalize_section_heading(section_title, repaired)
             state.setdefault("section_contents", {})
             state["section_contents"][section_title] = repaired.strip()
     state["assumptions"] = review_notes
