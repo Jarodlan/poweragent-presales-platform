@@ -3,6 +3,7 @@ const DEFAULT_HEADERS = {
 }
 
 const TOKEN_STORAGE_KEY = 'poweragent_access_token'
+const REFRESH_TOKEN_STORAGE_KEY = 'poweragent_refresh_token'
 
 interface ApiEnvelope<T> {
   code: number
@@ -18,8 +19,25 @@ export function setStoredToken(token: string) {
   localStorage.setItem(TOKEN_STORAGE_KEY, token)
 }
 
+export function getStoredRefreshToken() {
+  return localStorage.getItem(REFRESH_TOKEN_STORAGE_KEY) || ''
+}
+
+export function setStoredRefreshToken(token: string) {
+  localStorage.setItem(REFRESH_TOKEN_STORAGE_KEY, token)
+}
+
 export function clearStoredToken() {
   localStorage.removeItem(TOKEN_STORAGE_KEY)
+}
+
+export function clearStoredRefreshToken() {
+  localStorage.removeItem(REFRESH_TOKEN_STORAGE_KEY)
+}
+
+export function clearStoredAuth() {
+  clearStoredToken()
+  clearStoredRefreshToken()
 }
 
 export async function apiRequest<T>(input: string, init?: RequestInit): Promise<T> {
@@ -34,7 +52,7 @@ export async function apiRequest<T>(input: string, init?: RequestInit): Promise<
   })
 
   if (response.status === 401) {
-    clearStoredToken()
+    clearStoredAuth()
     if (window.location.pathname !== '/login') {
       window.location.href = '/login'
     }

@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+from datetime import timedelta
+
 from django.contrib.auth import authenticate
 from django.db import transaction
+from django.utils import timezone
 from rest_framework import status
-from rest_framework.authentication import TokenAuthentication
 from rest_framework.authtoken.models import Token
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
@@ -11,6 +13,7 @@ from rest_framework.views import APIView
 
 from apps.audit.models import AuditLog
 
+from .authentication import ExpiringTokenAuthentication, TOKEN_VALIDITY_DAYS
 from .models import Department, Role, User
 from .permissions import CanManageDepartments, CanManageRoles, CanManageUsers
 from .serializers import DepartmentSerializer, LoginSerializer, RoleSerializer, UserSerializer
@@ -44,7 +47,8 @@ class LoginView(APIView):
             return Response({"code": 40004, "message": "账户已锁定，请稍后再试", "data": None}, status=status.HTTP_423_LOCKED)
 
         with transaction.atomic():
-            token, _ = Token.objects.get_or_create(user=user)
+            Token.objects.filter(user=user).delete()
+            token = Token.objects.create(user=user)
             record_login_success(user, ip_address=request.META.get("REMOTE_ADDR"))
             AuditLog.objects.create(
                 user=user,
@@ -61,6 +65,8 @@ class LoginView(APIView):
                 "data": {
                     "token": token.key,
                     "token_type": "Token",
+                    "expires_at": (token.created + timedelta(days=TOKEN_VALIDITY_DAYS)).isoformat(),
+                    "expires_in_days": TOKEN_VALIDITY_DAYS,
                     "user": UserSerializer(user).data,
                 },
             }
@@ -68,7 +74,7 @@ class LoginView(APIView):
 
 
 class LogoutView(APIView):
-    authentication_classes = [TokenAuthentication]
+    authentication_classes = [ExpiringTokenAuthentication]
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
@@ -84,7 +90,7 @@ class LogoutView(APIView):
 
 
 class CurrentUserView(APIView):
-    authentication_classes = [TokenAuthentication]
+    authentication_classes = [ExpiringTokenAuthentication]
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
@@ -92,7 +98,7 @@ class CurrentUserView(APIView):
 
 
 class UserListView(APIView):
-    authentication_classes = [TokenAuthentication]
+    authentication_classes = [ExpiringTokenAuthentication]
     permission_classes = [CanManageUsers]
 
     def get(self, request):
@@ -104,7 +110,7 @@ class UserListView(APIView):
 
 
 class RoleListView(APIView):
-    authentication_classes = [TokenAuthentication]
+    authentication_classes = [ExpiringTokenAuthentication]
     permission_classes = [CanManageRoles]
 
     def get(self, request):
@@ -113,7 +119,7 @@ class RoleListView(APIView):
 
 
 class DepartmentListView(APIView):
-    authentication_classes = [TokenAuthentication]
+    authentication_classes = [ExpiringTokenAuthentication]
     permission_classes = [CanManageDepartments]
 
     def get(self, request):

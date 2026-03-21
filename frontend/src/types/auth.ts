@@ -57,5 +57,7 @@ export interface LoginPayload {
 export interface LoginResult {
   token: string
   token_type: string
+  expires_at: string
+  expires_in_days: number
   user: CurrentUser
 }

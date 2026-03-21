@@ -59,12 +59,13 @@ async function handleLogout() {
   <aside class="sidebar">
     <div class="sidebar__top">
       <div class="sidebar__account panel-card">
-        <div>
+        <div class="sidebar__account-info">
           <strong>{{ authStore.displayName || '未登录用户' }}</strong>
           <p>{{ authStore.user?.department?.name || '未设置部门' }}</p>
         </div>
-        <el-button text @click="handleLogout">
+        <el-button text class="sidebar__logout" @click="handleLogout">
           <el-icon><SwitchButton /></el-icon>
+          退出登录
         </el-button>
       </div>
 
@@ -155,6 +156,10 @@ async function handleLogout() {
   border-radius: 20px;
 }
 
+.sidebar__account-info {
+  min-width: 0;
+}
+
 .sidebar__account strong {
   display: block;
   font-size: 14px;
@@ -164,6 +169,10 @@ async function handleLogout() {
   margin: 4px 0 0;
   font-size: 12px;
   color: var(--muted);
+}
+
+.sidebar__logout {
+  flex-shrink: 0;
 }
 
 .sidebar__brand {

@@ -11,6 +11,10 @@ const expanded = ref(false)
 const showParams = ref(false)
 const isFocused = ref(false)
 const isHovering = ref(false)
+const openSelectCount = ref(0)
+const conflictDialogVisible = ref(false)
+const detectedScenario = ref('')
+const conflictMode = ref<'switch' | 'keep'>('switch')
 const shellRef = ref<HTMLElement | null>(null)
 const inputRef = ref<{ focus?: () => void } | null>(null)
 let collapseTimer: number | null = null
@@ -29,7 +33,6 @@ const isCompact = computed(
 const promptSuggestions = [
   '给我生成一个面向无锡地区的智能配电网故障诊断解决方案。',
   '请输出一个分布式储能聚合运营智能体解决方案，重点强调收益与寿命优化。',
-  '帮我形成一个新能源功率预测智能体方案，强调预测偏差考核与数据体系。',
 ]
 
 const paramSummary = computed(() => {
@@ -44,34 +47,181 @@ const paramSummary = computed(() => {
 
   return [
     {
-      label: '电网场景',
-      value: resolveLabel(options.grid_environment_options, workspace.composerParams.grid_environment),
+      label: '方案场景',
+      value: resolveLabel(options.scenario_options, workspace.composerParams.scenario),
+    },
+    workspace.composerParams.grid_environment !== 'not_involved'
+      ? {
+          label: '电网环境',
+          value: resolveLabel(options.grid_environment_options, workspace.composerParams.grid_environment),
+        }
+      : null,
+    workspace.composerParams.equipment_type !== 'not_involved'
+      ? {
+          label: '对象/设备',
+          value: resolveLabel(options.equipment_type_options, workspace.composerParams.equipment_type),
+        }
+      : null,
+    workspace.composerParams.resource_type !== 'not_involved'
+      ? {
+          label: '资源类型',
+          value: resolveLabel(options.resource_type_options, workspace.composerParams.resource_type),
+        }
+      : null,
+    workspace.composerParams.data_basis.length
+      ? {
+          label: '数据基础',
+          value: resolveMany(options.data_basis_options, workspace.composerParams.data_basis),
+        }
+      : null,
+    workspace.composerParams.target_capability.length
+      ? {
+          label: '目标能力',
+          value: resolveMany(options.target_capability_options, workspace.composerParams.target_capability),
+        }
+      : null,
+    workspace.composerParams.market_policy_focus.length
+      ? {
+          label: '市场关注',
+          value: resolveMany(options.market_policy_focus_options, workspace.composerParams.market_policy_focus),
+        }
+      : null,
+    workspace.composerParams.planning_objective.length
+      ? {
+          label: '规划目标',
+          value: resolveMany(options.planning_objective_options, workspace.composerParams.planning_objective),
+        }
+      : null,
+    workspace.composerParams.forecast_target.length
+      ? {
+          label: '预测目标',
+          value: resolveMany(options.forecast_target_options, workspace.composerParams.forecast_target),
+        }
+      : null,
+    workspace.composerParams.coordination_scope !== 'not_involved'
+      ? {
+          label: '协同范围',
+          value: resolveLabel(options.coordination_scope_options, workspace.composerParams.coordination_scope),
+        }
+      : null,
+    workspace.composerParams.lifecycle_goal !== 'not_involved'
+      ? {
+          label: '生命周期目标',
+          value: resolveLabel(options.lifecycle_goal_options, workspace.composerParams.lifecycle_goal),
+        }
+      : null,
+  ].filter(Boolean) as Array<{ label: string; value: string }>
+})
+
+const scenarioFlags = computed(() => {
+  const value = workspace.composerParams.scenario
+  return {
+    isFaultDiagnosis: value === 'fault_diagnosis_solution',
+    isStorageAggregation: value === 'storage_aggregation_solution',
+    isDistributionPlanning: value === 'distribution_planning_solution',
+    isPowerForecast: value === 'power_forecast_solution',
+    isVppCoordination: value === 'vpp_coordination_solution',
+  }
+})
+
+const scenarioHint = computed(() => {
+  if (scenarioFlags.value.isFaultDiagnosis) {
+    return '适合补充故障对象、数据基础与诊断能力，未涉及项可不填。'
+  }
+  if (scenarioFlags.value.isStorageAggregation) {
+    return '建议补充资源类型、市场关注点和生命周期目标，未涉及项可不填。'
+  }
+  if (scenarioFlags.value.isDistributionPlanning) {
+    return '建议补充规划对象、规划目标和数据基础，未涉及项可不填。'
+  }
+  if (scenarioFlags.value.isPowerForecast) {
+    return '建议补充预测目标、数据基础和目标能力，未涉及项可不填。'
+  }
+  if (scenarioFlags.value.isVppCoordination) {
+    return '建议补充资源类型、协同范围和市场关注点，未涉及项可不填。'
+  }
+  return '这些设置仅影响本次提问，不会改动历史会话。'
+})
+
+const scenarioLabelMap = computed(() => {
+  const map = new Map<string, string>()
+  for (const item of metaStore.options?.scenario_options ?? []) {
+    map.set(item.value, item.label)
+  }
+  return map
+})
+
+const currentScenarioLabel = computed(
+  () => scenarioLabelMap.value.get(workspace.composerParams.scenario) || workspace.composerParams.scenario,
+)
+
+const detectedScenarioLabel = computed(
+  () => scenarioLabelMap.value.get(detectedScenario.value) || detectedScenario.value,
+)
+
+function updateSelectOverlay(visible: boolean) {
+  if (visible) {
+    openSelectCount.value += 1
+    clearCollapseTimer()
+    return
+  }
+  openSelectCount.value = Math.max(0, openSelectCount.value - 1)
+}
+
+function detectScenarioFromQuery(query: string) {
+  const normalized = query.trim().toLowerCase()
+  if (!normalized) return null
+
+  const scenarios = [
+    {
+      id: 'fault_diagnosis_solution',
+      keywords: ['故障诊断', '故障定位', '故障', '接地选线', '自愈', '停电'],
     },
     {
-      label: '诊断对象',
-      value: resolveLabel(options.equipment_type_options, workspace.composerParams.equipment_type),
+      id: 'storage_aggregation_solution',
+      keywords: ['储能聚合', '储能运营', '储能', '峰谷套利', '电池寿命', 'pcs', 'bms'],
     },
     {
-      label: '数据基础',
-      value: resolveMany(options.data_basis_options, workspace.composerParams.data_basis),
+      id: 'distribution_planning_solution',
+      keywords: ['配网规划', '网架优化', '重过载', '台区规划', 'n-1', '投资效益'],
     },
     {
-      label: '目标能力',
-      value: resolveMany(options.target_capability_options, workspace.composerParams.target_capability),
+      id: 'power_forecast_solution',
+      keywords: ['功率预测', '出力预测', '偏差考核', '日前预测', '日内预测', '短时预测'],
+    },
+    {
+      id: 'vpp_coordination_solution',
+      keywords: ['虚拟电厂', '源网荷储', '协同调度', '需求响应', '聚合调度', '可调负荷'],
     },
   ]
-})
+
+  const scores = scenarios.map((scenario) => ({
+    id: scenario.id,
+    score: scenario.keywords.reduce((sum, keyword) => sum + (normalized.includes(keyword) ? 1 : 0), 0),
+  }))
+
+  scores.sort((a, b) => b.score - a.score)
+  const top = scores[0]
+  if (!top || top.score <= 0) return null
+
+  const current = scores.find((item) => item.id === workspace.composerParams.scenario)
+  if (top.id === workspace.composerParams.scenario) return null
+  if (top.score >= 2 || (top.score >= 1 && (current?.score ?? 0) === 0)) {
+    return top.id
+  }
+  return null
+}
 
 function useSuggestion(text: string) {
   workspace.setComposerText(text)
   expandComposer()
 }
 
-function handleEnter(event: KeyboardEvent) {
+async function handleEnter(event: KeyboardEvent) {
   if (event.shiftKey) return
   event.preventDefault()
   if (canSubmit.value) {
-    workspace.submitCurrentMessage()
+    await attemptSubmit()
   }
 }
 
@@ -110,7 +260,7 @@ function clearCollapseTimer() {
 
 function scheduleCollapse() {
   clearCollapseTimer()
-  if (!hasMessages.value || workspace.composerText.trim() || workspace.sending) return
+  if (!hasMessages.value || workspace.composerText.trim() || workspace.sending || showParams.value || openSelectCount.value > 0) return
   collapseTimer = window.setTimeout(() => {
     collapseComposer()
   }, 180)
@@ -121,6 +271,8 @@ function toggleParams() {
   showParams.value = !showParams.value
   if (showParams.value) {
     focusComposer()
+  } else if (!isFocused.value && !isHovering.value) {
+    scheduleCollapse()
   }
 }
 
@@ -150,6 +302,7 @@ function handleMouseLeave() {
 }
 
 function collapseFromOutside() {
+  if (showParams.value || openSelectCount.value > 0) return
   const activeElement = document.activeElement as HTMLElement | null
   if (
     !workspace.composerText.trim() &&
@@ -160,6 +313,30 @@ function collapseFromOutside() {
     activeElement.blur()
   }
   scheduleCollapse()
+}
+
+async function attemptSubmit() {
+  if (!canSubmit.value) return
+  const suggestedScenario = detectScenarioFromQuery(workspace.composerText)
+  if (suggestedScenario) {
+    detectedScenario.value = suggestedScenario
+    conflictMode.value = 'switch'
+    conflictDialogVisible.value = true
+    return
+  }
+  await workspace.submitCurrentMessage()
+}
+
+async function confirmScenarioConflict() {
+  if (conflictMode.value === 'switch' && detectedScenario.value) {
+    workspace.applyScenarioPreset(detectedScenario.value)
+  }
+  conflictDialogVisible.value = false
+  await workspace.submitCurrentMessage()
+}
+
+function cancelScenarioConflict() {
+  conflictDialogVisible.value = false
 }
 
 function handlePointerDown(event: PointerEvent) {
@@ -210,7 +387,7 @@ onBeforeUnmount(() => {
         <div class="composer__params-header">
           <div>
             <strong>参数配置</strong>
-            <span>这些设置仅影响本次提问，不会改动历史会话。</span>
+            <span>{{ scenarioHint }}</span>
           </div>
           <div class="composer__params-actions">
             <el-button text @click="resetParams">恢复默认参数</el-button>
@@ -219,8 +396,27 @@ onBeforeUnmount(() => {
         </div>
 
         <el-form label-position="top">
-          <el-form-item label="电网场景">
-            <el-select v-model="workspace.composerParams.grid_environment" placeholder="选择电网场景">
+          <el-form-item label="方案场景">
+            <el-select
+              v-model="workspace.composerParams.scenario"
+              placeholder="选择本次方案所属场景"
+              @visible-change="updateSelectOverlay"
+            >
+              <el-option
+                v-for="item in metaStore.options.scenario_options"
+                :key="item.value"
+                :label="item.label"
+                :value="item.value"
+              />
+            </el-select>
+          </el-form-item>
+
+          <el-form-item label="电网环境">
+            <el-select
+              v-model="workspace.composerParams.grid_environment"
+              placeholder="选择电网场景"
+              @visible-change="updateSelectOverlay"
+            >
               <el-option
                 v-for="item in metaStore.options.grid_environment_options"
                 :key="item.value"
@@ -230,8 +426,15 @@ onBeforeUnmount(() => {
             </el-select>
           </el-form-item>
 
-          <el-form-item label="诊断对象">
-            <el-select v-model="workspace.composerParams.equipment_type" placeholder="选择对象">
+          <el-form-item
+            v-if="scenarioFlags.isFaultDiagnosis || scenarioFlags.isDistributionPlanning"
+            :label="scenarioFlags.isFaultDiagnosis ? '诊断对象/设备' : '规划对象/设备'"
+          >
+            <el-select
+              v-model="workspace.composerParams.equipment_type"
+              placeholder="选择对象"
+              @visible-change="updateSelectOverlay"
+            >
               <el-option
                 v-for="item in metaStore.options.equipment_type_options"
                 :key="item.value"
@@ -241,8 +444,33 @@ onBeforeUnmount(() => {
             </el-select>
           </el-form-item>
 
+          <el-form-item
+            v-if="scenarioFlags.isStorageAggregation || scenarioFlags.isVppCoordination"
+            label="资源类型"
+          >
+            <el-select
+              v-model="workspace.composerParams.resource_type"
+              placeholder="选择聚合或协同资源"
+              @visible-change="updateSelectOverlay"
+            >
+              <el-option
+                v-for="item in metaStore.options.resource_type_options"
+                :key="item.value"
+                :label="item.label"
+                :value="item.value"
+              />
+            </el-select>
+          </el-form-item>
+
           <el-form-item label="数据基础">
-            <el-select v-model="workspace.composerParams.data_basis" multiple collapse-tags>
+            <el-select
+              v-model="workspace.composerParams.data_basis"
+              multiple
+              collapse-tags
+              collapse-tags-tooltip
+              placeholder="可多选，不涉及可留空"
+              @visible-change="updateSelectOverlay"
+            >
               <el-option
                 v-for="item in metaStore.options.data_basis_options"
                 :key="item.value"
@@ -253,9 +481,106 @@ onBeforeUnmount(() => {
           </el-form-item>
 
           <el-form-item label="目标能力">
-            <el-select v-model="workspace.composerParams.target_capability" multiple collapse-tags>
+            <el-select
+              v-model="workspace.composerParams.target_capability"
+              multiple
+              collapse-tags
+              collapse-tags-tooltip
+              placeholder="可多选，不涉及可留空"
+              @visible-change="updateSelectOverlay"
+            >
               <el-option
                 v-for="item in metaStore.options.target_capability_options"
+                :key="item.value"
+                :label="item.label"
+                :value="item.value"
+              />
+            </el-select>
+          </el-form-item>
+
+          <el-form-item
+            v-if="scenarioFlags.isStorageAggregation || scenarioFlags.isVppCoordination"
+            label="市场/政策关注点"
+          >
+            <el-select
+              v-model="workspace.composerParams.market_policy_focus"
+              multiple
+              collapse-tags
+              collapse-tags-tooltip
+              placeholder="可多选，不涉及可留空"
+              @visible-change="updateSelectOverlay"
+            >
+              <el-option
+                v-for="item in metaStore.options.market_policy_focus_options"
+                :key="item.value"
+                :label="item.label"
+                :value="item.value"
+              />
+            </el-select>
+          </el-form-item>
+
+          <el-form-item v-if="scenarioFlags.isDistributionPlanning" label="规划目标">
+            <el-select
+              v-model="workspace.composerParams.planning_objective"
+              multiple
+              collapse-tags
+              collapse-tags-tooltip
+              placeholder="可多选，不涉及可留空"
+              @visible-change="updateSelectOverlay"
+            >
+              <el-option
+                v-for="item in metaStore.options.planning_objective_options"
+                :key="item.value"
+                :label="item.label"
+                :value="item.value"
+              />
+            </el-select>
+          </el-form-item>
+
+          <el-form-item v-if="scenarioFlags.isPowerForecast" label="预测目标">
+            <el-select
+              v-model="workspace.composerParams.forecast_target"
+              multiple
+              collapse-tags
+              collapse-tags-tooltip
+              placeholder="可多选，不涉及可留空"
+              @visible-change="updateSelectOverlay"
+            >
+              <el-option
+                v-for="item in metaStore.options.forecast_target_options"
+                :key="item.value"
+                :label="item.label"
+                :value="item.value"
+              />
+            </el-select>
+          </el-form-item>
+
+          <el-form-item v-if="scenarioFlags.isVppCoordination" label="协同范围">
+            <el-select
+              v-model="workspace.composerParams.coordination_scope"
+              placeholder="选择协同范围"
+              @visible-change="updateSelectOverlay"
+            >
+              <el-option
+                v-for="item in metaStore.options.coordination_scope_options"
+                :key="item.value"
+                :label="item.label"
+                :value="item.value"
+              />
+            </el-select>
+          </el-form-item>
+
+          <el-form-item
+            v-if="scenarioFlags.isStorageAggregation || scenarioFlags.isVppCoordination"
+            label="生命周期/运营目标"
+          >
+            <el-select
+              v-model="workspace.composerParams.lifecycle_goal"
+              placeholder="选择目标，或保持不涉及"
+              @visible-change="updateSelectOverlay"
+            >
+              <el-option
+                v-for="item in metaStore.options.lifecycle_goal_options"
                 :key="item.value"
                 :label="item.label"
                 :value="item.value"
@@ -320,8 +645,8 @@ onBeforeUnmount(() => {
           @focus="handleFocus"
           @blur="handleBlur"
           @keydown.enter.exact="handleEnter"
-          @keydown.ctrl.enter.prevent="workspace.submitCurrentMessage()"
-          @keydown.meta.enter.prevent="workspace.submitCurrentMessage()"
+          @keydown.ctrl.enter.prevent="attemptSubmit"
+          @keydown.meta.enter.prevent="attemptSubmit"
         />
 
         <div class="composer__prompt-tools">
@@ -345,7 +670,7 @@ onBeforeUnmount(() => {
               <el-icon><VideoPause /></el-icon>
               停止
             </el-button>
-            <el-button type="primary" round :disabled="!canSubmit" @click="workspace.submitCurrentMessage()">
+            <el-button type="primary" round :disabled="!canSubmit" @click="attemptSubmit">
               <el-icon><ArrowUp /></el-icon>
               发送
             </el-button>
@@ -354,6 +679,48 @@ onBeforeUnmount(() => {
       </template>
     </div>
   </div>
+
+  <el-dialog
+    v-model="conflictDialogVisible"
+    title="场景与输入内容可能不一致"
+    width="560px"
+    destroy-on-close
+  >
+    <div class="composer__conflict-body">
+      <p>
+        我们从你的输入里更像识别到了
+        <strong>{{ detectedScenarioLabel }}</strong>
+        ，但当前参数配置选择的是
+        <strong>{{ currentScenarioLabel }}</strong>
+        。
+      </p>
+      <p>为了避免按错模板和参数生成，我们先帮你确认一次。</p>
+
+      <div class="composer__conflict-options">
+        <button
+          :class="['composer__conflict-option', { 'is-active': conflictMode === 'switch' }]"
+          @click="conflictMode = 'switch'"
+        >
+          <strong>切换到识别场景</strong>
+          <span>自动切换到 {{ detectedScenarioLabel }}，并套用更合适的参数建议。</span>
+        </button>
+        <button
+          :class="['composer__conflict-option', { 'is-active': conflictMode === 'keep' }]"
+          @click="conflictMode = 'keep'"
+        >
+          <strong>保持当前场景</strong>
+          <span>继续使用 {{ currentScenarioLabel }} 及当前参数配置生成方案。</span>
+        </button>
+      </div>
+    </div>
+
+    <template #footer>
+      <div class="composer__conflict-footer">
+        <el-button @click="cancelScenarioConflict">返回继续编辑</el-button>
+        <el-button type="primary" @click="confirmScenarioConflict">确认并继续</el-button>
+      </div>
+    </template>
+  </el-dialog>
 </template>
 
 <style scoped>
@@ -485,6 +852,74 @@ onBeforeUnmount(() => {
   font-size: 12px;
   color: #8aa0b0;
   white-space: nowrap;
+}
+
+.composer__conflict-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  color: var(--text);
+}
+
+.composer__conflict-body p {
+  margin: 0;
+  line-height: 1.7;
+  color: var(--muted);
+}
+
+.composer__conflict-body strong {
+  color: var(--text);
+}
+
+.composer__conflict-options {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+  margin-top: 6px;
+}
+
+.composer__conflict-option {
+  text-align: left;
+  padding: 14px 16px;
+  border-radius: 18px;
+  border: 1px solid rgba(15, 93, 140, 0.12);
+  background: #fff;
+  cursor: pointer;
+  transition: 0.18s ease;
+}
+
+.composer__conflict-option:hover {
+  border-color: rgba(15, 93, 140, 0.24);
+  transform: translateY(-1px);
+}
+
+.composer__conflict-option.is-active {
+  border-color: rgba(15, 93, 140, 0.36);
+  background: rgba(15, 93, 140, 0.05);
+  box-shadow: inset 0 0 0 1px rgba(15, 93, 140, 0.1);
+}
+
+.composer__conflict-option strong,
+.composer__conflict-option span {
+  display: block;
+}
+
+.composer__conflict-option strong {
+  margin-bottom: 6px;
+  font-size: 14px;
+  color: var(--text);
+}
+
+.composer__conflict-option span {
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--muted);
+}
+
+.composer__conflict-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
 }
 
 .composer__suggestions {

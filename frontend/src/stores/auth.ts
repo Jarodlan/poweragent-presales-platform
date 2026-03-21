@@ -2,14 +2,17 @@ import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 
 import { fetchCurrentUser, login as loginRequest, logout as logoutRequest } from '@/api/auth'
-import { clearStoredToken, getStoredToken, setStoredToken } from '@/api/http'
+import { clearStoredAuth, getStoredToken, setStoredToken } from '@/api/http'
 import type { CurrentUser } from '@/types/auth'
+
+const LAST_USERNAME_KEY = 'poweragent_last_username'
 
 export const useAuthStore = defineStore('auth', () => {
   const token = ref(getStoredToken())
   const user = ref<CurrentUser | null>(null)
   const bootstrapped = ref(false)
   const loading = ref(false)
+  const lastUsername = ref(localStorage.getItem(LAST_USERNAME_KEY) || '')
 
   const isAuthenticated = computed(() => Boolean(token.value && user.value))
   const displayName = computed(() => user.value?.display_name || user.value?.username || '')
@@ -25,7 +28,7 @@ export const useAuthStore = defineStore('auth', () => {
     try {
       user.value = await fetchCurrentUser()
     } catch {
-      clearStoredToken()
+      clearStoredAuth()
       token.value = ''
       user.value = null
     } finally {
@@ -41,6 +44,8 @@ export const useAuthStore = defineStore('auth', () => {
       token.value = data.token
       user.value = data.user
       setStoredToken(data.token)
+      localStorage.setItem(LAST_USERNAME_KEY, username)
+      lastUsername.value = username
       bootstrapped.value = true
       return data.user
     } finally {
@@ -56,7 +61,7 @@ export const useAuthStore = defineStore('auth', () => {
     } catch {
       // ignore logout failures; local cleanup still matters
     } finally {
-      clearStoredToken()
+      clearStoredAuth()
       token.value = ''
       user.value = null
       bootstrapped.value = true
@@ -70,6 +75,7 @@ export const useAuthStore = defineStore('auth', () => {
     bootstrapped,
     isAuthenticated,
     displayName,
+    lastUsername,
     bootstrap,
     login,
     logout,

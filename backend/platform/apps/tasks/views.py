@@ -4,9 +4,10 @@ import time
 import requests
 from django.conf import settings
 from django.http import StreamingHttpResponse
+from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework import status
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -34,12 +35,10 @@ def fetch_agent_run_status(run_id: str) -> dict | None:
 
 
 class TaskResultView(APIView):
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
     def get_task(self, request, task_id):
-        if request.user and request.user.is_authenticated:
-            return resolve_visible_tasks(request.user).get(id=task_id)
-        return Task.objects.get(id=task_id)
+        return get_object_or_404(resolve_visible_tasks(request.user), id=task_id)
 
     def get(self, request, task_id):
         task = self.get_task(request, task_id)
@@ -50,12 +49,10 @@ class TaskResultView(APIView):
 
 
 class TaskCancelView(APIView):
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
     def get_task(self, request, task_id):
-        if request.user and request.user.is_authenticated:
-            return resolve_visible_tasks(request.user).get(id=task_id)
-        return Task.objects.get(id=task_id)
+        return get_object_or_404(resolve_visible_tasks(request.user), id=task_id)
 
     def post(self, request, task_id):
         task = self.get_task(request, task_id)
@@ -67,12 +64,10 @@ class TaskCancelView(APIView):
 
 
 class TaskStreamView(APIView):
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
     def get_task(self, request, task_id):
-        if request.user and request.user.is_authenticated:
-            return resolve_visible_tasks(request.user).get(id=task_id)
-        return Task.objects.get(id=task_id)
+        return get_object_or_404(resolve_visible_tasks(request.user), id=task_id)
 
     def get(self, request, task_id):
         def stream():

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import timedelta
 
-from django.db.models import Q, QuerySet
+from django.db.models import QuerySet
 from django.utils import timezone
 
 from .models import User
@@ -34,24 +34,19 @@ def record_login_failure(user: User) -> None:
 def resolve_visible_conversations(user: User) -> QuerySet:
     from apps.conversations.models import Conversation
 
-    qs = Conversation.objects.all()
     if not user.is_authenticated:
         return Conversation.objects.none()
-    if user.is_superuser or user.resolve_data_scope() == "all":
-        return qs
-    if user.resolve_data_scope() == "department" and user.department_id:
-        return qs.filter(Q(user__department_id=user.department_id) | Q(user__isnull=True))
-    return qs.filter(Q(user=user) | Q(user__isnull=True))
+    if user.is_superuser:
+        return Conversation.objects.all()
+    return Conversation.objects.filter(user=user)
 
 
 def resolve_visible_tasks(user: User) -> QuerySet:
     from apps.tasks.models import Task
 
-    qs = Task.objects.select_related("conversation", "assistant_message")
     if not user.is_authenticated:
         return Task.objects.none()
-    if user.is_superuser or user.resolve_data_scope() == "all":
+    qs = Task.objects.select_related("conversation", "assistant_message")
+    if user.is_superuser:
         return qs
-    if user.resolve_data_scope() == "department" and user.department_id:
-        return qs.filter(Q(conversation__user__department_id=user.department_id) | Q(conversation__user__isnull=True))
-    return qs.filter(Q(conversation__user=user) | Q(conversation__user__isnull=True))
+    return qs.filter(conversation__user=user)
