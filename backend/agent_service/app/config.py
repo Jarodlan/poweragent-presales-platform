@@ -24,13 +24,17 @@ class Settings(BaseSettings):
     ragflow_dataset_cases: str = ""
     ragflow_dataset_solutions: str = ""
     solution_template_enabled: bool = True
-    solution_template_path: str = str(Path(__file__).resolve().parents[3] / "智能电网故障诊断解决方案模板.md")
-    solution_template_source_path: str = str(Path(__file__).resolve().parents[3] / "参考解决方案模板的内容.md")
+    solution_template_path: str = str(
+        Path(__file__).resolve().parents[3] / "项目文档/04-知识库与模板/智能电网故障诊断解决方案模板.md"
+    )
+    solution_template_source_path: str = str(
+        Path(__file__).resolve().parents[3] / "项目文档/04-知识库与模板/参考解决方案模板的内容.md"
+    )
     storage_solution_template_path: str = str(
-        Path(__file__).resolve().parents[3] / "分布式储能聚合运营智能体解决方案模板.md"
+        Path(__file__).resolve().parents[3] / "项目文档/04-知识库与模板/分布式储能聚合运营智能体解决方案模板.md"
     )
     storage_solution_template_source_path: str = str(
-        Path(__file__).resolve().parents[3] / "分布式储能聚合运营智能体解决方案模板.md"
+        Path(__file__).resolve().parents[3] / "项目文档/04-知识库与模板/分布式储能聚合运营智能体解决方案模板.md"
     )
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
