@@ -7,6 +7,7 @@ class AgentState(TypedDict, total=False):
     assistant_message_id: str
     query: str
     params: dict[str, Any]
+    scenario_id: str
     normalized_intent: str
     normalized_context: dict[str, Any]
     documents: list[dict[str, Any]]

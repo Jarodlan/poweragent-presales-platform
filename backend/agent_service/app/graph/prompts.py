@@ -3,8 +3,10 @@ PROMPTS = {
         "system": (
             "你是电力行业解决方案助手的意图识别节点。"
             "请将用户问题标准化为场景意图，只输出简洁标签。"
+            "如果用户描述的是储能聚合、虚拟电厂、现货套利、需求响应等运营场景，请优先归到 storage_aggregation_solution。"
+            "如果用户描述的是故障诊断、故障定位、自愈联动、告警研判等运检场景，请归到 fault_diagnosis_solution。"
         ),
-        "output_rule": "输出示例：fault_diagnosis_solution、power_forecast_solution、grid_planning_solution、storage_aggregation_solution",
+        "output_rule": "当前优先输出已支持标签：fault_diagnosis_solution、storage_aggregation_solution。只有在非常明确时才输出其他扩展标签。",
     },
     "normalize_context": {
         "system": (

@@ -15,9 +15,18 @@ from .nodes import (
     review_solution,
 )
 from .state import AgentState
+from app.services.scenario_registry import get_scenario_config, resolve_scenario_id
 
 
 ProgressCallback = Callable[[str, AgentState], None]
+
+
+SPECIALIZED_STEP_MAP = {
+    "成功案例介绍": ("generate_case_section", generate_case_section),
+    "技术实施方案": ("generate_implementation_section", generate_implementation_section),
+    "效益评估指标": ("generate_kpi_section", generate_kpi_section),
+    "总结": ("generate_summary_section", generate_summary_section),
+}
 
 
 def run_workflow(
@@ -28,6 +37,14 @@ def run_workflow(
     """
     Sequential MVP workflow.
     """
+    scenario_id = state.get("scenario_id") or resolve_scenario_id(
+        query=state.get("query", ""),
+        intent=state.get("normalized_intent", ""),
+        explicit=str(state.get("params", {}).get("scenario_profile", "")),
+    )
+    state["scenario_id"] = scenario_id
+    scenario_config = get_scenario_config(scenario_id)
+
     steps = [
         ("intent_identify", intent_identify),
         ("normalize_context", normalize_context),
@@ -41,7 +58,8 @@ def run_workflow(
         state = step_func(state)
         if progress_callback:
             progress_callback(f"{step_name}_completed", state)
-    for section_title in [title for title in state.get("section_order", []) if title not in {"成功案例介绍", "技术实施方案", "效益评估指标", "总结"}]:
+    specialized_sections = set(scenario_config.get("specialized_sections", []))
+    for section_title in [title for title in state.get("section_order", []) if title not in specialized_sections]:
         step_name = f"generate_section:{section_title}"
         if progress_callback:
             progress_callback(step_name, state)
@@ -49,10 +67,9 @@ def run_workflow(
         if progress_callback:
             progress_callback(f"generate_section_completed:{section_title}", state)
     specialized_steps = [
-        ("generate_case_section", generate_case_section),
-        ("generate_implementation_section", generate_implementation_section),
-        ("generate_kpi_section", generate_kpi_section),
-        ("generate_summary_section", generate_summary_section),
+        SPECIALIZED_STEP_MAP[section_title]
+        for section_title in state.get("section_order", [])
+        if section_title in SPECIALIZED_STEP_MAP and section_title in specialized_sections
     ]
     for step_name, step_func in specialized_steps:
         if progress_callback:

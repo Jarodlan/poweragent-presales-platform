@@ -3,6 +3,7 @@ from app.graph.prompts import PROMPTS
 from app.graph.state import AgentState
 from app.services.llm_gateway import LLMGateway
 from app.services.retrieval_service import RetrievalService
+from app.services.scenario_registry import get_scenario_config, resolve_scenario_id
 from app.services.solution_template import get_solution_template, infer_template_key
 import re
 
@@ -39,11 +40,23 @@ def _chat_json_or_text(
 
 
 def _active_template(state: AgentState) -> dict[str, object]:
-    template_key = infer_template_key(
+    return get_solution_template(_active_scenario_id(state))
+
+
+def _active_scenario_id(state: AgentState) -> str:
+    if state.get("scenario_id"):
+        return str(state["scenario_id"])
+    scenario_id = resolve_scenario_id(
         query=state.get("query", ""),
         intent=state.get("normalized_intent", ""),
+        explicit=str(state.get("params", {}).get("scenario_profile", "")),
     )
-    return get_solution_template(template_key)
+    state["scenario_id"] = scenario_id
+    return scenario_id
+
+
+def _active_scenario_config(state: AgentState) -> dict[str, object]:
+    return get_scenario_config(_active_scenario_id(state))
 
 
 def _template_sections(state: AgentState) -> list[str]:
@@ -52,12 +65,13 @@ def _template_sections(state: AgentState) -> list[str]:
     return [section for section in sections if section not in {"使用原则", "写作约束"}]
 
 
-def _specialized_sections() -> list[str]:
-    return ["成功案例介绍", "技术实施方案", "效益评估指标", "总结"]
+def _specialized_sections(state: AgentState) -> list[str]:
+    return list(_active_scenario_config(state).get("specialized_sections", []))
 
 
 def _generic_sections(state: AgentState) -> list[str]:
-    return [section for section in _template_sections(state) if section not in _specialized_sections()]
+    specialized = set(_specialized_sections(state))
+    return [section for section in _template_sections(state) if section not in specialized]
 
 
 def _section_requirement(section_title: str) -> str:
@@ -73,22 +87,10 @@ def _section_template_block(state: AgentState, section_title: str) -> str:
 
 
 def _scenario_section_guidance(state: AgentState, section_title: str) -> str:
-    intent = state.get("normalized_intent", "")
-    if intent != "storage_aggregation_solution":
+    guidance_map = _active_scenario_config(state).get("section_guidance", {})
+    if not isinstance(guidance_map, dict):
         return ""
-    guidance_map = {
-        "背景介绍": "必须同时交代宁波区域负荷特征、新能源渗透、市场化交易背景，以及为什么储能聚合运营需要智能体。",
-        "核心挑战识别": "重点写清电网约束、市场价格波动、储能寿命退化、资源分散接入和收益分配五类挑战。",
-        "建设目标": "必须覆盖电网侧目标、市场侧目标、资产侧目标、平台侧目标，并给出分阶段目标。",
-        "总体技术架构": "建议写成数据底座、规则约束层、多智能体决策层、调度执行层、复盘优化层五层结构，并明确外部数据、现场数据和知识库的角色。",
-        "技术创新方向": "至少写4项，优先围绕市场研判、电网约束分析、寿命机会成本建模、聚合调度优化、收益分摊和Agent协同。",
-        "成功案例介绍": "若缺少完全匹配宁波本地案例，可写同类参考案例，但要明确说明“参考案例”或“可参考场景”，并写出对宁波落地的映射意义。",
-        "技术实施方案": "优先展开资源接入治理、规则建模、预测模型、优化引擎、执行联动、收益复盘中的5步关键路径。",
-        "效益分析": "必须从聚合收益提升、电网调峰支撑、储能寿命友好运行、运维效率提升四个角度量化。",
-        "效益评估指标": "KPI应覆盖收益、执行、设备寿命、电网约束、安全合规和客户侧解释性。",
-        "总结": "必须回扣宁波区域性、电网约束、市场化运营和产品复制前景。",
-    }
-    return guidance_map.get(section_title, "")
+    return str(guidance_map.get(section_title, ""))
 
 
 def _shared_cache_prefix(state: AgentState) -> str:
@@ -215,45 +217,28 @@ def intent_identify(state: AgentState) -> AgentState:
     if not content:
         query = state["query"]
         content = infer_template_key(query=query, intent="")
-    state["normalized_intent"] = content or "fault_diagnosis_solution"
+    state["normalized_intent"] = content or infer_template_key(query=user_query, intent="")
+    state["scenario_id"] = resolve_scenario_id(
+        query=user_query,
+        intent=state["normalized_intent"],
+        explicit=str(state.get("params", {}).get("scenario_profile", "")),
+    )
     state["status"] = "intent_identifying"
     state.setdefault("metadata", {})
-    state["metadata"] = {"prompt": PROMPTS["intent_identify"]}
+    state["metadata"] = {
+        "prompt": PROMPTS["intent_identify"],
+        "scenario_config": _active_scenario_config(state),
+    }
     return state
 
 
 def normalize_context(state: AgentState) -> AgentState:
     params = state.get("params", {})
-    if state.get("normalized_intent") == "storage_aggregation_solution":
-        state["normalized_context"] = {
-            "grid_environment": params.get("grid_environment", "urban_distribution_network"),
-            "asset_scope": params.get(
-                "asset_scope",
-                ["user_side_storage", "park_storage", "distributed_pv", "flexible_load"],
-            ),
-            "market_scope": params.get(
-                "market_scope",
-                ["time_of_use_tariff", "spot_market", "demand_response", "green_power_trade"],
-            ),
-            "core_constraints": params.get(
-                "core_constraints",
-                ["grid_constraints", "price_policy", "lifecycle_benefit_maximization"],
-            ),
-            "region": params.get("region", "zhejiang_ningbo"),
-        }
-    else:
-        state["normalized_context"] = {
-            "grid_environment": params.get("grid_environment", "distribution_network"),
-            "equipment_type": params.get("equipment_type", "comprehensive"),
-            "data_basis": params.get(
-                "data_basis",
-                ["scada", "online_monitoring", "historical_workorder"],
-            ),
-            "target_capability": params.get(
-                "target_capability",
-                ["fault_diagnosis", "root_cause_analysis"],
-            ),
-        }
+    defaults = dict(_active_scenario_config(state).get("default_context", {}))
+    normalized_context = {}
+    for key, value in defaults.items():
+        normalized_context[key] = params.get(key, value)
+    state["normalized_context"] = normalized_context
     state["status"] = "context_normalizing"
     return state
 
@@ -270,6 +255,7 @@ def retrieve_documents(state: AgentState) -> AgentState:
     state["documents"] = retrieval_service.search(
         query=retrieval_query,
         filters=state.get("normalized_context", {}),
+        scenario_id=_active_scenario_id(state),
     )
     state["status"] = "retrieving_documents"
     return state

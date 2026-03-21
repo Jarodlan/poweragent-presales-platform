@@ -3,6 +3,7 @@ from typing import Any
 import httpx
 
 from app.config import settings
+from app.services.scenario_registry import get_scenario_config
 
 
 class RetrievalService:
@@ -95,10 +96,17 @@ class RetrievalService:
         response.raise_for_status()
         return self._normalize_documents(source_type, response.json())
 
-    def search(self, query: str, filters: dict[str, Any]) -> list[dict[str, Any]]:
+    def search(self, query: str, filters: dict[str, Any], scenario_id: str = "") -> list[dict[str, Any]]:
         self._require_config()
+        scenario_config = get_scenario_config(scenario_id)
+        retrieval_priority = scenario_config.get(
+            "retrieval_priority",
+            ["paper", "standard", "case", "solution"],
+        )
         documents = []
-        for source_type, dataset_ids in self._dataset_mapping().items():
+        dataset_mapping = self._dataset_mapping()
+        for source_type in retrieval_priority:
+            dataset_ids = dataset_mapping.get(source_type, [])
             documents.extend(
                 self._search_dataset_group(
                     source_type=source_type,
