@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { Plus, Search, SwitchButton } from '@element-plus/icons-vue'
+import { Delete, Plus, Search, SwitchButton } from '@element-plus/icons-vue'
 import { computed, ref } from 'vue'
-import { ElMessageBox } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { useRouter } from 'vue-router'
 
 import { useAuthStore } from '@/stores/auth'
@@ -52,6 +52,26 @@ async function handleLogout() {
   }
   await authStore.logout()
   await router.replace('/login')
+}
+
+async function handleDeleteConversation(conversationId: string, title: string) {
+  try {
+    await ElMessageBox.confirm(
+      `确认删除会话「${title || '未命名会话'}」吗？删除后历史消息和结果将无法恢复。`,
+      '删除历史会话',
+      {
+        type: 'warning',
+        confirmButtonText: '删除',
+        cancelButtonText: '取消',
+        confirmButtonClass: 'el-button--danger',
+      },
+    )
+  } catch {
+    return
+  }
+
+  await workspace.deleteConversation(conversationId)
+  ElMessage.success('历史会话已删除')
 }
 </script>
 
@@ -108,23 +128,35 @@ async function handleLogout() {
           <p class="sidebar__group-title">{{ group.label }}</p>
           <span>{{ group.items.length }}</span>
         </div>
-        <button
+        <div
           v-for="item in group.items"
           :key="item.conversation_id"
           class="sidebar__item"
           :class="{ 'is-active': item.conversation_id === workspace.currentConversationId }"
           @click="workspace.selectConversation(item.conversation_id)"
+          role="button"
+          tabindex="0"
         >
           <div class="sidebar__item-top">
             <strong>{{ item.title || '未命名会话' }}</strong>
-            <span :class="['sidebar__status', `is-${item.status}`]">{{ statusLabelMap[item.status] || item.status }}</span>
+            <div class="sidebar__item-actions">
+              <span :class="['sidebar__status', `is-${item.status}`]">{{ statusLabelMap[item.status] || item.status }}</span>
+              <el-button
+                text
+                circle
+                class="sidebar__delete"
+                @click.stop="handleDeleteConversation(item.conversation_id, item.title)"
+              >
+                <el-icon><Delete /></el-icon>
+              </el-button>
+            </div>
           </div>
           <p>{{ item.last_user_message || '等待第一次提问' }}</p>
           <div class="sidebar__item-meta">
             <time>{{ formatRelativeTime(item.last_message_at || item.updated_at) }}</time>
             <span>{{ formatDateTime(item.last_message_at || item.updated_at) }}</span>
           </div>
-        </button>
+        </div>
       </section>
     </div>
   </aside>
@@ -269,6 +301,17 @@ async function handleLogout() {
   transition: 0.2s ease;
 }
 
+.sidebar__item-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.sidebar__delete {
+  opacity: 0;
+  transition: opacity 0.16s ease;
+}
+
 .sidebar__item:hover,
 .sidebar__item.is-active {
   background: rgba(255, 255, 255, 0.9);
@@ -285,6 +328,11 @@ async function handleLogout() {
   width: 4px;
   border-radius: 999px;
   background: linear-gradient(180deg, #0f5d8c 0%, #55a9d8 100%);
+}
+
+.sidebar__item:hover .sidebar__delete,
+.sidebar__item.is-active .sidebar__delete {
+  opacity: 1;
 }
 
 .sidebar__item-top {

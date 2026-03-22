@@ -1,5 +1,6 @@
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
+from django.db.models import Q
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -16,7 +17,12 @@ class ConversationListCreateView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self, request):
-        return resolve_visible_conversations(request.user)
+        return resolve_visible_conversations(request.user).filter(
+            messages__role="assistant",
+            messages__status="completed",
+        ).filter(
+            Q(messages__content_markdown__gt="") | Q(messages__summary_text__gt="")
+        ).distinct()
 
     def get(self, request):
         qs = self.get_queryset(request)[:20]
@@ -58,6 +64,20 @@ class ConversationDetailView(APIView):
                 "code": 0,
                 "message": "ok",
                 "data": ConversationSerializer(conversation).data,
+            }
+        )
+
+    def delete(self, request, conversation_id):
+        conversation = self._get_conversation(request, conversation_id)
+        conversation.delete()
+        return Response(
+            {
+                "code": 0,
+                "message": "ok",
+                "data": {
+                    "conversation_id": str(conversation_id),
+                    "deleted": True,
+                },
             }
         )
 

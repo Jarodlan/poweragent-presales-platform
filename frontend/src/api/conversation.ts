@@ -32,6 +32,12 @@ export function fetchConversationDetail(conversationId: string) {
   return apiRequest<ConversationItem>(`/api/v1/conversations/${conversationId}`)
 }
 
+export function deleteConversation(conversationId: string) {
+  return apiRequest<{ conversation_id: string; deleted: boolean }>(`/api/v1/conversations/${conversationId}`, {
+    method: 'DELETE',
+  })
+}
+
 export function fetchConversationMessages(conversationId: string) {
   return apiRequest<MessageListData>(`/api/v1/conversations/${conversationId}/messages?page=1&page_size=50`)
 }

@@ -4,6 +4,7 @@ import { ElMessage } from 'element-plus'
 
 import {
   createConversation,
+  deleteConversation as deleteConversationRequest,
   fetchConversationList,
   fetchConversationMessages,
   sendConversationMessage,
@@ -181,6 +182,9 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     try {
       const data = await fetchConversationList()
       conversations.value = data.items
+      if (currentConversationId.value && !data.items.some((item) => item.conversation_id === currentConversationId.value)) {
+        currentConversationId.value = ''
+      }
       if (!currentConversationId.value && data.items[0]) {
         currentConversationId.value = data.items[0].conversation_id
       }
@@ -205,11 +209,38 @@ export const useWorkspaceStore = defineStore('workspace', () => {
   }
 
   async function createNewConversation() {
+    closeStream()
+    currentConversationId.value = ''
+    resetComposer()
+    currentStepLabel.value = ''
+    currentProgress.value = 0
+    currentTaskId.value = ''
+    currentAssistantMessageId.value = ''
+    sending.value = false
+    evidenceDrawerVisible.value = false
+    activeEvidenceCards.value = []
+  }
+
+  async function deleteConversation(conversationId: string) {
+    await deleteConversationRequest(conversationId)
+    conversations.value = conversations.value.filter((item) => item.conversation_id !== conversationId)
+    delete messages.value[conversationId]
+
+    if (currentConversationId.value === conversationId) {
+      currentConversationId.value = conversations.value[0]?.conversation_id || ''
+      if (currentConversationId.value && !messages.value[currentConversationId.value]) {
+        await selectConversation(currentConversationId.value)
+      }
+    }
+  }
+
+  async function ensureConversationForSubmit() {
+    if (currentConversationId.value) return currentConversationId.value
     const conversation = await createConversation('')
     conversations.value.unshift(conversation)
     currentConversationId.value = conversation.conversation_id
     messages.value[conversation.conversation_id] = []
-    resetComposer()
+    return conversation.conversation_id
   }
 
   function patchConversation(conversationId: string, patch: Partial<ConversationItem>) {
@@ -382,13 +413,11 @@ export const useWorkspaceStore = defineStore('workspace', () => {
   }
 
   async function submitQuery(queryText?: string) {
-    if (!currentConversationId.value) {
-      await createNewConversation()
-    }
+    const ensuredConversationId = await ensureConversationForSubmit()
     const query = (queryText ?? composerText.value).trim()
-    if (!query || !currentConversationId.value) return
+    if (!query || !ensuredConversationId) return
 
-    const conversationId = currentConversationId.value
+    const conversationId = ensuredConversationId
     const optimisticUserMessage: MessageItem = {
       message_id: `local-user-${Date.now()}`,
       conversation_id: conversationId,
@@ -507,6 +536,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     loadConversationList,
     selectConversation,
     createNewConversation,
+    deleteConversation,
     submitCurrentMessage,
     retryAssistantMessage,
     stopCurrentTask,
