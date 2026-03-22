@@ -42,10 +42,11 @@ export function clearStoredAuth() {
 
 export async function apiRequest<T>(input: string, init?: RequestInit): Promise<T> {
   const token = getStoredToken()
+  const isFormDataBody = typeof FormData !== 'undefined' && init?.body instanceof FormData
   const response = await fetch(input, {
     ...init,
     headers: {
-      ...DEFAULT_HEADERS,
+      ...(!isFormDataBody ? DEFAULT_HEADERS : {}),
       ...(token ? { Authorization: `Token ${token}` } : {}),
       ...(init?.headers ?? {}),
     },

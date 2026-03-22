@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 
 import AdminAccessView from '@/views/AdminAccessView.vue'
 import AuditLogView from '@/views/AuditLogView.vue'
+import CustomerDemandView from '@/views/CustomerDemandView.vue'
 import LoginView from '@/views/LoginView.vue'
 import WorkspaceView from '@/views/WorkspaceView.vue'
 import { useAuthStore } from '@/stores/auth'
@@ -20,6 +21,14 @@ const router = createRouter({
       path: '/',
       name: 'workspace',
       component: WorkspaceView,
+    },
+    {
+      path: '/customer-demand',
+      name: 'customer-demand',
+      component: CustomerDemandView,
+      meta: {
+        requiredAnyPermission: ['customer_demand.view'],
+      },
     },
     {
       path: '/admin/access',

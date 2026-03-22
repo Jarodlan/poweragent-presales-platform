@@ -11,6 +11,7 @@ from rest_framework.views import APIView
 from .asr.service import transcribe_audio_chunk
 from .models import CustomerDemandAnalysisTask, CustomerDemandReport, CustomerDemandSegment, CustomerDemandSession, CustomerDemandStageSummary
 from .permissions import CanExportCustomerDemand
+from .semantic import validate_segment_semantics
 from .serializers import (
     CustomerDemandAnalysisTaskSerializer,
     CustomerDemandReportSerializer,
@@ -140,11 +141,59 @@ class CustomerDemandSegmentsView(APIView):
         serializer = CustomerDemandSegmentWriteSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         segment = serializer.save(session=session)
+        segment = validate_segment_semantics(session, segment)
         if segment.final_text or segment.normalized_text:
-            session.normalized_segment_count = session.segments.exclude(final_text="").count() + session.segments.filter(final_text="", normalized_text__gt="").count()
+            session.normalized_segment_count = session.segments.filter(segment_status="normalized").count()
         session.raw_segment_count = session.segments.count()
         session.save(update_fields=["raw_segment_count", "normalized_segment_count", "updated_at"])
         return Response({"code": 0, "message": "ok", "data": CustomerDemandSegmentSerializer(segment).data}, status=status.HTTP_201_CREATED)
+
+
+class CustomerDemandSegmentReviewView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, session_id, segment_id):
+        session = get_object_or_404(resolve_visible_customer_demand_sessions(request.user), id=session_id)
+        segment = get_object_or_404(CustomerDemandSegment.objects.filter(session=session), id=segment_id)
+        decision = (request.data.get("decision") or "").strip()
+        edited_text = (request.data.get("edited_text") or "").strip()
+        note = (request.data.get("note") or "").strip()
+
+        if decision not in {"accept", "discard"}:
+            return Response(
+                {"code": 40040, "message": "decision 仅支持 accept 或 discard", "data": None},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if edited_text:
+            segment.normalized_text = edited_text
+            segment.final_text = edited_text
+
+        if decision == "accept":
+            segment.segment_status = "normalized"
+            segment.review_flag = False
+        else:
+            segment.segment_status = "discarded"
+            segment.review_flag = True
+
+        issues = [str(item) for item in (segment.issues_json or []) if str(item).strip()]
+        if note:
+            issues.append(f"人工复核备注：{note}")
+        segment.issues_json = list(dict.fromkeys(issues))
+        segment.save(
+            update_fields=[
+                "normalized_text",
+                "final_text",
+                "segment_status",
+                "review_flag",
+                "issues_json",
+                "updated_at",
+            ]
+        )
+        session.normalized_segment_count = session.segments.filter(segment_status="normalized").count()
+        session.raw_segment_count = session.segments.count()
+        session.save(update_fields=["raw_segment_count", "normalized_segment_count", "updated_at"])
+        return Response({"code": 0, "message": "ok", "data": CustomerDemandSegmentSerializer(segment).data})
 
 
 class CustomerDemandAudioSegmentUploadView(APIView):
@@ -203,8 +252,9 @@ class CustomerDemandAudioSegmentUploadView(APIView):
             raw_end_ms=request.data.get("ended_at_ms") or None,
             segment_status="review_required" if review_flag else "normalized",
         )
+        segment = validate_segment_semantics(session, segment)
         session.raw_segment_count = session.segments.count()
-        session.normalized_segment_count = session.segments.exclude(final_text="").count()
+        session.normalized_segment_count = session.segments.filter(segment_status="normalized").count()
         session.save(update_fields=["raw_segment_count", "normalized_segment_count", "updated_at"])
 
         return Response(

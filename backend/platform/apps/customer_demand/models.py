@@ -112,6 +112,7 @@ class CustomerDemandSegment(models.Model):
     llm_provider = models.CharField(max_length=50, blank=True)
     confidence_score = models.DecimalField(max_digits=5, decimal_places=4, null=True, blank=True)
     semantic_score = models.DecimalField(max_digits=5, decimal_places=4, null=True, blank=True)
+    semantic_payload = models.JSONField(default=dict, blank=True)
     review_flag = models.BooleanField(default=False)
     issues_json = models.JSONField(default=list, blank=True)
     raw_start_ms = models.BigIntegerField(null=True, blank=True)
@@ -261,4 +262,3 @@ class CustomerDemandAttachment(models.Model):
 
     class Meta:
         ordering = ["-created_at"]
-

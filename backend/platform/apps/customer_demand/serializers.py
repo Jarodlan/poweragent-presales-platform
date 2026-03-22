@@ -117,6 +117,7 @@ class CustomerDemandSegmentSerializer(serializers.ModelSerializer):
             "llm_provider",
             "confidence_score",
             "semantic_score",
+            "semantic_payload",
             "review_flag",
             "issues_json",
             "raw_start_ms",
@@ -141,6 +142,7 @@ class CustomerDemandSegmentWriteSerializer(serializers.ModelSerializer):
             "llm_provider",
             "confidence_score",
             "semantic_score",
+            "semantic_payload",
             "review_flag",
             "issues_json",
             "raw_start_ms",
@@ -211,4 +213,3 @@ class CustomerDemandAnalysisTaskSerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at",
         ]
-

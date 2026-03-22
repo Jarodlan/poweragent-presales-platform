@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Delete, Plus, Search, Setting, SwitchButton } from '@element-plus/icons-vue'
+import { Delete, Plus, Search, Setting, SwitchButton, ChatLineSquare } from '@element-plus/icons-vue'
 import { computed, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useRouter } from 'vue-router'
@@ -58,6 +58,10 @@ function goToAccessAdmin() {
   router.push('/admin/access')
 }
 
+function goToCustomerDemand() {
+  router.push('/customer-demand')
+}
+
 async function handleDeleteConversation(conversationId: string, title: string) {
   try {
     await ElMessageBox.confirm(
@@ -100,6 +104,15 @@ async function handleDeleteConversation(conversationId: string, title: string) {
       >
         <el-icon><Setting /></el-icon>
         组织与权限管理
+      </el-button>
+      <el-button
+        v-if="authStore.canViewCustomerDemand"
+        plain
+        class="sidebar__admin-entry"
+        @click="goToCustomerDemand"
+      >
+        <el-icon><ChatLineSquare /></el-icon>
+        客户需求分析
       </el-button>
 
       <div class="sidebar__brand">

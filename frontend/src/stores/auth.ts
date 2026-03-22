@@ -22,6 +22,7 @@ export const useAuthStore = defineStore('auth', () => {
   const canManageDepartments = computed(() => Boolean(user.value?.is_superuser || permissionCodes.value.has('department.manage')))
   const canViewAudit = computed(() => Boolean(user.value?.is_superuser || permissionCodes.value.has('audit.view')))
   const canManageAccess = computed(() => Boolean(user.value?.is_superuser || permissionCodes.value.has('platform.manage')))
+  const canViewCustomerDemand = computed(() => Boolean(user.value?.is_superuser || permissionCodes.value.has('customer_demand.view')))
 
   async function bootstrap() {
     if (bootstrapped.value) return
@@ -95,6 +96,7 @@ export const useAuthStore = defineStore('auth', () => {
     canManageDepartments,
     canViewAudit,
     canManageAccess,
+    canViewCustomerDemand,
     lastUsername,
     bootstrap,
     login,
