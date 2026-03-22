@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Delete, Plus, Search, SwitchButton } from '@element-plus/icons-vue'
+import { Delete, Plus, Search, Setting, SwitchButton } from '@element-plus/icons-vue'
 import { computed, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useRouter } from 'vue-router'
@@ -54,6 +54,10 @@ async function handleLogout() {
   await router.replace('/login')
 }
 
+function goToAccessAdmin() {
+  router.push('/admin/access')
+}
+
 async function handleDeleteConversation(conversationId: string, title: string) {
   try {
     await ElMessageBox.confirm(
@@ -88,6 +92,15 @@ async function handleDeleteConversation(conversationId: string, title: string) {
           退出登录
         </el-button>
       </div>
+      <el-button
+        v-if="authStore.canManageAccess"
+        plain
+        class="sidebar__admin-entry"
+        @click="goToAccessAdmin"
+      >
+        <el-icon><Setting /></el-icon>
+        组织与权限管理
+      </el-button>
 
       <div class="sidebar__brand">
         <p class="section-title">PowerAgent</p>
@@ -211,6 +224,10 @@ async function handleDeleteConversation(conversationId: string, title: string) {
   display: flex;
   flex-direction: column;
   gap: 4px;
+}
+
+.sidebar__admin-entry {
+  justify-content: flex-start;
 }
 
 .sidebar__top h1 {

@@ -16,6 +16,13 @@ export const useAuthStore = defineStore('auth', () => {
 
   const isAuthenticated = computed(() => Boolean(token.value && user.value))
   const displayName = computed(() => user.value?.display_name || user.value?.username || '')
+  const permissionCodes = computed(() => new Set(user.value?.permissions || []))
+  const canManageUsers = computed(() => Boolean(user.value?.is_superuser || permissionCodes.value.has('user.manage')))
+  const canManageRoles = computed(() => Boolean(user.value?.is_superuser || permissionCodes.value.has('role.manage')))
+  const canManageDepartments = computed(() => Boolean(user.value?.is_superuser || permissionCodes.value.has('department.manage')))
+  const canManageAccess = computed(
+    () => Boolean(user.value?.is_superuser || canManageUsers.value || canManageRoles.value || canManageDepartments.value),
+  )
 
   async function bootstrap() {
     if (bootstrapped.value) return
@@ -68,6 +75,14 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+  function hasPermission(code: string) {
+    return Boolean(user.value?.is_superuser || permissionCodes.value.has(code))
+  }
+
+  function hasAnyPermission(codes: string[]) {
+    return Boolean(user.value?.is_superuser || codes.some((code) => permissionCodes.value.has(code)))
+  }
+
   return {
     token,
     user,
@@ -75,9 +90,16 @@ export const useAuthStore = defineStore('auth', () => {
     bootstrapped,
     isAuthenticated,
     displayName,
+    permissionCodes,
+    canManageUsers,
+    canManageRoles,
+    canManageDepartments,
+    canManageAccess,
     lastUsername,
     bootstrap,
     login,
     logout,
+    hasPermission,
+    hasAnyPermission,
   }
 })

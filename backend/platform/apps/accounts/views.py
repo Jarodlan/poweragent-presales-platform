@@ -4,7 +4,9 @@ from datetime import timedelta
 
 from django.contrib.auth import authenticate
 from django.db import transaction
-from django.utils import timezone
+from django.db.models import Q
+from django.shortcuts import get_object_or_404
+from rest_framework.exceptions import PermissionDenied
 from rest_framework import status
 from rest_framework.authtoken.models import Token
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -14,9 +16,19 @@ from rest_framework.views import APIView
 from apps.audit.models import AuditLog
 
 from .authentication import ExpiringTokenAuthentication, TOKEN_VALIDITY_DAYS
-from .models import Department, Role, User
+from .models import Department, Permission, Role, User
 from .permissions import CanManageDepartments, CanManageRoles, CanManageUsers
-from .serializers import DepartmentSerializer, LoginSerializer, RoleSerializer, UserSerializer
+from .serializers import (
+    DepartmentSerializer,
+    DepartmentWriteSerializer,
+    LoginSerializer,
+    PermissionSerializer,
+    ResetPasswordSerializer,
+    RoleSerializer,
+    RoleWriteSerializer,
+    UserSerializer,
+    UserWriteSerializer,
+)
 from .services import record_login_failure, record_login_success
 
 
@@ -104,24 +116,203 @@ class UserListView(APIView):
     def get(self, request):
         qs = User.objects.select_related("department").prefetch_related("user_roles__role", "user_roles__department")
         department_code = request.query_params.get("department_code")
+        keyword = request.query_params.get("keyword")
         if department_code:
             qs = qs.filter(department__code=department_code)
-        return Response({"code": 0, "message": "ok", "data": {"items": UserSerializer(qs[:100], many=True).data}})
+        if keyword:
+            qs = qs.filter(
+                Q(username__icontains=keyword)
+                | Q(display_name__icontains=keyword)
+                | Q(email__icontains=keyword)
+            )
+        qs = qs.order_by("username")
+        return Response({"code": 0, "message": "ok", "data": {"items": UserSerializer(qs[:200], many=True).data}})
+
+    def post(self, request):
+        serializer = UserWriteSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        user = serializer.save()
+        AuditLog.objects.create(
+            user=request.user,
+            action="user.create",
+            resource_type="user",
+            resource_id=str(user.id),
+            detail_json={"username": user.username},
+        )
+        return Response({"code": 0, "message": "ok", "data": UserSerializer(user).data}, status=status.HTTP_201_CREATED)
+
+
+class UserDetailView(APIView):
+    authentication_classes = [ExpiringTokenAuthentication]
+    permission_classes = [CanManageUsers]
+
+    def patch(self, request, user_id: int):
+        user = get_object_or_404(User.objects.select_related("department").prefetch_related("user_roles__role", "user_roles__department"), pk=user_id)
+        serializer = UserWriteSerializer(instance=user, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        user = serializer.save()
+        AuditLog.objects.create(
+            user=request.user,
+            action="user.update",
+            resource_type="user",
+            resource_id=str(user.id),
+            detail_json={"username": user.username},
+        )
+        return Response({"code": 0, "message": "ok", "data": UserSerializer(user).data})
+
+
+class UserResetPasswordView(APIView):
+    authentication_classes = [ExpiringTokenAuthentication]
+    permission_classes = [CanManageUsers]
+
+    def post(self, request, user_id: int):
+        user = get_object_or_404(User, pk=user_id)
+        serializer = ResetPasswordSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        user.set_password(serializer.validated_data["password"])
+        user.force_password_change = serializer.validated_data["force_password_change"]
+        user.save(update_fields=["password", "force_password_change"])
+        Token.objects.filter(user=user).delete()
+        AuditLog.objects.create(
+            user=request.user,
+            action="user.reset_password",
+            resource_type="user",
+            resource_id=str(user.id),
+            detail_json={"username": user.username, "force_password_change": user.force_password_change},
+        )
+        return Response({"code": 0, "message": "ok", "data": {"reset": True}})
 
 
 class RoleListView(APIView):
     authentication_classes = [ExpiringTokenAuthentication]
-    permission_classes = [CanManageRoles]
+    permission_classes = [IsAuthenticated]
 
     def get(self, request):
+        if not (request.user.is_superuser or request.user.has_permission_code("role.manage") or request.user.has_permission_code("user.manage")):
+            raise PermissionDenied("没有访问角色列表的权限")
         qs = Role.objects.all().prefetch_related("role_permissions__permission")
         return Response({"code": 0, "message": "ok", "data": {"items": RoleSerializer(qs, many=True).data}})
+
+    def post(self, request):
+        if not (request.user.is_superuser or request.user.has_permission_code("role.manage")):
+            raise PermissionDenied("没有创建角色的权限")
+        serializer = RoleWriteSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        role = serializer.save()
+        AuditLog.objects.create(
+            user=request.user,
+            action="role.create",
+            resource_type="role",
+            resource_id=str(role.id),
+            detail_json={"code": role.code},
+        )
+        return Response({"code": 0, "message": "ok", "data": RoleSerializer(role).data}, status=status.HTTP_201_CREATED)
+
+
+class RoleDetailView(APIView):
+    authentication_classes = [ExpiringTokenAuthentication]
+    permission_classes = [CanManageRoles]
+
+    def patch(self, request, role_id: int):
+        role = get_object_or_404(Role.objects.prefetch_related("role_permissions__permission"), pk=role_id)
+        serializer = RoleWriteSerializer(instance=role, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        role = serializer.save()
+        AuditLog.objects.create(
+            user=request.user,
+            action="role.update",
+            resource_type="role",
+            resource_id=str(role.id),
+            detail_json={"code": role.code},
+        )
+        return Response({"code": 0, "message": "ok", "data": RoleSerializer(role).data})
+
+    def delete(self, request, role_id: int):
+        role = get_object_or_404(Role, pk=role_id)
+        if role.is_system:
+            return Response({"code": 40010, "message": "系统角色不允许删除", "data": None}, status=status.HTTP_400_BAD_REQUEST)
+        if role.user_roles.exists():
+            return Response({"code": 40011, "message": "角色已分配给用户，无法删除", "data": None}, status=status.HTTP_400_BAD_REQUEST)
+        code = role.code
+        role.delete()
+        AuditLog.objects.create(
+            user=request.user,
+            action="role.delete",
+            resource_type="role",
+            resource_id=str(role_id),
+            detail_json={"code": code},
+        )
+        return Response({"code": 0, "message": "ok", "data": {"deleted": True}})
+
+
+class PermissionListView(APIView):
+    authentication_classes = [ExpiringTokenAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        if not (request.user.is_superuser or request.user.has_permission_code("role.manage") or request.user.has_permission_code("user.manage")):
+            raise PermissionDenied("没有访问权限清单的权限")
+        qs = Permission.objects.all().order_by("module", "action", "code")
+        return Response({"code": 0, "message": "ok", "data": {"items": PermissionSerializer(qs, many=True).data}})
 
 
 class DepartmentListView(APIView):
     authentication_classes = [ExpiringTokenAuthentication]
-    permission_classes = [CanManageDepartments]
+    permission_classes = [IsAuthenticated]
 
     def get(self, request):
+        if not (request.user.is_superuser or request.user.has_permission_code("department.manage") or request.user.has_permission_code("user.manage")):
+            raise PermissionDenied("没有访问部门列表的权限")
         qs = Department.objects.select_related("parent")
         return Response({"code": 0, "message": "ok", "data": {"items": DepartmentSerializer(qs, many=True).data}})
+
+    def post(self, request):
+        if not (request.user.is_superuser or request.user.has_permission_code("department.manage")):
+            raise PermissionDenied("没有创建部门的权限")
+        serializer = DepartmentWriteSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        department = serializer.save()
+        AuditLog.objects.create(
+            user=request.user,
+            action="department.create",
+            resource_type="department",
+            resource_id=str(department.id),
+            detail_json={"code": department.code},
+        )
+        return Response({"code": 0, "message": "ok", "data": DepartmentSerializer(department).data}, status=status.HTTP_201_CREATED)
+
+
+class DepartmentDetailView(APIView):
+    authentication_classes = [ExpiringTokenAuthentication]
+    permission_classes = [CanManageDepartments]
+
+    def patch(self, request, department_id: int):
+        department = get_object_or_404(Department.objects.select_related("parent"), pk=department_id)
+        serializer = DepartmentWriteSerializer(instance=department, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        department = serializer.save()
+        AuditLog.objects.create(
+            user=request.user,
+            action="department.update",
+            resource_type="department",
+            resource_id=str(department.id),
+            detail_json={"code": department.code},
+        )
+        return Response({"code": 0, "message": "ok", "data": DepartmentSerializer(department).data})
+
+    def delete(self, request, department_id: int):
+        department = get_object_or_404(Department, pk=department_id)
+        if department.children.exists():
+            return Response({"code": 40020, "message": "部门下仍有子部门，无法删除", "data": None}, status=status.HTTP_400_BAD_REQUEST)
+        if department.users.exists():
+            return Response({"code": 40021, "message": "部门下仍有关联用户，无法删除", "data": None}, status=status.HTTP_400_BAD_REQUEST)
+        code = department.code
+        department.delete()
+        AuditLog.objects.create(
+            user=request.user,
+            action="department.delete",
+            resource_type="department",
+            resource_id=str(department_id),
+            detail_json={"code": code},
+        )
+        return Response({"code": 0, "message": "ok", "data": {"deleted": True}})

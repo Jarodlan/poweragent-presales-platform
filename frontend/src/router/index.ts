@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 
+import AdminAccessView from '@/views/AdminAccessView.vue'
 import LoginView from '@/views/LoginView.vue'
 import WorkspaceView from '@/views/WorkspaceView.vue'
 import { useAuthStore } from '@/stores/auth'
@@ -18,6 +19,14 @@ const router = createRouter({
       path: '/',
       name: 'workspace',
       component: WorkspaceView,
+    },
+    {
+      path: '/admin/access',
+      name: 'admin-access',
+      component: AdminAccessView,
+      meta: {
+        requiredAnyPermission: ['user.manage', 'role.manage', 'department.manage'],
+      },
     },
   ],
 })
@@ -38,6 +47,11 @@ router.beforeEach(async (to) => {
       name: 'login',
       query: { redirect: to.fullPath },
     }
+  }
+
+  const requiredAnyPermission = (to.meta.requiredAnyPermission as string[] | undefined) || []
+  if (requiredAnyPermission.length && !authStore.hasAnyPermission(requiredAnyPermission)) {
+    return { name: 'workspace' }
   }
 
   return true
