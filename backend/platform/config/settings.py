@@ -22,6 +22,7 @@ INSTALLED_APPS = [
     "rest_framework",
     "rest_framework.authtoken",
     "apps.accounts",
+    "apps.customer_demand",
     "apps.conversations",
     "apps.tasks",
     "apps.audit",
@@ -102,3 +103,10 @@ CORS_ALLOW_ALL_ORIGINS = True
 
 AGENT_SERVICE_BASE_URL = os.getenv("AGENT_SERVICE_BASE_URL", "http://127.0.0.1:9100")
 PLATFORM_BASE_URL = os.getenv("PLATFORM_BASE_URL", "http://127.0.0.1:8000")
+
+CUSTOMER_DEMAND_ASR_PROVIDER = os.getenv("CUSTOMER_DEMAND_ASR_PROVIDER", "qwen")
+CUSTOMER_DEMAND_QWEN_ASR_BASE_URL = os.getenv("CUSTOMER_DEMAND_QWEN_ASR_BASE_URL", "")
+CUSTOMER_DEMAND_QWEN_ASR_API_KEY = os.getenv("CUSTOMER_DEMAND_QWEN_ASR_API_KEY", "")
+CUSTOMER_DEMAND_QWEN_ASR_MODEL = os.getenv("CUSTOMER_DEMAND_QWEN_ASR_MODEL", "qwen3-asr-flash")
+CUSTOMER_DEMAND_FUNASR_BASE_URL = os.getenv("CUSTOMER_DEMAND_FUNASR_BASE_URL", "")
+CUSTOMER_DEMAND_FUNASR_MODE = os.getenv("CUSTOMER_DEMAND_FUNASR_MODE", "2pass")

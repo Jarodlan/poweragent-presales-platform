@@ -24,6 +24,10 @@ PERMISSION_SEEDS = [
     PermissionSeed("task.view", "查看任务", "task", "view", "self", "查看生成任务。"),
     PermissionSeed("task.manage_department", "管理部门任务", "task", "manage_department", "department", "管理本部门任务。"),
     PermissionSeed("task.manage_all", "管理全部任务", "task", "manage_all", "platform", "管理全部任务。"),
+    PermissionSeed("customer_demand.view", "查看客户需求会话", "customer_demand", "view", "self", "查看客户需求分析会话。"),
+    PermissionSeed("customer_demand.create", "创建客户需求会话", "customer_demand", "create", "self", "创建客户需求分析会话。"),
+    PermissionSeed("customer_demand.manage_all", "管理全部客户需求会话", "customer_demand", "manage_all", "platform", "管理全部客户需求分析会话。"),
+    PermissionSeed("customer_demand.export", "导出客户需求报告", "customer_demand", "export", "platform", "导出客户需求分析报告。"),
     PermissionSeed("template.manage", "模板管理", "template", "manage", "platform", "管理场景模板与路由配置。"),
     PermissionSeed("knowledge.manage", "知识库配置", "knowledge", "manage", "platform", "配置知识库路由与数据源。"),
     PermissionSeed("audit.view", "查看审计日志", "audit", "view", "platform", "查看审计日志。"),
@@ -48,6 +52,8 @@ ROLE_SEEDS = {
             "department.manage",
             "conversation.manage_all",
             "task.manage_all",
+            "customer_demand.manage_all",
+            "customer_demand.export",
             "template.manage",
             "knowledge.manage",
             "audit.view",
@@ -71,6 +77,8 @@ ROLE_SEEDS = {
         "permissions": [
             "conversation.view",
             "task.view",
+            "customer_demand.view",
+            "customer_demand.create",
         ],
     },
     "employee": {
@@ -80,6 +88,8 @@ ROLE_SEEDS = {
         "permissions": [
             "conversation.view",
             "task.view",
+            "customer_demand.view",
+            "customer_demand.create",
         ],
     },
 }

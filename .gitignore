@@ -31,3 +31,6 @@ venv/
 
 # OS temp
 Thumbs.db
+
+# Local smoke-test artifacts
+tmp/
