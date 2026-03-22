@@ -3,15 +3,21 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import {
   ArrowLeft,
   ChatDotRound,
+  CircleCheck,
   Connection,
   Document,
-  FolderOpened,
+  Expand,
+  Fold,
   Microphone,
+  Opportunity,
+  QuestionFilled,
   Refresh,
+  Right,
   Search,
   UploadFilled,
   VideoPause,
   VideoPlay,
+  Warning,
 } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { useRouter } from 'vue-router'
@@ -22,16 +28,19 @@ import { useCustomerDemandStore } from '@/stores/customerDemand'
 import { renderMarkdown } from '@/utils/markdown'
 import { formatDateTime, formatRelativeTime } from '@/utils/time'
 
+type ReviewDecision = 'accept' | 'discard'
+
 const router = useRouter()
 const authStore = useAuthStore()
 const demandStore = useCustomerDemandStore()
 const keyword = ref('')
+const sidebarCollapsed = ref(false)
 const createDialogVisible = ref(false)
 const uploadInputRef = ref<HTMLInputElement | null>(null)
 const reviewDialogVisible = ref(false)
 const reviewForm = reactive({
   segmentId: '',
-  decision: 'accept' as 'accept' | 'discard',
+  decision: 'accept' as ReviewDecision,
   editedText: '',
   note: '',
 })
@@ -50,7 +59,10 @@ const filteredSessions = computed(() => {
   const normalized = keyword.value.trim().toLowerCase()
   if (!normalized) return demandStore.sessions
   return demandStore.sessions.filter((item) =>
-    [item.customer_name, item.session_title, item.topic, item.industry, item.region].join(' ').toLowerCase().includes(normalized),
+    [item.customer_name, item.session_title, item.topic, item.industry, item.region]
+      .join(' ')
+      .toLowerCase()
+      .includes(normalized),
   )
 })
 
@@ -76,6 +88,83 @@ const activityLabel = computed(() => {
 })
 
 const createDisabled = computed(() => !createForm.customer_name.trim() || !createForm.session_title.trim())
+
+const latestSummaryPayload = computed<Record<string, unknown>>(
+  () => demandStore.latestStageSummary?.summary_payload || {},
+)
+
+function payloadList(key: string) {
+  const value = latestSummaryPayload.value[key]
+  return Array.isArray(value) ? value.map((item) => String(item).trim()).filter(Boolean) : []
+}
+
+function compactPromptText(text: string, limit = 48) {
+  const normalized = String(text || '')
+    .replace(/\s+/g, ' ')
+    .replace(/[；;。！？!?]/g, '，')
+    .trim()
+  const firstClause = normalized.split('，').map((item) => item.trim()).filter(Boolean)[0] || normalized
+  if (firstClause.length <= limit) return firstClause
+  return `${firstClause.slice(0, limit).trim()}...`
+}
+
+function compactList(items: string[], limit = 3, textLimit = 48) {
+  return items.slice(0, limit).map((item) => compactPromptText(item, textLimit))
+}
+
+const currentTopics = computed(() => payloadList('current_topics'))
+const confirmedRequirements = computed(() => payloadList('confirmed_requirements'))
+const pendingQuestions = computed(() => payloadList('pending_questions'))
+const potentialDirections = computed(() => payloadList('potential_directions'))
+const riskPoints = computed(() => payloadList('risk_points'))
+const semanticWarnings = computed(() => payloadList('semantic_warnings'))
+
+const currentTopicsCompact = computed(() => compactList(currentTopics.value, 3, 42))
+const confirmedRequirementsCompact = computed(() => compactList(confirmedRequirements.value, 3, 44))
+const pendingQuestionsCompact = computed(() => compactList(pendingQuestions.value, 3, 44))
+const potentialDirectionsCompact = computed(() => compactList(potentialDirections.value, 3, 42))
+const riskPointsCompact = computed(() => compactList(riskPoints.value, 3, 42))
+const semanticWarningsCompact = computed(() => compactList(semanticWarnings.value, 3, 42))
+
+const quickInsightCards = computed(() => [
+  {
+    title: '已明确需求',
+    description: '客户已经明确表达的重点。',
+    items: confirmedRequirementsCompact.value,
+    tone: 'success',
+    icon: CircleCheck,
+    actionLabel: '可以继续压实量化指标',
+  },
+  {
+    title: '待确认问题',
+    description: '现场建议继续追问的点。',
+    items: pendingQuestionsCompact.value,
+    tone: 'warning',
+    icon: QuestionFilled,
+    actionLabel: '优先补问缺失信息',
+  },
+  {
+    title: '下一步可深挖',
+    description: '顺着客户表达继续展开。',
+    items: potentialDirectionsCompact.value,
+    tone: 'primary',
+    icon: Opportunity,
+    actionLabel: '适合继续向价值点追问',
+  },
+  {
+    title: '风险与约束',
+    description: '当前需要提醒的限制条件。',
+    items: riskPointsCompact.value,
+    tone: 'danger',
+    icon: Warning,
+    actionLabel: '避免后续方案边界反复',
+  },
+])
+
+function sessionAvatarLabel(title: string) {
+  const cleaned = (title || '会').trim()
+  return cleaned.slice(0, 2)
+}
 
 async function handleCreateSession() {
   if (createDisabled.value) {
@@ -150,7 +239,7 @@ function segmentStatusLabel(status: string) {
   return map[status] || status
 }
 
-function openReviewDialog(segment: any, decision: 'accept' | 'discard') {
+function openReviewDialog(segment: any, decision: ReviewDecision) {
   reviewForm.segmentId = segment.id
   reviewForm.decision = decision
   reviewForm.editedText = segment.final_text || segment.normalized_text || segment.raw_text || ''
@@ -168,6 +257,11 @@ async function submitReview() {
   reviewDialogVisible.value = false
 }
 
+function openReportPage() {
+  if (!demandStore.currentSessionId) return
+  router.push(`/customer-demand/${demandStore.currentSessionId}/report`)
+}
+
 onMounted(async () => {
   await demandStore.loadSessions()
   if (demandStore.currentSessionId) {
@@ -177,39 +271,51 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="customer-demand-shell">
+  <div class="customer-demand-shell" :class="{ 'is-sidebar-collapsed': sidebarCollapsed }">
     <aside class="customer-demand-sidebar">
       <div class="customer-demand-sidebar__top">
-        <div class="customer-demand-sidebar__account panel-card">
-          <div>
-            <strong>{{ authStore.displayName || '未登录用户' }}</strong>
-            <p>{{ authStore.user?.department?.name || '未设置部门' }}</p>
+        <div class="customer-demand-sidebar__toolbar">
+          <el-tooltip :content="sidebarCollapsed ? '展开会话栏' : '收起会话栏'" placement="right">
+            <el-button circle @click="sidebarCollapsed = !sidebarCollapsed">
+              <el-icon><component :is="sidebarCollapsed ? Expand : Fold" /></el-icon>
+            </el-button>
+          </el-tooltip>
+          <el-tooltip content="返回方案工作台" placement="right">
+            <el-button circle plain @click="router.push('/')">
+              <el-icon><ArrowLeft /></el-icon>
+            </el-button>
+          </el-tooltip>
+          <el-tooltip content="新建沟通会话" placement="right">
+            <el-button circle type="primary" @click="createDialogVisible = true">
+              <el-icon><ChatDotRound /></el-icon>
+            </el-button>
+          </el-tooltip>
+        </div>
+
+        <template v-if="!sidebarCollapsed">
+          <div class="customer-demand-sidebar__account panel-card">
+            <div>
+              <strong>{{ authStore.displayName || '未登录用户' }}</strong>
+              <p>{{ authStore.user?.department?.name || '未设置部门' }}</p>
+            </div>
+            <el-button text @click="router.push('/')">返回方案工作台</el-button>
           </div>
-          <el-button text @click="router.push('/')">
-            <el-icon><ArrowLeft /></el-icon>
-            返回方案工作台
-          </el-button>
-        </div>
 
-        <div class="customer-demand-sidebar__hero">
-          <p class="section-title">Demand Agent</p>
-          <h1>客户需求分析工作台</h1>
-          <p>把现场口语化、碎片化的客户沟通内容，整理成结构化需求理解和后续挖掘建议。</p>
-        </div>
+          <div class="customer-demand-sidebar__hero">
+            <p class="section-title">Demand Agent</p>
+            <h1>客户需求分析工作台</h1>
+            <p>会中优先帮助你明确需求、挖掘问题、识别风险，会后再单独查看完整分析报告。</p>
+          </div>
 
-        <el-button type="primary" round @click="createDialogVisible = true">
-          <el-icon><ChatDotRound /></el-icon>
-          新建沟通会话
-        </el-button>
+          <el-input v-model="keyword" placeholder="搜索客户、主题或区域" clearable>
+            <template #prefix>
+              <el-icon><Search /></el-icon>
+            </template>
+          </el-input>
+        </template>
       </div>
 
-      <el-input v-model="keyword" placeholder="搜索客户、主题或区域" clearable>
-        <template #prefix>
-          <el-icon><Search /></el-icon>
-        </template>
-      </el-input>
-
-      <div class="customer-demand-sidebar__list panel-card">
+      <div v-if="!sidebarCollapsed" class="customer-demand-sidebar__list panel-card">
         <div class="customer-demand-sidebar__list-head">
           <strong>沟通会话</strong>
           <span>{{ filteredSessions.length }}</span>
@@ -233,12 +339,31 @@ onMounted(async () => {
           <small>{{ item.topic || '未补充会话主题' }}</small>
         </button>
       </div>
+
+      <div v-else class="customer-demand-sidebar__mini-list panel-card">
+        <div v-if="demandStore.loadingSessions" class="customer-demand-sidebar__mini-empty">加载中</div>
+        <div v-else-if="!filteredSessions.length" class="customer-demand-sidebar__mini-empty">空</div>
+        <el-tooltip
+          v-for="item in filteredSessions"
+          :key="item.id"
+          :content="`${item.session_title} · ${item.customer_name}`"
+          placement="right"
+        >
+          <button
+            class="customer-demand-sidebar__mini-item"
+            :class="{ 'is-active': item.id === demandStore.currentSessionId }"
+            @click="handleSelectSession(item.id)"
+          >
+            {{ sessionAvatarLabel(item.session_title) }}
+          </button>
+        </el-tooltip>
+      </div>
     </aside>
 
     <main class="customer-demand-main">
       <header class="customer-demand-header panel-card">
         <div>
-          <p class="section-title">Customer Demand</p>
+          <p class="section-title">In-Meeting Copilot</p>
           <h2>{{ demandStore.currentSession?.session_title || '请选择或创建一个沟通会话' }}</h2>
           <p>
             {{ demandStore.currentSession?.customer_name || '尚未选中客户' }}
@@ -249,25 +374,25 @@ onMounted(async () => {
         <div class="customer-demand-header__meta">
           <el-tag effect="plain">{{ currentStatusLabel }}</el-tag>
           <el-tag effect="plain" type="info">{{ demandStore.segments.length }} 条分段</el-tag>
-          <el-tag effect="plain" type="success">{{ demandStore.stageSummaries.length }} 版整理</el-tag>
+          <el-tag effect="plain" type="success">{{ demandStore.stageSummaries.length }} 版阶段整理</el-tag>
         </div>
       </header>
 
       <div v-if="!demandStore.currentSession" class="customer-demand-empty">
         <EmptyState
           title="客户需求分析智能体已就绪"
-          description="先创建一条客户沟通会话，然后就可以开始记录现场交流、上传语音分片、生成阶段整理和需求分析报告。"
+          description="先创建一条客户沟通会话，然后就可以开始记录现场交流、上传语音分片、生成阶段整理，并在会后单独查看正式需求分析报告。"
         />
       </div>
 
       <template v-else>
         <section class="customer-demand-grid">
-          <div class="customer-demand-column">
+          <div class="customer-demand-column customer-demand-column--workspace">
             <section class="customer-card panel-card">
               <div class="customer-card__head">
                 <div>
                   <h3>会话信息</h3>
-                  <p>先把客户、主题和知识库开关补齐，后续报告会直接沿用这里的信息。</p>
+                  <p>补齐客户、主题和知识库开关，后续会中提示与会后报告都会沿用这里的信息。</p>
                 </div>
                 <el-button :loading="demandStore.savingProfile" type="primary" plain @click="demandStore.saveCurrentSessionProfile()">
                   保存信息
@@ -401,12 +526,12 @@ onMounted(async () => {
             </section>
           </div>
 
-          <div class="customer-demand-column customer-demand-column--insights">
+          <div class="customer-demand-column customer-demand-column--copilot">
             <section class="customer-card panel-card">
               <div class="customer-card__head">
                 <div>
-                  <h3>分析动作</h3>
-                  <p>阶段整理适合现场中途快速复盘；最终分析会形成正式需求报告和后续挖掘建议。</p>
+                  <h3>会中辅助动作</h3>
+                  <p>会中先看提示卡，会后再看完整报告。</p>
                 </div>
               </div>
               <div class="insight-actions">
@@ -416,11 +541,7 @@ onMounted(async () => {
                 </el-button>
                 <el-button :loading="demandStore.actionLoading" type="success" @click="demandStore.triggerFinalAnalysisNow()">
                   <el-icon><Document /></el-icon>
-                  开始需求分析
-                </el-button>
-                <el-button :loading="demandStore.exporting" plain @click="handleExportReport">
-                  <el-icon><FolderOpened /></el-icon>
-                  导出报告 Markdown
+                  会后生成正式报告
                 </el-button>
               </div>
               <div v-if="demandStore.operationState.visible" class="operation-status-card" :class="`is-${demandStore.operationState.status}`">
@@ -464,10 +585,10 @@ onMounted(async () => {
                 <small>
                   {{
                     demandStore.operationState.status === 'running'
-                      ? '系统正在处理，请稍候。生成结构化阶段整理或正式需求分析报告通常会持续数秒到几十秒。'
+                      ? '系统正在基于有效分段整理当前需求脉络，请稍候。'
                       : demandStore.operationState.status === 'error'
                         ? '本次生成未成功完成，你可以稍后重试。'
-                        : '本次结果已经准备好了，现在可以继续阅读、复核或导出报告。'
+                        : '本次结果已经准备好了，可以继续查看会中提示，或进入完整报告页。'
                   }}
                 </small>
               </div>
@@ -481,46 +602,102 @@ onMounted(async () => {
             <section class="customer-card panel-card">
               <div class="customer-card__head">
                 <div>
-                  <h3>阶段整理</h3>
-                  <p>自动抽取本阶段已明确的需求点、约束和待确认问题。</p>
+                  <h3>当前主题</h3>
+                  <p>先看这次沟通现在聊到哪。</p>
                 </div>
               </div>
-              <div v-if="!demandStore.stageSummaries.length" class="customer-card__empty">
-                还没有阶段整理记录。
+              <div v-if="!currentTopics.length" class="customer-card__empty">
+                还没有主题整理结果。可以先点击“生成阶段整理”。
               </div>
-              <div v-else class="markdown-view">
-                <div class="summary-version">
-                  最新版本：V{{ demandStore.latestStageSummary?.summary_version || 0 }}
+              <ul v-else class="insight-list">
+                <li v-for="item in currentTopicsCompact" :key="item">{{ item }}</li>
+              </ul>
+            </section>
+
+            <section class="customer-card panel-card customer-card--cards">
+              <article
+                v-for="card in quickInsightCards"
+                :key="card.title"
+                class="insight-card"
+                :class="`is-${card.tone}`"
+              >
+                <div class="insight-card__head">
+                  <div class="insight-card__title">
+                    <span class="insight-card__icon">
+                      <el-icon><component :is="card.icon" /></el-icon>
+                    </span>
+                    <div>
+                      <strong>{{ card.title }}</strong>
+                      <p>{{ card.description }}</p>
+                    </div>
+                  </div>
+                  <el-tag size="small" effect="light" :type="card.tone === 'danger' ? 'danger' : card.tone === 'warning' ? 'warning' : card.tone === 'success' ? 'success' : 'primary'">
+                    {{ card.items.length }} 条
+                  </el-tag>
                 </div>
-                <div v-html="renderMarkdown(demandStore.latestStageSummary?.summary_markdown || '')"></div>
-              </div>
+                <ul v-if="card.items.length" class="insight-list">
+                  <li v-for="item in card.items" :key="item">{{ item }}</li>
+                </ul>
+                <div v-else class="customer-card__empty">当前还没有相关提示。</div>
+                <div class="insight-card__action">
+                  <el-icon><Right /></el-icon>
+                  <span>{{ card.actionLabel }}</span>
+                </div>
+              </article>
             </section>
 
             <section class="customer-card panel-card">
               <div class="customer-card__head">
                 <div>
-                  <h3>最终需求分析报告</h3>
-                  <p>形成需求理解、方案方向和后续挖掘建议，方便内部复盘与再次沟通。</p>
+                  <h3>语义复核提醒</h3>
+                  <p>这些内容可能跑题，现场需要判断。</p>
+                </div>
+              </div>
+              <div v-if="!semanticWarningsCompact.length" class="customer-card__empty">
+                当前没有需要特别提醒的语义复核项。
+              </div>
+              <ul v-else class="insight-list insight-list--warning">
+                <li v-for="item in semanticWarningsCompact" :key="item">
+                  <el-icon><Warning /></el-icon>
+                  <span>{{ item }}</span>
+                </li>
+              </ul>
+            </section>
+
+            <section class="customer-card panel-card">
+              <div class="customer-card__head">
+                <div>
+                  <h3>会后报告</h3>
+                  <p>完整报告单独查看，不占会中空间。</p>
                 </div>
               </div>
               <div v-if="!demandStore.currentReport" class="customer-card__empty">
-                还没有生成正式分析报告。
+                还没有正式需求分析报告。你可以在会后点击“会后生成正式报告”。
               </div>
-              <div v-else class="report-stack">
-                <div class="report-title-block">
-                  <strong>{{ demandStore.currentReport.report_title }}</strong>
-                  <small>{{ formatDateTime(demandStore.currentReport.updated_at) }}</small>
+              <div v-else class="report-preview-card">
+                <div class="report-preview-card__head">
+                  <div>
+                    <strong>{{ demandStore.currentReport.report_title }}</strong>
+                    <p>{{ formatDateTime(demandStore.currentReport.updated_at) }}</p>
+                  </div>
+                  <el-tag type="success" effect="light">已生成</el-tag>
                 </div>
-                <div class="markdown-view" v-html="renderMarkdown(demandStore.currentReport.report_markdown || '')"></div>
-                <div class="report-subsection">
-                  <h4>需求挖掘方向建议</h4>
-                  <div class="markdown-view" v-html="renderMarkdown(demandStore.currentReport.digging_suggestions_markdown || '暂无建议')"></div>
-                </div>
-                <div class="report-subsection">
-                  <h4>推荐追问问题</h4>
-                  <div class="markdown-view" v-html="renderMarkdown(demandStore.currentReport.recommended_questions_markdown || '暂无推荐问题')"></div>
+                <div class="report-preview-card__actions">
+                  <el-button type="primary" @click="openReportPage">打开完整报告页</el-button>
+                  <el-button plain :loading="demandStore.exporting" @click="handleExportReport">导出 Markdown</el-button>
                 </div>
               </div>
+            </section>
+
+            <section v-if="demandStore.latestStageSummary" class="customer-card panel-card">
+              <div class="customer-card__head">
+                <div>
+                  <h3>阶段整理原文</h3>
+                  <p>需要完整核对时，可以展开查看当前阶段整理的全文。</p>
+                </div>
+              </div>
+              <div class="summary-version">最新版本：V{{ demandStore.latestStageSummary.summary_version || 0 }}</div>
+              <div class="markdown-view" v-html="renderMarkdown(demandStore.latestStageSummary.summary_markdown || '')"></div>
             </section>
           </div>
         </section>
@@ -587,16 +764,22 @@ onMounted(async () => {
   display: grid;
   grid-template-columns: 320px minmax(0, 1fr);
   min-height: 100vh;
+  transition: grid-template-columns 0.22s ease;
+}
+
+.customer-demand-shell.is-sidebar-collapsed {
+  grid-template-columns: 88px minmax(0, 1fr);
 }
 
 .customer-demand-sidebar {
   display: flex;
   flex-direction: column;
   gap: 16px;
-  padding: 22px 18px;
+  padding: 20px 16px;
   background: rgba(255, 255, 255, 0.62);
   backdrop-filter: blur(20px);
   border-right: 1px solid rgba(24, 50, 71, 0.08);
+  min-width: 0;
 }
 
 .customer-demand-sidebar__top {
@@ -605,8 +788,15 @@ onMounted(async () => {
   gap: 14px;
 }
 
+.customer-demand-sidebar__toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .customer-demand-sidebar__account,
 .customer-demand-sidebar__list,
+.customer-demand-sidebar__mini-list,
 .customer-demand-header,
 .customer-card {
   padding: 18px 20px;
@@ -627,7 +817,9 @@ onMounted(async () => {
 .customer-demand-sidebar__account p,
 .customer-demand-sidebar__hero p,
 .customer-card__head p,
-.customer-demand-header p {
+.customer-demand-header p,
+.report-preview-card__head p,
+.insight-card__head p {
   margin: 6px 0 0;
   color: var(--muted);
   line-height: 1.6;
@@ -639,11 +831,43 @@ onMounted(async () => {
   line-height: 1.2;
 }
 
-.customer-demand-sidebar__list {
+.customer-demand-sidebar__list,
+.customer-demand-sidebar__mini-list {
   display: flex;
   flex-direction: column;
   gap: 12px;
   overflow: auto;
+}
+
+.customer-demand-sidebar__mini-list {
+  align-items: center;
+  padding: 14px 10px;
+}
+
+.customer-demand-sidebar__mini-empty,
+.customer-demand-sidebar__empty,
+.customer-card__empty {
+  color: var(--muted);
+  line-height: 1.7;
+}
+
+.customer-demand-sidebar__mini-item {
+  width: 44px;
+  height: 44px;
+  border: 1px solid transparent;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.8);
+  color: var(--text);
+  font-weight: 700;
+  cursor: pointer;
+  transition: 0.18s ease;
+}
+
+.customer-demand-sidebar__mini-item:hover,
+.customer-demand-sidebar__mini-item.is-active {
+  border-color: rgba(15, 93, 140, 0.18);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(237, 247, 255, 0.96));
+  box-shadow: 0 12px 22px rgba(15, 38, 56, 0.08);
 }
 
 .customer-demand-sidebar__list-head,
@@ -651,17 +875,12 @@ onMounted(async () => {
 .customer-demand-header,
 .customer-card__head,
 .segment-item__head,
-.task-card {
+.task-card,
+.report-preview-card__head {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
-}
-
-.customer-demand-sidebar__empty,
-.customer-card__empty {
-  color: var(--muted);
-  line-height: 1.7;
 }
 
 .customer-demand-sidebar__item {
@@ -715,7 +934,7 @@ onMounted(async () => {
 
 .customer-demand-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1.15fr) minmax(320px, 0.85fr);
+  grid-template-columns: minmax(0, 1.25fr) minmax(360px, 0.9fr);
   gap: 18px;
 }
 
@@ -726,8 +945,7 @@ onMounted(async () => {
   min-width: 0;
 }
 
-.customer-card__head h3,
-.report-subsection h4 {
+.customer-card__head h3 {
   margin: 0;
 }
 
@@ -747,7 +965,7 @@ onMounted(async () => {
 .customer-card__manual-bar,
 .customer-card__manual-actions,
 .insight-actions,
-.report-title-block {
+.report-preview-card__actions {
   display: flex;
   align-items: center;
   gap: 12px;
@@ -832,6 +1050,11 @@ onMounted(async () => {
   background: rgba(15, 93, 140, 0.06);
 }
 
+.task-card p {
+  margin: 6px 0 0;
+  color: var(--muted);
+}
+
 .operation-status-card {
   margin-top: 14px;
   padding: 16px 18px;
@@ -860,20 +1083,160 @@ onMounted(async () => {
   gap: 12px;
 }
 
-.operation-status-card__head p {
-  margin: 6px 0 0;
-  color: var(--muted);
-  line-height: 1.6;
-}
-
+.operation-status-card__head p,
 .operation-status-card small {
+  margin: 6px 0 0;
   color: var(--muted);
   line-height: 1.6;
 }
 
-.task-card p {
-  margin: 6px 0 0;
-  color: var(--muted);
+.insight-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding-left: 18px;
+  line-height: 1.7;
+}
+
+.insight-list--warning {
+  padding-left: 0;
+  list-style: none;
+}
+
+.insight-list--warning li {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.customer-card--cards {
+  gap: 14px;
+}
+
+.insight-card {
+  border-radius: 18px;
+  padding: 16px;
+  border: 1px solid rgba(24, 50, 71, 0.08);
+  background: rgba(255, 255, 255, 0.75);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.insight-card.is-success {
+  border-color: rgba(54, 179, 126, 0.16);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(243, 255, 248, 0.92));
+}
+
+.insight-card.is-warning {
+  border-color: rgba(240, 173, 78, 0.18);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(255, 250, 240, 0.94));
+}
+
+.insight-card.is-primary {
+  border-color: rgba(15, 93, 140, 0.14);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(242, 249, 255, 0.94));
+}
+
+.insight-card.is-danger {
+  border-color: rgba(207, 88, 76, 0.16);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(255, 245, 244, 0.94));
+}
+
+.insight-card__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.insight-card__title {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.insight-card__title strong {
+  display: block;
+  font-size: 15px;
+}
+
+.insight-card__icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(15, 93, 140, 0.1);
+  color: var(--accent);
+  flex: 0 0 auto;
+}
+
+.insight-card.is-success .insight-card__icon {
+  background: rgba(54, 179, 126, 0.12);
+  color: #2b9b67;
+}
+
+.insight-card.is-warning .insight-card__icon {
+  background: rgba(240, 173, 78, 0.14);
+  color: #d08a16;
+}
+
+.insight-card.is-danger .insight-card__icon {
+  background: rgba(207, 88, 76, 0.12);
+  color: #c54b3f;
+}
+
+.insight-card__action {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  align-self: flex-start;
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: rgba(15, 93, 140, 0.08);
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.insight-card.is-success .insight-card__action {
+  background: rgba(54, 179, 126, 0.12);
+  color: #2b9b67;
+}
+
+.insight-card.is-warning .insight-card__action {
+  background: rgba(240, 173, 78, 0.14);
+  color: #d08a16;
+}
+
+.insight-card.is-danger .insight-card__action {
+  background: rgba(207, 88, 76, 0.12);
+  color: #c54b3f;
+}
+
+.insight-list li {
+  position: relative;
+  padding-left: 2px;
+}
+
+.report-preview-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.report-preview-card__head strong {
+  display: block;
+  font-size: 16px;
+}
+
+.summary-version {
+  margin-bottom: 10px;
+  color: var(--accent);
+  font-weight: 700;
 }
 
 .markdown-view {
@@ -898,31 +1261,6 @@ onMounted(async () => {
   padding-left: 22px;
 }
 
-.summary-version {
-  margin-bottom: 10px;
-  color: var(--accent);
-  font-weight: 700;
-}
-
-.report-stack {
-  display: flex;
-  flex-direction: column;
-  gap: 18px;
-}
-
-.report-title-block {
-  justify-content: space-between;
-}
-
-.report-title-block small {
-  color: var(--muted);
-}
-
-.report-subsection {
-  border-top: 1px solid rgba(24, 50, 71, 0.08);
-  padding-top: 14px;
-}
-
 .create-form {
   display: grid;
   gap: 12px;
@@ -934,15 +1272,21 @@ onMounted(async () => {
   gap: 14px;
 }
 
-@media (max-width: 1200px) {
+@media (max-width: 1320px) {
   .customer-demand-grid {
     grid-template-columns: minmax(0, 1fr);
   }
 }
 
 @media (max-width: 960px) {
-  .customer-demand-shell {
+  .customer-demand-shell,
+  .customer-demand-shell.is-sidebar-collapsed {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .customer-demand-sidebar {
+    border-right: none;
+    border-bottom: 1px solid rgba(24, 50, 71, 0.08);
   }
 
   .customer-demand-main {
