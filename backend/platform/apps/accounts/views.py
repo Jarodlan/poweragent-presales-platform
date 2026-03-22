@@ -6,6 +6,7 @@ from django.contrib.auth import authenticate
 from django.db import transaction
 from django.db.models import Q
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
 from rest_framework.exceptions import PermissionDenied
 from rest_framework import status
 from rest_framework.authtoken.models import Token
@@ -42,7 +43,9 @@ class LoginView(APIView):
         password = serializer.validated_data["password"]
 
         existing_user = User.objects.filter(username=username).first()
-        if existing_user and (existing_user.account_status == "inactive" or not existing_user.is_active):
+        if existing_user and (
+            existing_user.account_status in {"inactive", "archived"} or not existing_user.is_active
+        ):
             return Response({"code": 40003, "message": "账户已停用", "data": None}, status=status.HTTP_403_FORBIDDEN)
         if existing_user and existing_user.is_locked:
             return Response({"code": 40004, "message": "账户已锁定，请稍后再试", "data": None}, status=status.HTTP_423_LOCKED)
@@ -53,7 +56,7 @@ class LoginView(APIView):
                 record_login_failure(existing_user)
             return Response({"code": 40001, "message": "用户名或密码错误", "data": None}, status=status.HTTP_400_BAD_REQUEST)
 
-        if user.account_status == "inactive" or not user.is_active:
+        if user.account_status in {"inactive", "archived"} or not user.is_active:
             return Response({"code": 40003, "message": "账户已停用", "data": None}, status=status.HTTP_403_FORBIDDEN)
         if user.is_locked:
             return Response({"code": 40004, "message": "账户已锁定，请稍后再试", "data": None}, status=status.HTTP_423_LOCKED)
@@ -117,6 +120,7 @@ class UserListView(APIView):
         qs = User.objects.select_related("department").prefetch_related("user_roles__role", "user_roles__department")
         department_code = request.query_params.get("department_code")
         keyword = request.query_params.get("keyword")
+        include_archived = request.query_params.get("include_archived") in {"1", "true", "True"}
         if department_code:
             qs = qs.filter(department__code=department_code)
         if keyword:
@@ -125,6 +129,8 @@ class UserListView(APIView):
                 | Q(display_name__icontains=keyword)
                 | Q(email__icontains=keyword)
             )
+        if not include_archived:
+            qs = qs.exclude(account_status="archived")
         qs = qs.order_by("username")
         return Response({"code": 0, "message": "ok", "data": {"items": UserSerializer(qs[:200], many=True).data}})
 
@@ -160,6 +166,28 @@ class UserDetailView(APIView):
         )
         return Response({"code": 0, "message": "ok", "data": UserSerializer(user).data})
 
+    def delete(self, request, user_id: int):
+        user = get_object_or_404(User, pk=user_id)
+        if user.is_superuser:
+            return Response({"code": 40030, "message": "超级管理员不允许删除", "data": None}, status=status.HTTP_400_BAD_REQUEST)
+        if user.id == request.user.id:
+            return Response({"code": 40031, "message": "不能删除当前登录账号", "data": None}, status=status.HTTP_400_BAD_REQUEST)
+        user.status_before_archive = user.account_status if user.account_status != "archived" else user.status_before_archive
+        user.account_status = "archived"
+        user.is_active = False
+        user.archived_at = timezone.now()
+        user.archived_by = request.user
+        user.save(update_fields=["status_before_archive", "account_status", "is_active", "archived_at", "archived_by"])
+        Token.objects.filter(user=user).delete()
+        AuditLog.objects.create(
+            user=request.user,
+            action="user.archive",
+            resource_type="user",
+            resource_id=str(user.id),
+            detail_json={"username": user.username},
+        )
+        return Response({"code": 0, "message": "ok", "data": {"archived": True}})
+
 
 class UserResetPasswordView(APIView):
     authentication_classes = [ExpiringTokenAuthentication]
@@ -181,6 +209,31 @@ class UserResetPasswordView(APIView):
             detail_json={"username": user.username, "force_password_change": user.force_password_change},
         )
         return Response({"code": 0, "message": "ok", "data": {"reset": True}})
+
+
+class UserRestoreView(APIView):
+    authentication_classes = [ExpiringTokenAuthentication]
+    permission_classes = [CanManageUsers]
+
+    def post(self, request, user_id: int):
+        user = get_object_or_404(User, pk=user_id)
+        if user.account_status != "archived":
+            return Response({"code": 40032, "message": "当前用户不在回收站中", "data": None}, status=status.HTTP_400_BAD_REQUEST)
+        restored_status = user.status_before_archive or "inactive"
+        user.account_status = restored_status
+        user.is_active = restored_status == "active"
+        user.archived_at = None
+        user.archived_by = None
+        user.status_before_archive = ""
+        user.save(update_fields=["account_status", "is_active", "archived_at", "archived_by", "status_before_archive"])
+        AuditLog.objects.create(
+            user=request.user,
+            action="user.restore",
+            resource_type="user",
+            resource_id=str(user.id),
+            detail_json={"username": user.username, "restored_status": restored_status},
+        )
+        return Response({"code": 0, "message": "ok", "data": UserSerializer(user).data})
 
 
 class RoleListView(APIView):

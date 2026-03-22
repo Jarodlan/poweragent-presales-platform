@@ -83,6 +83,7 @@ class User(AbstractUser):
         ("active", "Active"),
         ("inactive", "Inactive"),
         ("locked", "Locked"),
+        ("archived", "Archived"),
     ]
     DATA_SCOPE_CHOICES = [
         ("self", "Self"),
@@ -109,6 +110,15 @@ class User(AbstractUser):
     locked_until = models.DateTimeField(null=True, blank=True)
     last_login_ip = models.GenericIPAddressField(null=True, blank=True)
     remarks = models.TextField(blank=True)
+    archived_at = models.DateTimeField(null=True, blank=True)
+    archived_by = models.ForeignKey(
+        "self",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="archived_user_records",
+    )
+    status_before_archive = models.CharField(max_length=16, blank=True)
 
     class Meta(AbstractUser.Meta):
         ordering = ["username"]
@@ -119,6 +129,10 @@ class User(AbstractUser):
     @property
     def is_locked(self) -> bool:
         return bool(self.locked_until and self.locked_until > timezone.now())
+
+    @property
+    def is_archived(self) -> bool:
+        return self.account_status == "archived"
 
     def get_role_codes(self) -> list[str]:
         return list(self.user_roles.select_related("role").values_list("role__code", flat=True))

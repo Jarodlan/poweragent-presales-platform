@@ -164,6 +164,8 @@ class UserSerializer(serializers.ModelSerializer):
             "last_login",
             "last_login_ip",
             "remarks",
+            "archived_at",
+            "status_before_archive",
             "date_joined",
         )
 
@@ -239,6 +241,8 @@ class UserWriteSerializer(serializers.ModelSerializer):
             attrs["is_active"] = False
         elif account_status == "active":
             attrs["is_active"] = True
+        elif account_status == "archived":
+            attrs["is_active"] = False
         return attrs
 
     @transaction.atomic

@@ -25,7 +25,7 @@ const router = createRouter({
       name: 'admin-access',
       component: AdminAccessView,
       meta: {
-        requiredAnyPermission: ['user.manage', 'role.manage', 'department.manage'],
+        requiredAnyPermission: ['platform.manage'],
       },
     },
   ],

@@ -9,8 +9,9 @@ import type {
   UserPayload,
 } from '@/types/admin'
 
-export function fetchUsers() {
-  return apiRequest<{ items: UserItem[] }>('/api/v1/users')
+export function fetchUsers(includeArchived = false) {
+  const suffix = includeArchived ? '?include_archived=1' : ''
+  return apiRequest<{ items: UserItem[] }>(`/api/v1/users${suffix}`)
 }
 
 export function createUser(payload: UserPayload) {
@@ -24,6 +25,18 @@ export function updateUser(userId: number, payload: Partial<UserPayload>) {
   return apiRequest<UserItem>(`/api/v1/users/${userId}`, {
     method: 'PATCH',
     body: JSON.stringify(payload),
+  })
+}
+
+export function archiveUser(userId: number) {
+  return apiRequest<{ archived: boolean }>(`/api/v1/users/${userId}`, {
+    method: 'DELETE',
+  })
+}
+
+export function restoreUser(userId: number) {
+  return apiRequest<UserItem>(`/api/v1/users/${userId}/restore`, {
+    method: 'POST',
   })
 }
 

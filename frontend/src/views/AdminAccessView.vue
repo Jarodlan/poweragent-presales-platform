@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { ArrowLeft, CirclePlus, Key, Refresh } from '@element-plus/icons-vue'
+import { ArrowLeft, CirclePlus, CopyDocument, Key, Refresh, View } from '@element-plus/icons-vue'
 import { useRouter } from 'vue-router'
 
 import {
+  archiveUser,
   createDepartment,
   createRole,
   createUser,
@@ -15,6 +16,7 @@ import {
   fetchRoles,
   fetchUsers,
   resetUserPassword,
+  restoreUser,
   updateDepartment,
   updateRole,
   updateUser,
@@ -39,16 +41,19 @@ const departments = ref<DepartmentItem[]>([])
 const permissions = ref<PermissionItem[]>([])
 const activeTab = ref<'users' | 'roles' | 'departments'>('users')
 const searchKeyword = ref('')
+const userViewMode = ref<'active' | 'recycle'>('active')
 
 const userDialogVisible = ref(false)
 const roleDialogVisible = ref(false)
 const departmentDialogVisible = ref(false)
+const userDetailVisible = ref(false)
 const userDialogMode = ref<'create' | 'edit'>('create')
 const roleDialogMode = ref<'create' | 'edit'>('create')
 const departmentDialogMode = ref<'create' | 'edit'>('create')
 const editingUserId = ref<number | null>(null)
 const editingRoleId = ref<number | null>(null)
 const editingDepartmentId = ref<number | null>(null)
+const selectedUser = ref<UserItem | null>(null)
 
 const userFormRef = ref()
 const roleFormRef = ref()
@@ -137,6 +142,10 @@ const filteredUsers = computed(() => {
   )
 })
 
+const activeUsers = computed(() => filteredUsers.value.filter((item) => item.account_status !== 'archived'))
+const recycledUsers = computed(() => filteredUsers.value.filter((item) => item.account_status === 'archived'))
+const displayedUsers = computed(() => (userViewMode.value === 'active' ? activeUsers.value : recycledUsers.value))
+
 const filteredRoles = computed(() => {
   const keyword = searchKeyword.value.trim().toLowerCase()
   if (!keyword) return roles.value
@@ -149,11 +158,40 @@ const filteredDepartments = computed(() => {
   return departments.value.filter((item) => [item.name, item.code, item.parent_name || ''].join(' ').toLowerCase().includes(keyword))
 })
 
+const departmentTree = computed(() => {
+  const map = new Map<number, DepartmentItem & { children?: Array<DepartmentItem & { children?: DepartmentItem[] }> }>()
+  filteredDepartments.value.forEach((item) => {
+    map.set(item.id, { ...item, children: [] })
+  })
+
+  const roots: Array<DepartmentItem & { children?: DepartmentItem[] }> = []
+  map.forEach((item) => {
+    if (item.parent_id && map.has(item.parent_id)) {
+      map.get(item.parent_id)?.children?.push(item)
+    } else {
+      roots.push(item)
+    }
+  })
+
+  const sortTree = (nodes: Array<DepartmentItem & { children?: DepartmentItem[] }>) => {
+    nodes.sort((a, b) => {
+      if (a.sort_order !== b.sort_order) return a.sort_order - b.sort_order
+      return a.name.localeCompare(b.name)
+    })
+    nodes.forEach((node) => {
+      if (node.children?.length) sortTree(node.children)
+    })
+  }
+
+  sortTree(roots)
+  return roots
+})
+
 async function loadUsers() {
   if (!canManageUsers.value) return
   loading.users = true
   try {
-    const data = await fetchUsers()
+    const data = await fetchUsers(true)
     users.value = data.items
   } finally {
     loading.users = false
@@ -250,6 +288,11 @@ function openEditUser(user: UserItem) {
   userDialogVisible.value = true
 }
 
+function openUserDetail(user: UserItem) {
+  selectedUser.value = user
+  userDetailVisible.value = true
+}
+
 async function submitUser() {
   await userFormRef.value?.validate()
   const payload: UserPayload = {
@@ -286,6 +329,73 @@ async function handleResetPassword(user: UserItem) {
   }
 }
 
+async function handleToggleUserStatus(user: UserItem) {
+  const targetStatus = user.account_status === 'active' ? 'inactive' : 'active'
+  const actionLabel = targetStatus === 'active' ? '恢复' : '停用'
+  try {
+    await ElMessageBox.confirm(
+      `确认${actionLabel}用户「${user.display_name || user.username}」吗？`,
+      `${actionLabel}用户`,
+      {
+        type: 'warning',
+        confirmButtonText: actionLabel,
+        cancelButtonText: '取消',
+      },
+    )
+  } catch {
+    return
+  }
+
+  await updateUser(user.id, { account_status: targetStatus })
+  ElMessage.success(`用户已${actionLabel}`)
+  await loadUsers()
+  if (selectedUser.value?.id === user.id) {
+    selectedUser.value = users.value.find((item) => item.id === user.id) || null
+  }
+}
+
+async function handleArchiveUser(user: UserItem) {
+  try {
+    await ElMessageBox.confirm(
+      `确认将用户「${user.display_name || user.username}」移入回收站吗？移入后该账号会被停用，并从常规列表中隐藏。`,
+      '删除用户',
+      {
+        type: 'warning',
+        confirmButtonText: '移入回收站',
+        cancelButtonText: '取消',
+      },
+    )
+  } catch {
+    return
+  }
+
+  await archiveUser(user.id)
+  ElMessage.success('用户已移入回收站')
+  userDetailVisible.value = false
+  selectedUser.value = null
+  await loadUsers()
+}
+
+async function handleRestoreUser(user: UserItem) {
+  try {
+    await ElMessageBox.confirm(
+      `确认恢复用户「${user.display_name || user.username}」吗？恢复后会回到${user.status_before_archive === 'active' ? '启用' : '停用'}状态。`,
+      '恢复用户',
+      {
+        type: 'info',
+        confirmButtonText: '恢复',
+        cancelButtonText: '取消',
+      },
+    )
+  } catch {
+    return
+  }
+
+  await restoreUser(user.id)
+  ElMessage.success('用户已恢复')
+  await loadUsers()
+}
+
 function resetRoleForm() {
   Object.assign(roleForm, {
     code: '',
@@ -310,6 +420,19 @@ function openEditRole(role: RoleItem) {
   Object.assign(roleForm, {
     code: role.code,
     name: role.name,
+    description: role.description,
+    data_scope: role.data_scope,
+    permission_codes: role.permissions.map((item) => item.code),
+  })
+  roleDialogVisible.value = true
+}
+
+function handleCopyRole(role: RoleItem) {
+  resetRoleForm()
+  roleDialogMode.value = 'create'
+  Object.assign(roleForm, {
+    code: `${role.code}_copy`,
+    name: `${role.name}-复制`,
     description: role.description,
     data_scope: role.data_scope,
     permission_codes: role.permissions.map((item) => item.code),
@@ -449,12 +572,18 @@ onMounted(loadAdminData)
               <h3>用户台账</h3>
               <p>管理内部员工账号、部门归属、角色分配与账户状态。</p>
             </div>
-            <el-button type="primary" @click="openCreateUser">
-              <el-icon><CirclePlus /></el-icon>
-              新增用户
-            </el-button>
+            <div class="tab-toolbar__actions">
+              <el-radio-group v-model="userViewMode" size="small">
+                <el-radio-button label="active">在岗用户（{{ activeUsers.length }}）</el-radio-button>
+                <el-radio-button label="recycle">回收站（{{ recycledUsers.length }}）</el-radio-button>
+              </el-radio-group>
+              <el-button v-if="userViewMode === 'active'" type="primary" @click="openCreateUser">
+                <el-icon><CirclePlus /></el-icon>
+                新增用户
+              </el-button>
+            </div>
           </div>
-          <el-table :data="filteredUsers" v-loading="loading.users" stripe>
+          <el-table :data="displayedUsers" v-loading="loading.users" stripe>
             <el-table-column prop="username" label="用户名" min-width="120" />
             <el-table-column prop="display_name" label="显示名" min-width="120" />
             <el-table-column label="部门" min-width="120">
@@ -480,13 +609,30 @@ onMounted(loadAdminData)
                 {{ row.last_login ? formatDateTime(row.last_login) : '尚未登录' }}
               </template>
             </el-table-column>
-            <el-table-column label="操作" width="210" fixed="right">
+            <el-table-column label="操作" width="320" fixed="right">
               <template #default="{ row }">
-                <el-button text @click="openEditUser(row)">编辑</el-button>
-                <el-button text type="primary" @click="handleResetPassword(row)">
-                  <el-icon><Key /></el-icon>
-                  重置密码
+                <el-button text type="primary" @click="openUserDetail(row)">
+                  <el-icon><View /></el-icon>
+                  详情
                 </el-button>
+                <template v-if="row.account_status !== 'archived'">
+                  <el-button text @click="openEditUser(row)">编辑</el-button>
+                  <el-button text type="primary" @click="handleResetPassword(row)">
+                    <el-icon><Key /></el-icon>
+                    重置密码
+                  </el-button>
+                  <el-button
+                    text
+                    :type="row.account_status === 'active' ? 'danger' : 'success'"
+                    @click="handleToggleUserStatus(row)"
+                  >
+                    {{ row.account_status === 'active' ? '停用' : '恢复' }}
+                  </el-button>
+                  <el-button text type="danger" @click="handleArchiveUser(row)">删除</el-button>
+                </template>
+                <template v-else>
+                  <el-button text type="success" @click="handleRestoreUser(row)">恢复</el-button>
+                </template>
               </template>
             </el-table-column>
           </el-table>
@@ -522,6 +668,10 @@ onMounted(loadAdminData)
             <el-table-column prop="description" label="说明" min-width="220" />
             <el-table-column label="操作" width="160" fixed="right">
               <template #default="{ row }">
+                <el-button text type="primary" @click="handleCopyRole(row)">
+                  <el-icon><CopyDocument /></el-icon>
+                  复制
+                </el-button>
                 <el-button text @click="openEditRole(row)">编辑</el-button>
                 <el-button text type="danger" :disabled="row.is_system" @click="handleDeleteRole(row)">删除</el-button>
               </template>
@@ -540,7 +690,14 @@ onMounted(loadAdminData)
               新增部门
             </el-button>
           </div>
-          <el-table :data="filteredDepartments" v-loading="loading.departments" stripe>
+          <el-table
+            :data="departmentTree"
+            v-loading="loading.departments"
+            stripe
+            row-key="id"
+            default-expand-all
+            :tree-props="{ children: 'children' }"
+          >
             <el-table-column prop="name" label="部门名称" min-width="160" />
             <el-table-column prop="code" label="部门编码" min-width="140" />
             <el-table-column label="上级部门" min-width="140">
@@ -643,6 +800,56 @@ onMounted(loadAdminData)
         <el-button type="primary" @click="submitDepartment">保存</el-button>
       </template>
     </el-dialog>
+
+    <el-drawer v-model="userDetailVisible" size="520px" title="用户详情">
+      <template v-if="selectedUser">
+        <section class="detail-panel">
+          <div class="detail-hero panel-card">
+            <div>
+              <h3>{{ selectedUser.display_name || selectedUser.username }}</h3>
+              <p>{{ selectedUser.job_title || '未设置岗位' }} · {{ selectedUser.department?.name || '未设置部门' }}</p>
+            </div>
+            <el-tag :type="selectedUser.account_status === 'active' ? 'success' : 'info'">
+              {{ selectedUser.account_status === 'active' ? '启用' : '停用' }}
+            </el-tag>
+          </div>
+
+          <div class="detail-grid">
+            <div class="panel-card detail-card">
+              <h4>基础信息</h4>
+              <dl>
+                <dt>用户名</dt><dd>{{ selectedUser.username }}</dd>
+                <dt>邮箱</dt><dd>{{ selectedUser.email || '未设置' }}</dd>
+                <dt>工号</dt><dd>{{ selectedUser.employee_no || '未设置' }}</dd>
+                <dt>手机号</dt><dd>{{ selectedUser.phone_number || '未设置' }}</dd>
+                <dt>数据范围</dt><dd>{{ selectedUser.data_scope_resolved === 'all' ? '全部' : selectedUser.data_scope_resolved === 'department' ? '本部门' : '仅本人' }}</dd>
+                <dt>首次改密</dt><dd>{{ selectedUser.force_password_change ? '是' : '否' }}</dd>
+                <dt>最近登录</dt><dd>{{ selectedUser.last_login ? formatDateTime(selectedUser.last_login) : '尚未登录' }}</dd>
+                <dt>最近登录IP</dt><dd>{{ selectedUser.last_login_ip || '无记录' }}</dd>
+                <dt>归档时间</dt><dd>{{ selectedUser.archived_at ? formatDateTime(selectedUser.archived_at) : '未归档' }}</dd>
+              </dl>
+            </div>
+
+            <div class="panel-card detail-card">
+              <h4>角色与权限</h4>
+              <div class="detail-tags">
+                <el-tag v-for="item in selectedUser.roles" :key="item.id" class="role-tag">{{ item.role.name }}</el-tag>
+                <span v-if="!selectedUser.roles.length" class="muted">未分配角色</span>
+              </div>
+              <p class="detail-subtitle">权限清单</p>
+              <div class="detail-tags">
+                <el-tag v-for="code in selectedUser.permissions" :key="code" type="info" effect="plain">{{ code }}</el-tag>
+              </div>
+            </div>
+          </div>
+
+          <section class="panel-card detail-card">
+            <h4>备注</h4>
+            <p class="detail-remarks">{{ selectedUser.remarks || '暂无备注' }}</p>
+          </section>
+        </section>
+      </template>
+    </el-drawer>
   </div>
 </template>
 
@@ -711,6 +918,13 @@ onMounted(loadAdminData)
   margin-bottom: 18px;
 }
 
+.tab-toolbar__actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
 .tab-toolbar h3 {
   margin: 0 0 6px;
   font-size: 20px;
@@ -727,6 +941,81 @@ onMounted(loadAdminData)
 
 .muted {
   color: var(--muted);
+}
+
+.detail-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.detail-hero {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 20px;
+}
+
+.detail-hero h3 {
+  margin: 0 0 6px;
+  font-size: 24px;
+}
+
+.detail-hero p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.detail-card {
+  padding: 18px 20px;
+}
+
+.detail-card h4 {
+  margin: 0 0 14px;
+  font-size: 16px;
+}
+
+.detail-card dl {
+  display: grid;
+  grid-template-columns: 90px minmax(0, 1fr);
+  gap: 10px 14px;
+  margin: 0;
+}
+
+.detail-card dt {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.detail-card dd {
+  margin: 0;
+  font-size: 14px;
+  word-break: break-word;
+}
+
+.detail-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.detail-subtitle {
+  margin: 16px 0 10px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.detail-remarks {
+  margin: 0;
+  line-height: 1.7;
+  color: var(--text);
 }
 
 .dialog-form {
@@ -776,7 +1065,8 @@ onMounted(loadAdminData)
 
 @media (max-width: 1080px) {
   .dialog-grid.two-cols,
-  .permission-groups {
+  .permission-groups,
+  .detail-grid {
     grid-template-columns: minmax(0, 1fr);
   }
 

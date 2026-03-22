@@ -47,7 +47,10 @@ export interface CurrentUser {
   roles: UserRoleAssignment[]
   permissions: string[]
   last_login: string | null
+  last_login_ip: string | null
   remarks: string
+  archived_at: string | null
+  status_before_archive: string
 }
 
 export interface LoginPayload {

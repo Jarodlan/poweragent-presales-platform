@@ -20,9 +20,7 @@ export const useAuthStore = defineStore('auth', () => {
   const canManageUsers = computed(() => Boolean(user.value?.is_superuser || permissionCodes.value.has('user.manage')))
   const canManageRoles = computed(() => Boolean(user.value?.is_superuser || permissionCodes.value.has('role.manage')))
   const canManageDepartments = computed(() => Boolean(user.value?.is_superuser || permissionCodes.value.has('department.manage')))
-  const canManageAccess = computed(
-    () => Boolean(user.value?.is_superuser || canManageUsers.value || canManageRoles.value || canManageDepartments.value),
-  )
+  const canManageAccess = computed(() => Boolean(user.value?.is_superuser || permissionCodes.value.has('platform.manage')))
 
   async function bootstrap() {
     if (bootstrapped.value) return
