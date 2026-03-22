@@ -155,12 +155,10 @@ export interface CustomerDemandAudioUploadResult {
 
 export interface CustomerDemandTriggerStageSummaryResult {
   task: CustomerDemandTaskItem
-  summary: CustomerDemandStageSummaryItem
 }
 
 export interface CustomerDemandAnalyzeResult {
   task: CustomerDemandTaskItem
-  report: CustomerDemandReportItem
 }
 
 export interface CustomerDemandExportResult {

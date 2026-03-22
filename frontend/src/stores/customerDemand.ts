@@ -110,7 +110,7 @@ export const useCustomerDemandStore = defineStore('customerDemand', () => {
     kind: 'stage_summary' | 'final_analysis',
     config: {
       title: string
-      steps: Array<{ progress: number; message: string }>
+      initialMessage: string
     },
   ) {
     clearOperationTimer()
@@ -118,27 +118,10 @@ export const useCustomerDemandStore = defineStore('customerDemand', () => {
       visible: true,
       kind,
       title: config.title,
-      message: config.steps[0]?.message || '正在处理中',
-      progress: config.steps[0]?.progress || 5,
+      message: config.initialMessage || '正在处理中',
+      progress: 5,
       status: 'running',
     }
-
-    let stepIndex = 0
-    operationTimer = window.setInterval(() => {
-      if (stepIndex < config.steps.length - 1) {
-        stepIndex += 1
-        operationState.value = {
-          ...operationState.value,
-          message: config.steps[stepIndex].message,
-          progress: config.steps[stepIndex].progress,
-        }
-      } else if (operationState.value.progress < 92) {
-        operationState.value = {
-          ...operationState.value,
-          progress: Math.min(operationState.value.progress + 1, 92),
-        }
-      }
-    }, 1800)
   }
 
   function completeOperation(message: string) {
@@ -161,6 +144,50 @@ export const useCustomerDemandStore = defineStore('customerDemand', () => {
       status: 'error',
       message,
     }
+  }
+
+  function syncOperationWithTask(task: CustomerDemandTaskItem) {
+    const title = task.task_type === 'final_analysis' ? '需求分析报告生成中' : '阶段整理生成中'
+    operationState.value = {
+      visible: true,
+      kind: task.task_type === 'final_analysis' ? 'final_analysis' : 'stage_summary',
+      title,
+      message: task.current_step_label || '系统正在处理中',
+      progress: task.progress || 5,
+      status: task.status === 'failed' ? 'error' : task.status === 'completed' ? 'success' : 'running',
+    }
+  }
+
+  async function waitForTask(taskId: string, taskType: 'stage_summary' | 'final_analysis') {
+    const maxRounds = 160
+    for (let round = 0; round < maxRounds; round += 1) {
+      const task = await fetchCustomerDemandTask(taskId)
+      currentTask.value = task
+      syncOperationWithTask(task)
+
+      if (task.status === 'completed') {
+        if (currentSession.value) {
+          await loadSessionDetail(currentSession.value.id)
+        }
+        if (taskType === 'stage_summary') {
+          completeOperation('阶段整理已生成，可以继续查看提炼结果。')
+        } else {
+          completeOperation('需求分析报告已生成，可以开始查看和导出。')
+        }
+        return task
+      }
+
+      if (task.status === 'failed' || task.status === 'cancelled') {
+        const message = task.error_message || (taskType === 'stage_summary' ? '阶段整理生成失败，请稍后重试。' : '需求分析报告生成失败，请稍后重试。')
+        failOperation(message)
+        throw new Error(message)
+      }
+
+      await new Promise((resolve) => window.setTimeout(resolve, 1500))
+    }
+
+    failOperation(taskType === 'stage_summary' ? '阶段整理生成超时，请稍后重试。' : '需求分析报告生成超时，请稍后重试。')
+    throw new Error('任务轮询超时')
   }
 
   function syncCurrentSession(updated: CustomerDemandSessionItem) {
@@ -352,24 +379,18 @@ export const useCustomerDemandStore = defineStore('customerDemand', () => {
     actionLoading.value = true
     startOperation('stage_summary', {
       title: '阶段整理生成中',
-      steps: [
-        { progress: 10, message: '正在汇总通过语义校验的沟通分段' },
-        { progress: 34, message: '正在抽取当前讨论主题与已确认需求' },
-        { progress: 58, message: '正在识别待确认问题与潜在方向' },
-        { progress: 76, message: '正在整理风险点与语义复核提醒' },
-        { progress: 88, message: '正在生成阶段整理内容' },
-      ],
+      initialMessage: '正在提交阶段整理任务',
     })
     try {
       const data = await triggerCustomerDemandStageSummary(currentSession.value.id, 'manual')
       currentTask.value = data.task
-      stageSummaries.value = [data.summary, ...stageSummaries.value.filter((item) => item.id !== data.summary.id)]
-      const detail = await fetchCustomerDemandSessionDetail(currentSession.value.id)
-      syncCurrentSession(detail)
-      completeOperation('阶段整理已生成，可以继续查看提炼结果。')
+      syncOperationWithTask(data.task)
+      await waitForTask(data.task.id, 'stage_summary')
       ElMessage.success('阶段整理已生成')
     } catch (error) {
-      failOperation('阶段整理生成失败，请稍后重试。')
+      if (!(error instanceof Error)) {
+        failOperation('阶段整理生成失败，请稍后重试。')
+      }
       throw error
     } finally {
       actionLoading.value = false
@@ -381,26 +402,18 @@ export const useCustomerDemandStore = defineStore('customerDemand', () => {
     actionLoading.value = true
     startOperation('final_analysis', {
       title: '需求分析报告生成中',
-      steps: [
-        { progress: 8, message: '正在汇总有效沟通内容与阶段整理结果' },
-        { progress: 28, message: '正在分析客户当前问题与明确需求' },
-        { progress: 48, message: '正在推断隐性诉求、约束条件与风险点' },
-        { progress: 68, message: '正在生成待确认问题与下一步动作建议' },
-        { progress: 84, message: '正在组织正式需求分析报告' },
-        { progress: 92, message: '正在输出需求挖掘方向与推荐追问问题' },
-      ],
+      initialMessage: '正在提交需求分析任务',
     })
     try {
       const data = await triggerCustomerDemandAnalyze(currentSession.value.id, draftForm.value.knowledge_enabled ?? false)
       currentTask.value = data.task
-      currentReport.value = data.report
-      const detail = await fetchCustomerDemandSessionDetail(currentSession.value.id)
-      syncCurrentSession(detail)
-      applySessionToDraft(detail)
-      completeOperation('需求分析报告已生成，可以开始查看和导出。')
+      syncOperationWithTask(data.task)
+      await waitForTask(data.task.id, 'final_analysis')
       ElMessage.success('需求分析报告已生成')
     } catch (error) {
-      failOperation('需求分析报告生成失败，请稍后重试。')
+      if (!(error instanceof Error)) {
+        failOperation('需求分析报告生成失败，请稍后重试。')
+      }
       throw error
     } finally {
       actionLoading.value = false

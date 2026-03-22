@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import json
 import re
+import threading
 from typing import Any
 
 import requests
 from requests import HTTPError
+from django.db import close_old_connections
 from django.conf import settings
 from django.utils import timezone
 
@@ -22,6 +24,42 @@ def resolve_visible_customer_demand_sessions(user):
     if user.is_superuser:
         return qs
     return qs.filter(owner=user)
+
+
+def _update_task(
+    task: CustomerDemandAnalysisTask,
+    *,
+    status: str | None = None,
+    current_step: str | None = None,
+    current_step_label: str | None = None,
+    progress: int | None = None,
+    result_payload: dict[str, Any] | None = None,
+    error_message: str | None = None,
+    finished: bool = False,
+):
+    fields: list[str] = ["updated_at"]
+    if status is not None:
+        task.status = status
+        fields.append("status")
+    if current_step is not None:
+        task.current_step = current_step
+        fields.append("current_step")
+    if current_step_label is not None:
+        task.current_step_label = current_step_label
+        fields.append("current_step_label")
+    if progress is not None:
+        task.progress = progress
+        fields.append("progress")
+    if result_payload is not None:
+        task.result_payload = result_payload
+        fields.append("result_payload")
+    if error_message is not None:
+        task.error_message = error_message
+        fields.append("error_message")
+    if finished:
+        task.finished_at = timezone.now()
+        fields.append("finished_at")
+    task.save(update_fields=fields)
 
 
 def _accepted_segments(session: CustomerDemandSession):
@@ -426,6 +464,84 @@ def create_stage_summary(*, session: CustomerDemandSession, trigger_type: str, c
     return task, summary
 
 
+def _run_stage_summary_task(task_id: str):
+    close_old_connections()
+    try:
+        task = CustomerDemandAnalysisTask.objects.select_related("session", "started_by").get(id=task_id)
+        session = task.session
+        _update_task(
+            task,
+            status="running",
+            current_step="build_stage_summary_payload",
+            current_step_label="抽取结构化阶段要点",
+            progress=28,
+        )
+        payload = build_stage_summary_payload(session)
+        _update_task(
+            task,
+            current_step="render_stage_summary_markdown",
+            current_step_label="整理阶段输出内容",
+            progress=68,
+        )
+        markdown = build_stage_summary_markdown(payload)
+        version = session.latest_stage_version + 1
+        segments = session.segments.order_by("sequence_no")
+        first_segment = segments.first()
+        last_segment = segments.last()
+        summary = CustomerDemandStageSummary.objects.create(
+            session=session,
+            summary_version=version,
+            trigger_type=task.request_payload.get("trigger_type", "manual"),
+            covered_segment_start=first_segment.sequence_no if first_segment else 1,
+            covered_segment_end=last_segment.sequence_no if last_segment else 1,
+            summary_markdown=markdown,
+            summary_payload=payload,
+            llm_model=payload.get("_llm_model", "rule_based_mvp"),
+            created_by=task.started_by,
+        )
+        session.latest_stage_version = version
+        session.save(update_fields=["latest_stage_version", "updated_at"])
+        _update_task(
+            task,
+            status="completed",
+            current_step="stage_summary_completed",
+            current_step_label="阶段整理完成",
+            progress=100,
+            result_payload={"summary_id": str(summary.id), "summary_version": version},
+            finished=True,
+        )
+    except Exception as exc:
+        task = CustomerDemandAnalysisTask.objects.filter(id=task_id).first()
+        if task:
+            _update_task(
+                task,
+                status="failed",
+                current_step="stage_summary_failed",
+                current_step_label="阶段整理失败",
+                progress=100,
+                error_message=str(exc),
+                finished=True,
+            )
+    finally:
+        close_old_connections()
+
+
+def enqueue_stage_summary(*, session: CustomerDemandSession, trigger_type: str, created_by) -> CustomerDemandAnalysisTask:
+    task = CustomerDemandAnalysisTask.objects.create(
+        session=session,
+        task_type="stage_summary",
+        status="queued",
+        current_step="queue_stage_summary",
+        current_step_label="阶段整理排队中",
+        progress=5,
+        request_payload={"trigger_type": trigger_type},
+        started_by=created_by,
+        started_at=timezone.now(),
+    )
+    threading.Thread(target=_run_stage_summary_task, args=(str(task.id),), daemon=True).start()
+    return task
+
+
 def build_final_report_payload(session: CustomerDemandSession) -> dict[str, Any]:
     accepted_records = _accepted_segment_records(session)
     review_records = _review_segment_records(session)
@@ -676,3 +792,90 @@ def create_final_report(*, session: CustomerDemandSession, created_by, knowledge
         ]
     )
     return task, report
+
+
+def _run_final_report_task(task_id: str):
+    close_old_connections()
+    try:
+        task = CustomerDemandAnalysisTask.objects.select_related("session", "started_by").get(id=task_id)
+        session = task.session
+        session.status = "analyzing"
+        session.analysis_started_at = session.analysis_started_at or timezone.now()
+        session.save(update_fields=["status", "analysis_started_at", "updated_at"])
+        _update_task(
+            task,
+            status="running",
+            current_step="build_final_report_payload",
+            current_step_label="分析客户需求与风险约束",
+            progress=32,
+        )
+        payload = build_final_report_payload(session)
+        _update_task(
+            task,
+            current_step="render_final_report_markdown",
+            current_step_label="生成正式需求分析报告",
+            progress=76,
+        )
+        report_markdown, digging_markdown, questions_markdown = build_final_report_markdown(session, payload)
+        version = (session.reports.order_by("-report_version").first().report_version + 1) if session.reports.exists() else 1
+        report = CustomerDemandReport.objects.create(
+            session=session,
+            report_version=version,
+            report_title=f"{session.customer_name}需求分析报告",
+            report_markdown=report_markdown,
+            report_payload=payload,
+            digging_suggestions_markdown=digging_markdown,
+            digging_suggestions_payload={"items": payload.get("digging_directions", [])},
+            recommended_questions_markdown=questions_markdown,
+            knowledge_enabled=bool(task.request_payload.get("knowledge_enabled", False)),
+            used_knowledge_sources=[],
+            llm_model=payload.get("_llm_model", "rule_based_mvp"),
+            status="completed",
+            created_by=task.started_by,
+        )
+        session.status = "completed"
+        session.analysis_finished_at = timezone.now()
+        session.knowledge_enabled = bool(task.request_payload.get("knowledge_enabled", False))
+        session.save(update_fields=["status", "analysis_finished_at", "knowledge_enabled", "updated_at"])
+        _update_task(
+            task,
+            status="completed",
+            current_step="final_report_completed",
+            current_step_label="需求分析完成",
+            progress=100,
+            result_payload={"report_id": str(report.id), "report_version": version},
+            finished=True,
+        )
+    except Exception as exc:
+        task = CustomerDemandAnalysisTask.objects.filter(id=task_id).select_related("session").first()
+        if task:
+            task.session.status = "failed"
+            task.session.analysis_finished_at = timezone.now()
+            task.session.save(update_fields=["status", "analysis_finished_at", "updated_at"])
+            _update_task(
+                task,
+                status="failed",
+                current_step="final_report_failed",
+                current_step_label="需求分析失败",
+                progress=100,
+                error_message=str(exc),
+                finished=True,
+            )
+    finally:
+        close_old_connections()
+
+
+def enqueue_final_report(*, session: CustomerDemandSession, created_by, knowledge_enabled: bool) -> CustomerDemandAnalysisTask:
+    task = CustomerDemandAnalysisTask.objects.create(
+        session=session,
+        task_type="final_analysis",
+        status="queued",
+        current_step="queue_final_report",
+        current_step_label="需求分析任务排队中",
+        progress=5,
+        request_payload={"knowledge_enabled": knowledge_enabled},
+        started_by=created_by,
+        started_at=timezone.now(),
+    )
+    threading.Thread(target=_run_final_report_task, args=(str(task.id),), daemon=True).start()
+    return task

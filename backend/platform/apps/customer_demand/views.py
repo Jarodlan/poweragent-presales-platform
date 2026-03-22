@@ -21,7 +21,7 @@ from .serializers import (
     CustomerDemandSessionWriteSerializer,
     CustomerDemandStageSummarySerializer,
 )
-from .services import create_final_report, create_stage_summary, resolve_visible_customer_demand_sessions
+from .services import enqueue_final_report, enqueue_stage_summary, resolve_visible_customer_demand_sessions
 
 
 class CustomerDemandSessionListCreateView(APIView):
@@ -287,16 +287,16 @@ class CustomerDemandStageSummaryTriggerView(APIView):
     def post(self, request, session_id):
         session = get_object_or_404(resolve_visible_customer_demand_sessions(request.user), id=session_id)
         trigger_type = request.data.get("trigger_type", "manual")
-        task, summary = create_stage_summary(session=session, trigger_type=trigger_type, created_by=request.user)
+        task = enqueue_stage_summary(session=session, trigger_type=trigger_type, created_by=request.user)
         return Response(
             {
                 "code": 0,
                 "message": "ok",
                 "data": {
                     "task": CustomerDemandAnalysisTaskSerializer(task).data,
-                    "summary": CustomerDemandStageSummarySerializer(summary).data,
                 },
-            }
+            },
+            status=status.HTTP_202_ACCEPTED,
         )
 
 
@@ -306,19 +306,16 @@ class CustomerDemandAnalyzeView(APIView):
     def post(self, request, session_id):
         session = get_object_or_404(resolve_visible_customer_demand_sessions(request.user), id=session_id)
         knowledge_enabled = bool(request.data.get("knowledge_enabled", session.knowledge_enabled))
-        session.status = "analyzing"
-        session.analysis_started_at = timezone.now()
-        session.save(update_fields=["status", "analysis_started_at", "updated_at"])
-        task, report = create_final_report(session=session, created_by=request.user, knowledge_enabled=knowledge_enabled)
+        task = enqueue_final_report(session=session, created_by=request.user, knowledge_enabled=knowledge_enabled)
         return Response(
             {
                 "code": 0,
                 "message": "ok",
                 "data": {
                     "task": CustomerDemandAnalysisTaskSerializer(task).data,
-                    "report": CustomerDemandReportSerializer(report).data,
                 },
-            }
+            },
+            status=status.HTTP_202_ACCEPTED,
         )
 
 
