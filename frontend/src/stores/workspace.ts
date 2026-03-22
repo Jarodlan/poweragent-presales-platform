@@ -29,6 +29,12 @@ interface ComposerParams {
   lifecycle_goal: string
 }
 
+interface WorkflowStageItem {
+  key: string
+  label: string
+  status: 'completed' | 'current' | 'failed' | 'stopped'
+}
+
 const DEFAULT_PARAMS: ComposerParams = {
   scenario: 'fault_diagnosis_solution',
   grid_environment: 'distribution_network',
@@ -99,6 +105,18 @@ const SCENARIO_PRESET_MAP: Record<string, Partial<ComposerParams>> = {
     coordination_scope: 'virtual_power_plant',
     lifecycle_goal: 'comprehensive_benefit_optimization',
   },
+  other_solution: {
+    grid_environment: 'not_involved',
+    equipment_type: 'not_involved',
+    resource_type: 'not_involved',
+    data_basis: [],
+    target_capability: [],
+    market_policy_focus: [],
+    planning_objective: [],
+    forecast_target: [],
+    coordination_scope: 'not_involved',
+    lifecycle_goal: 'not_involved',
+  },
 }
 
 export const useWorkspaceStore = defineStore('workspace', () => {
@@ -110,13 +128,17 @@ export const useWorkspaceStore = defineStore('workspace', () => {
   const sending = ref(false)
   const currentTaskId = ref<string>('')
   const currentAssistantMessageId = ref<string>('')
+  const workflowAnchorMessageId = ref<string>('')
   const currentStepLabel = ref('')
   const currentProgress = ref(0)
+  const workflowStages = ref<WorkflowStageItem[]>([])
+  const showWorkflowRibbon = ref(false)
   const evidenceDrawerVisible = ref(false)
   const activeEvidenceCards = ref<EvidenceCard[]>([])
   const composerText = ref('')
   const composerParams = ref<ComposerParams>({ ...DEFAULT_PARAMS })
   let eventSource: EventSource | null = null
+  let ribbonHideTimer: number | null = null
 
   const groupedConversations = computed(() => {
     const ordered = [...conversations.value].sort((a, b) => {
@@ -142,6 +164,66 @@ export const useWorkspaceStore = defineStore('workspace', () => {
 
   function resetComposer() {
     composerText.value = ''
+  }
+
+  function resetWorkflowStages() {
+    workflowStages.value = []
+  }
+
+  function clearWorkflowRibbonHideTimer() {
+    if (ribbonHideTimer) {
+      window.clearTimeout(ribbonHideTimer)
+      ribbonHideTimer = null
+    }
+  }
+
+  function scheduleWorkflowRibbonHide() {
+    clearWorkflowRibbonHideTimer()
+    ribbonHideTimer = window.setTimeout(() => {
+      showWorkflowRibbon.value = false
+      workflowAnchorMessageId.value = ''
+      currentStepLabel.value = ''
+      currentProgress.value = 0
+      resetWorkflowStages()
+    }, 3000)
+  }
+
+  function setCurrentWorkflowStage(stepKey: string, label: string) {
+    if (!label) return
+    const stages = [...workflowStages.value]
+    const existingIndex = stages.findIndex((item) => item.key === stepKey)
+
+    if (existingIndex >= 0) {
+      stages.forEach((item, index) => {
+        if (index !== existingIndex && item.status === 'current') {
+          item.status = 'completed'
+        }
+      })
+      stages[existingIndex].status = 'current'
+      workflowStages.value = stages
+      return
+    }
+
+    stages.forEach((item) => {
+      if (item.status === 'current') {
+        item.status = 'completed'
+      }
+    })
+    stages.push({
+      key: stepKey,
+      label,
+      status: 'current',
+    })
+    workflowStages.value = stages
+  }
+
+  function markWorkflowTerminal(status: 'completed' | 'failed' | 'stopped') {
+    const stages = [...workflowStages.value]
+    const currentIndex = stages.findIndex((item) => item.status === 'current')
+    if (currentIndex >= 0) {
+      stages[currentIndex].status = status
+    }
+    workflowStages.value = stages
   }
 
   function setComposerText(text: string) {
@@ -195,6 +277,12 @@ export const useWorkspaceStore = defineStore('workspace', () => {
 
   async function selectConversation(conversationId: string) {
     currentConversationId.value = conversationId
+    clearWorkflowRibbonHideTimer()
+    resetWorkflowStages()
+    showWorkflowRibbon.value = false
+    workflowAnchorMessageId.value = ''
+    currentStepLabel.value = ''
+    currentProgress.value = 0
     if (messages.value[conversationId]) return
     loadingMessages.value = true
     try {
@@ -210,12 +298,16 @@ export const useWorkspaceStore = defineStore('workspace', () => {
 
   async function createNewConversation() {
     closeStream()
+    clearWorkflowRibbonHideTimer()
     currentConversationId.value = ''
     resetComposer()
+    resetWorkflowStages()
     currentStepLabel.value = ''
     currentProgress.value = 0
     currentTaskId.value = ''
     currentAssistantMessageId.value = ''
+    workflowAnchorMessageId.value = ''
+    showWorkflowRibbon.value = false
     sending.value = false
     evidenceDrawerVisible.value = false
     activeEvidenceCards.value = []
@@ -326,12 +418,27 @@ export const useWorkspaceStore = defineStore('workspace', () => {
 
   function bindTaskStream(payload: SendMessageResult) {
     closeStream()
+    clearWorkflowRibbonHideTimer()
     const conversationId = payload.conversation_id
     const assistantMessageId = payload.assistant_message_id
     currentTaskId.value = payload.task_id
     currentAssistantMessageId.value = assistantMessageId
+    workflowAnchorMessageId.value = assistantMessageId
+    showWorkflowRibbon.value = true
     currentProgress.value = 0
     currentStepLabel.value = '正在启动生成流程'
+    workflowStages.value = [
+      {
+        key: 'request_sent',
+        label: '请求已发送',
+        status: 'completed',
+      },
+      {
+        key: 'workflow_started',
+        label: '正在启动生成流程',
+        status: 'current',
+      },
+    ]
     eventSource = createTaskEventSource(payload.stream_url)
 
     eventSource.onmessage = (event) => {
@@ -346,8 +453,10 @@ export const useWorkspaceStore = defineStore('workspace', () => {
         }
         case 'status': {
           const data = envelope.data as StatusStreamData
+          showWorkflowRibbon.value = true
           currentStepLabel.value = data.message
           currentProgress.value = data.progress
+          setCurrentWorkflowStage(data.step, data.message)
           patchAssistantMessage(conversationId, assistantMessageId, { status: 'running' })
           patchConversation(conversationId, { status: 'running' })
           break
@@ -375,16 +484,19 @@ export const useWorkspaceStore = defineStore('workspace', () => {
           patchConversation(conversationId, { status: 'idle' })
           currentProgress.value = 100
           currentStepLabel.value = '生成完成'
+          markWorkflowTerminal('completed')
           sending.value = false
           currentTaskId.value = ''
           currentAssistantMessageId.value = ''
           closeStream()
+          scheduleWorkflowRibbonHide()
           break
         }
         case 'error': {
           setAssistantTerminalState(conversationId, assistantMessageId, 'failed')
           patchConversation(conversationId, { status: 'failed' })
           currentStepLabel.value = '生成失败'
+          markWorkflowTerminal('failed')
           sending.value = false
           currentTaskId.value = ''
           currentAssistantMessageId.value = ''
@@ -396,7 +508,9 @@ export const useWorkspaceStore = defineStore('workspace', () => {
 
     eventSource.onerror = () => {
       currentStepLabel.value = '流式连接中断'
+      showWorkflowRibbon.value = true
       if (sending.value) {
+        markWorkflowTerminal('failed')
         setAssistantTerminalState(
           conversationId,
           assistantMessageId,
@@ -486,6 +600,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
       patchConversation(conversationId, { status: 'idle' })
     }
     currentStepLabel.value = '已停止生成'
+    markWorkflowTerminal('stopped')
     sending.value = false
     currentTaskId.value = ''
     currentAssistantMessageId.value = ''
@@ -524,8 +639,11 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     loadingMessages,
     sending,
     currentTaskId,
+    workflowAnchorMessageId,
     currentStepLabel,
     currentProgress,
+    workflowStages,
+    showWorkflowRibbon,
     evidenceDrawerVisible,
     activeEvidenceCards,
     composerText,

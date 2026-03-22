@@ -46,10 +46,11 @@ def _active_template(state: AgentState) -> dict[str, object]:
 def _active_scenario_id(state: AgentState) -> str:
     if state.get("scenario_id"):
         return str(state["scenario_id"])
+    explicit_scenario = str(state.get("params", {}).get("scenario", "") or state.get("params", {}).get("scenario_profile", ""))
     scenario_id = resolve_scenario_id(
         query=state.get("query", ""),
         intent=state.get("normalized_intent", ""),
-        explicit=str(state.get("params", {}).get("scenario_profile", "")),
+        explicit=explicit_scenario,
     )
     state["scenario_id"] = scenario_id
     return scenario_id
@@ -57,6 +58,50 @@ def _active_scenario_id(state: AgentState) -> str:
 
 def _active_scenario_config(state: AgentState) -> dict[str, object]:
     return get_scenario_config(_active_scenario_id(state))
+
+
+def _derive_dynamic_title(query: str) -> str:
+    text = (query or "").strip()
+    if not text:
+        return "电力行业智能体解决方案"
+    prefixes = [
+        "请帮我生成一个",
+        "帮我生成一个",
+        "给我生成一个",
+        "请生成一个",
+        "生成一个",
+        "请帮我做一个",
+        "帮我做一个",
+        "给我做一个",
+        "请输出一个",
+        "输出一个",
+    ]
+    for prefix in prefixes:
+        if text.startswith(prefix):
+            text = text[len(prefix):].strip()
+            break
+    for splitter in ["，重点", "重点考虑", "重点关注", "要求", "并说明", "并结合", "，并", "。"]:
+        if splitter in text:
+            text = text.split(splitter, 1)[0].strip()
+    matched = re.match(r"^面向(?P<target>.+?)的(?P<topic>.+?解决方案)$", text)
+    if matched:
+        target = matched.group("target").strip()
+        topic = matched.group("topic").strip()
+        text = f"{target}{topic}"
+    text = re.sub(r"[。！？!?,，；;：:\s]+$", "", text)
+    if "解决方案" not in text:
+        text = f"{text}解决方案"
+    if len(text) > 40:
+        text = text[:40].rstrip("，,。；;：:")
+    return text or "电力行业智能体解决方案"
+
+
+def _resolved_document_title(state: AgentState) -> str:
+    scenario_id = _active_scenario_id(state)
+    if scenario_id == "other_solution":
+        return _derive_dynamic_title(state.get("query", ""))
+    solution_template = _active_template(state)
+    return str(solution_template.get("document_title", "电力行业解决方案"))
 
 
 def _template_sections(state: AgentState) -> list[str]:
@@ -189,14 +234,13 @@ def _programmatic_section_issues(section_title: str, content: str) -> list[str]:
 
 
 def _assemble_markdown_from_sections(state: AgentState) -> str:
-    solution_template = _active_template(state)
     ordered_sections = state.get("section_order", _template_sections(state))
     content_blocks = []
     for section_title in ordered_sections:
         section_text = state.get("section_contents", {}).get(section_title, "")
         if section_text:
             content_blocks.append(section_text.strip())
-    document_title = str(solution_template.get("document_title", "电力行业解决方案"))
+    document_title = _resolved_document_title(state)
     return f"# {document_title}\n\n" + "\n\n".join(content_blocks)
 
 
@@ -221,7 +265,7 @@ def intent_identify(state: AgentState) -> AgentState:
     state["scenario_id"] = resolve_scenario_id(
         query=user_query,
         intent=state["normalized_intent"],
-        explicit=str(state.get("params", {}).get("scenario_profile", "")),
+        explicit=str(state.get("params", {}).get("scenario", "") or state.get("params", {}).get("scenario_profile", "")),
     )
     state["status"] = "intent_identifying"
     state.setdefault("metadata", {})

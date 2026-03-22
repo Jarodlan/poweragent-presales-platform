@@ -6,11 +6,13 @@ from django.conf import settings
 from django.http import StreamingHttpResponse
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
+from rest_framework.renderers import BaseRenderer
 from rest_framework import status
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.accounts.authentication import QueryStringExpiringTokenAuthentication
 from apps.accounts.services import resolve_visible_tasks
 from apps.conversations.models import Message
 
@@ -18,6 +20,16 @@ from .models import Task, TaskEvent
 from .progress import describe_step
 from .serializers import TaskSerializer
 from .services import apply_agent_callback
+
+
+class ServerSentEventRenderer(BaseRenderer):
+    media_type = "text/event-stream"
+    format = "event-stream"
+    charset = None
+    render_style = "binary"
+
+    def render(self, data, accepted_media_type=None, renderer_context=None):
+        return data
 
 
 def fetch_agent_run_status(run_id: str) -> dict | None:
@@ -65,6 +77,8 @@ class TaskCancelView(APIView):
 
 class TaskStreamView(APIView):
     permission_classes = [IsAuthenticated]
+    authentication_classes = [QueryStringExpiringTokenAuthentication]
+    renderer_classes = [ServerSentEventRenderer]
 
     def get_task(self, request, task_id):
         return get_object_or_404(resolve_visible_tasks(request.user), id=task_id)

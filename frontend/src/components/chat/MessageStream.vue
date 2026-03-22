@@ -3,12 +3,25 @@ import { ArrowDown } from '@element-plus/icons-vue'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
 import AssistantMessageCard from './AssistantMessageCard.vue'
+import StatusRibbon from './StatusRibbon.vue'
 import UserMessageBubble from './UserMessageBubble.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import type { EvidenceCard, MessageItem } from '@/types/conversation'
 
 const props = defineProps<{
   messages: MessageItem[]
+  workflowLabel?: string
+  workflowProgress?: number
+  workflowRunning?: boolean
+  workflowFailed?: boolean
+  workflowStopped?: boolean
+  workflowStages?: Array<{
+    key: string
+    label: string
+    status: 'completed' | 'current' | 'failed' | 'stopped'
+  }>
+  workflowAnchorMessageId?: string
+  showWorkflowRibbon?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -79,23 +92,38 @@ onBeforeUnmount(() => {
 
     <template v-else>
       <div v-for="message in props.messages" :key="message.message_id" class="message-stream__item">
-        <UserMessageBubble
-          v-if="message.role === 'user'"
-          :content="message.content || message.query_text"
-          :created-at="message.created_at"
-        />
-        <AssistantMessageCard
-          v-else
-          :message-id="message.message_id"
-          :summary="message.summary"
-          :content="message.content"
-          :assumptions="message.assumptions"
-          :evidence-cards="message.evidence_cards"
-          :status="message.status"
-          :created-at="message.created_at"
-          @open-evidence="emit('open-evidence', $event)"
-          @retry="emit('retry-message', $event)"
-        />
+        <template v-if="message.role === 'user'">
+          <UserMessageBubble
+            :content="message.content || message.query_text"
+            :created-at="message.created_at"
+          />
+        </template>
+        <template v-else>
+          <StatusRibbon
+            v-if="
+              props.showWorkflowRibbon &&
+              props.workflowAnchorMessageId === message.message_id &&
+              props.workflowLabel
+            "
+            :label="props.workflowLabel"
+            :progress="props.workflowProgress || 0"
+            :running="props.workflowRunning"
+            :failed="props.workflowFailed"
+            :stopped="props.workflowStopped"
+            :stages="props.workflowStages"
+          />
+          <AssistantMessageCard
+            :message-id="message.message_id"
+            :summary="message.summary"
+            :content="message.content"
+            :assumptions="message.assumptions"
+            :evidence-cards="message.evidence_cards"
+            :status="message.status"
+            :created-at="message.created_at"
+            @open-evidence="emit('open-evidence', $event)"
+            @retry="emit('retry-message', $event)"
+          />
+        </template>
       </div>
 
       <button

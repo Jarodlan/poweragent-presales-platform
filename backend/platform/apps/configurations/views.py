@@ -15,6 +15,7 @@ class MetaOptionsView(APIView):
                         {"label": "配网规划", "value": "distribution_planning_solution"},
                         {"label": "新能源功率预测", "value": "power_forecast_solution"},
                         {"label": "虚拟电厂/源网荷储协同", "value": "vpp_coordination_solution"},
+                        {"label": "其他场景", "value": "other_solution"},
                     ],
                     "grid_environment_options": [
                         {"label": "不涉及/待判断", "value": "not_involved"},

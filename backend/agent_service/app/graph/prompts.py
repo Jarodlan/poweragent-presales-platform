@@ -5,8 +5,12 @@ PROMPTS = {
             "请将用户问题标准化为场景意图，只输出简洁标签。"
             "如果用户描述的是储能聚合、虚拟电厂、现货套利、需求响应等运营场景，请优先归到 storage_aggregation_solution。"
             "如果用户描述的是故障诊断、故障定位、自愈联动、告警研判等运检场景，请归到 fault_diagnosis_solution。"
+            "如果用户描述的是配网规划、网架优化、重过载治理、台区优化等规划场景，请归到 distribution_planning_solution。"
+            "如果用户描述的是风电预测、光伏预测、新能源功率预测、偏差考核优化等场景，请归到 power_forecast_solution。"
+            "如果用户描述的是源网荷储协同、虚拟电厂调度、多资源协同、聚合调度等场景，请归到 vpp_coordination_solution。"
+            "如果用户问题属于电力/能源相关，但明显不适合上述任何一个预设场景，请归到 other_solution。"
         ),
-        "output_rule": "当前优先输出已支持标签：fault_diagnosis_solution、storage_aggregation_solution。只有在非常明确时才输出其他扩展标签。",
+        "output_rule": "当前可输出标签：fault_diagnosis_solution、storage_aggregation_solution、distribution_planning_solution、power_forecast_solution、vpp_coordination_solution、other_solution。只输出一个最匹配的标签。",
     },
     "normalize_context": {
         "system": (

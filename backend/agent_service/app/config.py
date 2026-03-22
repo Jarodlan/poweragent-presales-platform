@@ -36,6 +36,30 @@ class Settings(BaseSettings):
     storage_solution_template_source_path: str = str(
         Path(__file__).resolve().parents[3] / "项目文档/04-知识库与模板/分布式储能聚合运营智能体解决方案模板.md"
     )
+    planning_solution_template_path: str = str(
+        Path(__file__).resolve().parents[3] / "项目文档/04-知识库与模板/配网规划智能体解决方案模板.md"
+    )
+    planning_solution_template_source_path: str = str(
+        Path(__file__).resolve().parents[3] / "项目文档/04-知识库与模板/配网规划智能体解决方案模板.md"
+    )
+    forecast_solution_template_path: str = str(
+        Path(__file__).resolve().parents[3] / "项目文档/04-知识库与模板/新能源功率预测智能体解决方案模板.md"
+    )
+    forecast_solution_template_source_path: str = str(
+        Path(__file__).resolve().parents[3] / "项目文档/04-知识库与模板/新能源功率预测智能体解决方案模板.md"
+    )
+    vpp_solution_template_path: str = str(
+        Path(__file__).resolve().parents[3] / "项目文档/04-知识库与模板/虚拟电厂源网荷储协同智能体解决方案模板.md"
+    )
+    vpp_solution_template_source_path: str = str(
+        Path(__file__).resolve().parents[3] / "项目文档/04-知识库与模板/虚拟电厂源网荷储协同智能体解决方案模板.md"
+    )
+    generic_solution_template_path: str = str(
+        Path(__file__).resolve().parents[3] / "项目文档/04-知识库与模板/通用电力智能体解决方案模板.md"
+    )
+    generic_solution_template_source_path: str = str(
+        Path(__file__).resolve().parents[3] / "项目文档/04-知识库与模板/通用电力智能体解决方案模板.md"
+    )
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 

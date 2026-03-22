@@ -27,8 +27,7 @@ const isCompact = computed(
     !expanded.value &&
     !showParams.value &&
     !isFocused.value &&
-    !workspace.composerText.trim() &&
-    !workspace.sending,
+    !workspace.composerText.trim(),
 )
 const promptSuggestions = [
   '给我生成一个面向无锡地区的智能配电网故障诊断解决方案。',
@@ -116,6 +115,7 @@ const paramSummary = computed(() => {
 const scenarioFlags = computed(() => {
   const value = workspace.composerParams.scenario
   return {
+    isOther: value === 'other_solution',
     isFaultDiagnosis: value === 'fault_diagnosis_solution',
     isStorageAggregation: value === 'storage_aggregation_solution',
     isDistributionPlanning: value === 'distribution_planning_solution',
@@ -125,6 +125,9 @@ const scenarioFlags = computed(() => {
 })
 
 const scenarioHint = computed(() => {
+  if (scenarioFlags.value.isOther) {
+    return '其他场景将不附加任何细分参数，系统会基于你的输入内容走通用临时模板。'
+  }
   if (scenarioFlags.value.isFaultDiagnosis) {
     return '适合补充故障对象、数据基础与诊断能力，未涉及项可不填。'
   }
@@ -244,8 +247,8 @@ async function expandComposer(options?: { openParams?: boolean; focus?: boolean 
   }
 }
 
-function collapseComposer() {
-  if (workspace.composerText.trim() || workspace.sending) return
+function collapseComposer(force = false) {
+  if (!force && workspace.composerText.trim()) return
   expanded.value = false
   showParams.value = false
   isFocused.value = false
@@ -317,6 +320,10 @@ function collapseFromOutside() {
 
 async function attemptSubmit() {
   if (!canSubmit.value) return
+  if (workspace.composerParams.scenario === 'other_solution') {
+    await workspace.submitCurrentMessage()
+    return
+  }
   const suggestedScenario = detectScenarioFromQuery(workspace.composerText)
   if (suggestedScenario) {
     detectedScenario.value = suggestedScenario
@@ -411,7 +418,7 @@ onBeforeUnmount(() => {
             </el-select>
           </el-form-item>
 
-          <el-form-item label="电网环境">
+          <el-form-item v-if="!scenarioFlags.isOther" label="电网环境">
             <el-select
               v-model="workspace.composerParams.grid_environment"
               placeholder="选择电网场景"
@@ -426,8 +433,17 @@ onBeforeUnmount(() => {
             </el-select>
           </el-form-item>
 
+          <el-alert
+            v-if="scenarioFlags.isOther"
+            type="info"
+            :closable="false"
+            show-icon
+            title="当前为其他场景"
+            description="此模式下不附加任何细分参数，系统将根据你的输入内容自动组织一套通用临时解决方案模板。"
+          />
+
           <el-form-item
-            v-if="scenarioFlags.isFaultDiagnosis || scenarioFlags.isDistributionPlanning"
+            v-if="!scenarioFlags.isOther && (scenarioFlags.isFaultDiagnosis || scenarioFlags.isDistributionPlanning)"
             :label="scenarioFlags.isFaultDiagnosis ? '诊断对象/设备' : '规划对象/设备'"
           >
             <el-select
@@ -445,7 +461,7 @@ onBeforeUnmount(() => {
           </el-form-item>
 
           <el-form-item
-            v-if="scenarioFlags.isStorageAggregation || scenarioFlags.isVppCoordination"
+            v-if="!scenarioFlags.isOther && (scenarioFlags.isStorageAggregation || scenarioFlags.isVppCoordination)"
             label="资源类型"
           >
             <el-select
@@ -462,7 +478,7 @@ onBeforeUnmount(() => {
             </el-select>
           </el-form-item>
 
-          <el-form-item label="数据基础">
+          <el-form-item v-if="!scenarioFlags.isOther" label="数据基础">
             <el-select
               v-model="workspace.composerParams.data_basis"
               multiple
@@ -480,7 +496,7 @@ onBeforeUnmount(() => {
             </el-select>
           </el-form-item>
 
-          <el-form-item label="目标能力">
+          <el-form-item v-if="!scenarioFlags.isOther" label="目标能力">
             <el-select
               v-model="workspace.composerParams.target_capability"
               multiple
@@ -499,7 +515,7 @@ onBeforeUnmount(() => {
           </el-form-item>
 
           <el-form-item
-            v-if="scenarioFlags.isStorageAggregation || scenarioFlags.isVppCoordination"
+            v-if="!scenarioFlags.isOther && (scenarioFlags.isStorageAggregation || scenarioFlags.isVppCoordination)"
             label="市场/政策关注点"
           >
             <el-select
@@ -519,7 +535,7 @@ onBeforeUnmount(() => {
             </el-select>
           </el-form-item>
 
-          <el-form-item v-if="scenarioFlags.isDistributionPlanning" label="规划目标">
+          <el-form-item v-if="!scenarioFlags.isOther && scenarioFlags.isDistributionPlanning" label="规划目标">
             <el-select
               v-model="workspace.composerParams.planning_objective"
               multiple
@@ -537,7 +553,7 @@ onBeforeUnmount(() => {
             </el-select>
           </el-form-item>
 
-          <el-form-item v-if="scenarioFlags.isPowerForecast" label="预测目标">
+          <el-form-item v-if="!scenarioFlags.isOther && scenarioFlags.isPowerForecast" label="预测目标">
             <el-select
               v-model="workspace.composerParams.forecast_target"
               multiple
@@ -555,7 +571,7 @@ onBeforeUnmount(() => {
             </el-select>
           </el-form-item>
 
-          <el-form-item v-if="scenarioFlags.isVppCoordination" label="协同范围">
+          <el-form-item v-if="!scenarioFlags.isOther && scenarioFlags.isVppCoordination" label="协同范围">
             <el-select
               v-model="workspace.composerParams.coordination_scope"
               placeholder="选择协同范围"
@@ -571,7 +587,7 @@ onBeforeUnmount(() => {
           </el-form-item>
 
           <el-form-item
-            v-if="scenarioFlags.isStorageAggregation || scenarioFlags.isVppCoordination"
+            v-if="!scenarioFlags.isOther && (scenarioFlags.isStorageAggregation || scenarioFlags.isVppCoordination)"
             label="生命周期/运营目标"
           >
             <el-select
@@ -595,15 +611,25 @@ onBeforeUnmount(() => {
       <template v-if="isCompact">
         <div class="composer__compact">
           <button class="composer__compact-trigger" @click="expandComposer()">
-            <span class="composer__compact-label">继续追问或输入新的电力场景需求</span>
+            <span class="composer__compact-label">
+              {{ workspace.sending ? '正在生成当前方案，可展开查看或继续编辑' : '继续追问或输入新的电力场景需求' }}
+            </span>
             <span class="composer__compact-placeholder">
-              例如：为无锡某地区生成智能配电网故障诊断解决方案
+              {{
+                workspace.sending
+                  ? workspace.currentStepLabel || '系统正在推进工作流...'
+                  : '例如：为无锡某地区生成智能配电网故障诊断解决方案'
+              }}
             </span>
           </button>
           <div class="composer__compact-actions">
             <el-button text @click="toggleParams">
               <el-icon><Setting /></el-icon>
               参数
+            </el-button>
+            <el-button v-if="workspace.sending" text type="danger" @click="workspace.stopCurrentTask()">
+              <el-icon><VideoPause /></el-icon>
+              停止
             </el-button>
             <el-button type="primary" round @click="expandComposer()">
               <el-icon><EditPen /></el-icon>
@@ -624,7 +650,7 @@ onBeforeUnmount(() => {
           </div>
           <div class="composer__header-actions">
             <el-button text @click="resetParams">恢复默认参数</el-button>
-            <el-button v-if="hasMessages" text @click="collapseComposer">收起编辑区</el-button>
+            <el-button v-if="hasMessages" text @click="collapseComposer(true)">收起编辑区</el-button>
           </div>
         </div>
 

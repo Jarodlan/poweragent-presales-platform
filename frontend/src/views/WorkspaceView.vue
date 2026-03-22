@@ -4,7 +4,6 @@ import { onMounted } from 'vue'
 import ConversationSidebar from '@/components/sidebar/ConversationSidebar.vue'
 import MessageComposer from '@/components/composer/MessageComposer.vue'
 import MessageStream from '@/components/chat/MessageStream.vue'
-import StatusRibbon from '@/components/chat/StatusRibbon.vue'
 import EvidenceDrawer from '@/components/evidence/EvidenceDrawer.vue'
 import { useMetaStore } from '@/stores/meta'
 import { useWorkspaceStore } from '@/stores/workspace'
@@ -42,17 +41,17 @@ function useExamplePrompt(text: string) {
         </div>
       </header>
 
-      <StatusRibbon
-        :label="workspace.currentStepLabel"
-        :progress="workspace.currentProgress"
-        :running="workspace.sending"
-        :failed="workspace.currentConversation?.status === 'failed'"
-        :stopped="!workspace.sending && workspace.currentStepLabel === '已停止生成'"
-      />
-
       <section class="workspace-main__stream">
         <MessageStream
           :messages="workspace.currentMessages"
+          :workflow-label="workspace.currentStepLabel"
+          :workflow-progress="workspace.currentProgress"
+          :workflow-running="workspace.sending"
+          :workflow-failed="workspace.currentConversation?.status === 'failed'"
+          :workflow-stopped="!workspace.sending && workspace.currentStepLabel === '已停止生成'"
+          :workflow-stages="workspace.workflowStages"
+          :workflow-anchor-message-id="workspace.workflowAnchorMessageId"
+          :show-workflow-ribbon="workspace.showWorkflowRibbon"
           @open-evidence="workspace.openEvidence"
           @choose-example="useExamplePrompt"
           @retry-message="workspace.retryAssistantMessage"
@@ -76,7 +75,7 @@ function useExamplePrompt(text: string) {
 <style scoped>
 .workspace-main {
   display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  grid-template-rows: auto minmax(0, 1fr) auto;
   gap: 18px;
   padding: 22px;
   min-width: 0;

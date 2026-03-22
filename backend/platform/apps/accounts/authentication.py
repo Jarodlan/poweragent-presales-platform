@@ -4,7 +4,7 @@ from datetime import timedelta
 
 from django.utils import timezone
 from rest_framework import exceptions
-from rest_framework.authentication import TokenAuthentication
+from rest_framework.authentication import TokenAuthentication, get_authorization_header
 from rest_framework.authtoken.models import Token
 
 
@@ -26,3 +26,15 @@ class ExpiringTokenAuthentication(TokenAuthentication):
             token.delete()
             raise exceptions.AuthenticationFailed("登录已过期，请重新登录。")
 
+
+class QueryStringExpiringTokenAuthentication(ExpiringTokenAuthentication):
+    def authenticate(self, request):
+        header = get_authorization_header(request)
+        if header:
+            return super().authenticate(request)
+
+        key = request.query_params.get("access_token", "").strip()
+        if not key:
+            return None
+
+        return self.authenticate_credentials(key)

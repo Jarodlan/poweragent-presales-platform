@@ -40,7 +40,7 @@ def run_workflow(
     scenario_id = state.get("scenario_id") or resolve_scenario_id(
         query=state.get("query", ""),
         intent=state.get("normalized_intent", ""),
-        explicit=str(state.get("params", {}).get("scenario_profile", "")),
+        explicit=str(state.get("params", {}).get("scenario", "") or state.get("params", {}).get("scenario_profile", "")),
     )
     state["scenario_id"] = scenario_id
     scenario_config = get_scenario_config(scenario_id)
@@ -59,24 +59,22 @@ def run_workflow(
         if progress_callback:
             progress_callback(f"{step_name}_completed", state)
     specialized_sections = set(scenario_config.get("specialized_sections", []))
-    for section_title in [title for title in state.get("section_order", []) if title not in specialized_sections]:
+    for section_title in state.get("section_order", []):
+        if section_title in SPECIALIZED_STEP_MAP and section_title in specialized_sections:
+            step_name, step_func = SPECIALIZED_STEP_MAP[section_title]
+            if progress_callback:
+                progress_callback(step_name, state)
+            state = step_func(state)
+            if progress_callback:
+                progress_callback(f"{step_name}_completed", state)
+            continue
+
         step_name = f"generate_section:{section_title}"
         if progress_callback:
             progress_callback(step_name, state)
         state = generate_section(state, section_title)
         if progress_callback:
             progress_callback(f"generate_section_completed:{section_title}", state)
-    specialized_steps = [
-        SPECIALIZED_STEP_MAP[section_title]
-        for section_title in state.get("section_order", [])
-        if section_title in SPECIALIZED_STEP_MAP and section_title in specialized_sections
-    ]
-    for step_name, step_func in specialized_steps:
-        if progress_callback:
-            progress_callback(step_name, state)
-        state = step_func(state)
-        if progress_callback:
-            progress_callback(f"{step_name}_completed", state)
     if progress_callback:
         progress_callback("assemble_solution", state)
     state = assemble_solution(state)
