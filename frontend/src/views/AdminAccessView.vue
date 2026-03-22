@@ -23,7 +23,18 @@ import {
   updateUser,
 } from '@/api/admin'
 import { useAuthStore } from '@/stores/auth'
-import type { AuditLogItem, DepartmentItem, DepartmentPayload, PermissionItem, RoleItem, RolePayload, UserItem, UserPayload } from '@/types/admin'
+import type {
+  AuditLogItem,
+  DepartmentItem,
+  DepartmentPayload,
+  PermissionItem,
+  RoleItem,
+  RolePayload,
+  UserConversationActivityItem,
+  UserItem,
+  UserPayload,
+  UserTaskActivityItem,
+} from '@/types/admin'
 import { formatDateTime, formatRelativeTime } from '@/utils/time'
 
 const router = useRouter()
@@ -42,6 +53,8 @@ const departments = ref<DepartmentItem[]>([])
 const permissions = ref<PermissionItem[]>([])
 const loginHistory = ref<AuditLogItem[]>([])
 const operationHistory = ref<AuditLogItem[]>([])
+const conversationHistory = ref<UserConversationActivityItem[]>([])
+const taskHistory = ref<UserTaskActivityItem[]>([])
 const userActivityLoading = ref(false)
 const activeTab = ref<'users' | 'roles' | 'departments'>('users')
 const searchKeyword = ref('')
@@ -51,6 +64,7 @@ const userDialogVisible = ref(false)
 const roleDialogVisible = ref(false)
 const departmentDialogVisible = ref(false)
 const userDetailVisible = ref(false)
+const userDetailTab = ref<'overview' | 'activity' | 'business'>('overview')
 const userDialogMode = ref<'create' | 'edit'>('create')
 const roleDialogMode = ref<'create' | 'edit'>('create')
 const departmentDialogMode = ref<'create' | 'edit'>('create')
@@ -296,13 +310,21 @@ function openEditUser(user: UserItem) {
 async function openUserDetail(user: UserItem) {
   selectedUser.value = user
   userDetailVisible.value = true
+  userDetailTab.value = 'overview'
   userActivityLoading.value = true
   loginHistory.value = []
   operationHistory.value = []
+  conversationHistory.value = []
+  taskHistory.value = []
   try {
     const data = await fetchUserActivity(user.id)
     loginHistory.value = data.login_items
     operationHistory.value = data.operation_items
+    conversationHistory.value = data.conversation_items
+    taskHistory.value = data.task_items
+  } catch (error) {
+    console.error(error)
+    ElMessage.error(error instanceof Error ? error.message : '加载用户历史数据失败')
   } finally {
     userActivityLoading.value = false
   }
@@ -819,7 +841,7 @@ onMounted(loadAdminData)
       </template>
     </el-dialog>
 
-    <el-drawer v-model="userDetailVisible" size="520px" title="用户详情">
+    <el-drawer v-model="userDetailVisible" size="760px" title="用户详情">
       <template v-if="selectedUser">
         <section class="detail-panel">
           <div class="detail-hero panel-card">
@@ -832,74 +854,137 @@ onMounted(loadAdminData)
             </el-tag>
           </div>
 
-          <div class="detail-grid">
-            <div class="panel-card detail-card">
-              <h4>基础信息</h4>
-              <dl>
-                <dt>用户名</dt><dd>{{ selectedUser.username }}</dd>
-                <dt>邮箱</dt><dd>{{ selectedUser.email || '未设置' }}</dd>
-                <dt>工号</dt><dd>{{ selectedUser.employee_no || '未设置' }}</dd>
-                <dt>手机号</dt><dd>{{ selectedUser.phone_number || '未设置' }}</dd>
-                <dt>数据范围</dt><dd>{{ selectedUser.data_scope_resolved === 'all' ? '全部' : selectedUser.data_scope_resolved === 'department' ? '本部门' : '仅本人' }}</dd>
-                <dt>首次改密</dt><dd>{{ selectedUser.force_password_change ? '是' : '否' }}</dd>
-                <dt>最近登录</dt><dd>{{ selectedUser.last_login ? formatDateTime(selectedUser.last_login) : '尚未登录' }}</dd>
-                <dt>最近登录IP</dt><dd>{{ selectedUser.last_login_ip || '无记录' }}</dd>
-                <dt>归档时间</dt><dd>{{ selectedUser.archived_at ? formatDateTime(selectedUser.archived_at) : '未归档' }}</dd>
-              </dl>
-            </div>
-
-            <div class="panel-card detail-card">
-              <h4>角色与权限</h4>
-              <div class="detail-tags">
-                <el-tag v-for="item in selectedUser.roles" :key="item.id" class="role-tag">{{ item.role.name }}</el-tag>
-                <span v-if="!selectedUser.roles.length" class="muted">未分配角色</span>
-              </div>
-              <p class="detail-subtitle">权限清单</p>
-              <div class="detail-tags">
-                <el-tag v-for="code in selectedUser.permissions" :key="code" type="info" effect="plain">{{ code }}</el-tag>
-              </div>
-            </div>
-          </div>
-
-          <section class="panel-card detail-card">
-            <div class="detail-card__head">
-              <h4>登录历史</h4>
-              <span v-if="userActivityLoading" class="muted">加载中...</span>
-            </div>
-            <div v-if="loginHistory.length" class="timeline">
-              <article v-for="item in loginHistory" :key="item.id" class="timeline__item">
-                <div class="timeline__dot" />
-                <div>
-                  <strong>{{ item.action === 'auth.login' ? '登录成功' : '主动退出' }}</strong>
-                  <p>{{ formatDateTime(item.created_at) }} · {{ item.actor_name }}</p>
+          <el-tabs v-model="userDetailTab" class="detail-tabs">
+            <el-tab-pane label="概览" name="overview">
+              <div class="detail-grid">
+                <div class="panel-card detail-card">
+                  <h4>基础信息</h4>
+                  <dl>
+                    <dt>用户名</dt><dd>{{ selectedUser.username }}</dd>
+                    <dt>邮箱</dt><dd>{{ selectedUser.email || '未设置' }}</dd>
+                    <dt>工号</dt><dd>{{ selectedUser.employee_no || '未设置' }}</dd>
+                    <dt>手机号</dt><dd>{{ selectedUser.phone_number || '未设置' }}</dd>
+                    <dt>数据范围</dt><dd>{{ selectedUser.data_scope_resolved === 'all' ? '全部' : selectedUser.data_scope_resolved === 'department' ? '本部门' : '仅本人' }}</dd>
+                    <dt>首次改密</dt><dd>{{ selectedUser.force_password_change ? '是' : '否' }}</dd>
+                    <dt>最近登录</dt><dd>{{ selectedUser.last_login ? formatDateTime(selectedUser.last_login) : '尚未登录' }}</dd>
+                    <dt>最近登录IP</dt><dd>{{ selectedUser.last_login_ip || '无记录' }}</dd>
+                    <dt>归档时间</dt><dd>{{ selectedUser.archived_at ? formatDateTime(selectedUser.archived_at) : '未归档' }}</dd>
+                  </dl>
                 </div>
-              </article>
-            </div>
-            <p v-else class="muted">暂无登录历史</p>
-          </section>
 
-          <section class="panel-card detail-card">
-            <div class="detail-card__head">
-              <h4>操作历史</h4>
-              <span class="muted">最近 30 条</span>
-            </div>
-            <div v-if="operationHistory.length" class="timeline">
-              <article v-for="item in operationHistory" :key="item.id" class="timeline__item">
-                <div class="timeline__dot timeline__dot--secondary" />
-                <div>
-                  <strong>{{ item.action }}</strong>
-                  <p>{{ formatDateTime(item.created_at) }} · 操作人：{{ item.actor_name }}</p>
-                  <p class="timeline__meta">{{ JSON.stringify(item.detail_json || {}) }}</p>
+                <div class="panel-card detail-card">
+                  <h4>角色与权限</h4>
+                  <div class="detail-tags">
+                    <el-tag v-for="item in selectedUser.roles" :key="item.id" class="role-tag">{{ item.role.name }}</el-tag>
+                    <span v-if="!selectedUser.roles.length" class="muted">未分配角色</span>
+                  </div>
+                  <p class="detail-subtitle">权限清单</p>
+                  <div class="detail-tags">
+                    <el-tag v-for="code in selectedUser.permissions" :key="code" type="info" effect="plain">{{ code }}</el-tag>
+                  </div>
                 </div>
-              </article>
-            </div>
-            <p v-else class="muted">暂无操作历史</p>
-          </section>
+              </div>
 
-          <section class="panel-card detail-card">
-            <h4>备注</h4>
-            <p class="detail-remarks">{{ selectedUser.remarks || '暂无备注' }}</p>
-          </section>
+              <section class="panel-card detail-card">
+                <h4>备注</h4>
+                <p class="detail-remarks">{{ selectedUser.remarks || '暂无备注' }}</p>
+              </section>
+            </el-tab-pane>
+
+            <el-tab-pane label="活动记录" name="activity">
+              <section class="panel-card detail-card">
+                <div class="detail-card__head">
+                  <h4>登录历史</h4>
+                  <span v-if="userActivityLoading" class="muted">加载中...</span>
+                </div>
+                <div v-if="loginHistory.length" class="timeline">
+                  <article v-for="item in loginHistory" :key="item.id" class="timeline__item">
+                    <div class="timeline__dot" />
+                    <div>
+                      <strong>{{ item.action === 'auth.login' ? '登录成功' : '主动退出' }}</strong>
+                      <p>{{ formatDateTime(item.created_at) }} · {{ item.actor_name }}</p>
+                    </div>
+                  </article>
+                </div>
+                <p v-else class="muted">暂无登录历史</p>
+              </section>
+
+              <section class="panel-card detail-card">
+                <div class="detail-card__head">
+                  <h4>操作历史</h4>
+                  <span class="muted">最近 30 条</span>
+                </div>
+                <div v-if="operationHistory.length" class="timeline">
+                  <article v-for="item in operationHistory" :key="item.id" class="timeline__item">
+                    <div class="timeline__dot timeline__dot--secondary" />
+                    <div>
+                      <strong>{{ item.action }}</strong>
+                      <p>{{ formatDateTime(item.created_at) }} · 操作人：{{ item.actor_name }}</p>
+                      <p class="timeline__meta">{{ JSON.stringify(item.detail_json || {}) }}</p>
+                    </div>
+                  </article>
+                </div>
+                <p v-else class="muted">暂无操作历史</p>
+              </section>
+            </el-tab-pane>
+
+            <el-tab-pane label="业务记录" name="business">
+              <div class="detail-grid detail-grid--records">
+                <section class="panel-card detail-card">
+                  <div class="detail-card__head">
+                    <h4>会话历史</h4>
+                    <span class="muted">最近 20 条</span>
+                  </div>
+                  <div v-if="conversationHistory.length" class="activity-list">
+                    <article v-for="item in conversationHistory" :key="item.conversation_id" class="activity-card">
+                      <div class="activity-card__head">
+                        <strong class="activity-card__title">{{ item.title || '未命名会话' }}</strong>
+                        <el-tag :type="item.status === 'running' ? 'warning' : item.status === 'failed' ? 'danger' : 'success'" effect="plain">
+                          {{ item.status === 'running' ? '生成中' : item.status === 'failed' ? '失败' : '完成/空闲' }}
+                        </el-tag>
+                      </div>
+                      <p class="activity-card__body">{{ item.last_user_message || '暂无用户问题摘要' }}</p>
+                      <small>最近更新时间：{{ formatDateTime(item.updated_at) }}</small>
+                    </article>
+                  </div>
+                  <p v-else class="muted">暂无会话历史</p>
+                </section>
+
+                <section class="panel-card detail-card">
+                  <div class="detail-card__head">
+                    <h4>生成任务历史</h4>
+                    <span class="muted">最近 20 条</span>
+                  </div>
+                  <div v-if="taskHistory.length" class="activity-list">
+                    <article v-for="item in taskHistory" :key="item.task_id" class="activity-card">
+                      <div class="activity-card__head">
+                        <strong class="activity-card__title">{{ item.conversation_title || '未命名会话任务' }}</strong>
+                        <el-tag
+                          :type="
+                            item.status === 'completed'
+                              ? 'success'
+                              : item.status === 'failed'
+                                ? 'danger'
+                                : item.status === 'cancelled'
+                                  ? 'info'
+                                  : 'warning'
+                          "
+                          effect="plain"
+                        >
+                          {{ item.status }}
+                        </el-tag>
+                      </div>
+                      <p class="activity-card__body">{{ item.current_step || '未记录阶段' }}</p>
+                      <p v-if="item.assistant_summary" class="activity-card__summary">{{ item.assistant_summary }}</p>
+                      <p v-else-if="item.error_message" class="activity-card__summary activity-card__summary--error">{{ item.error_message }}</p>
+                      <small>创建时间：{{ formatDateTime(item.created_at) }}</small>
+                    </article>
+                  </div>
+                  <p v-else class="muted">暂无生成任务历史</p>
+                </section>
+              </div>
+            </el-tab-pane>
+          </el-tabs>
         </section>
       </template>
     </el-drawer>
@@ -1002,6 +1087,10 @@ onMounted(loadAdminData)
   gap: 16px;
 }
 
+.detail-tabs {
+  margin-top: -4px;
+}
+
 .detail-hero {
   display: flex;
   align-items: flex-start;
@@ -1024,6 +1113,10 @@ onMounted(loadAdminData)
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 16px;
+}
+
+.detail-grid--records {
+  align-items: start;
 }
 
 .detail-card {
@@ -1120,6 +1213,69 @@ onMounted(loadAdminData)
   font-family: 'SFMono-Regular', 'JetBrains Mono', Consolas, monospace;
   font-size: 12px;
   word-break: break-word;
+}
+
+.activity-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.activity-card {
+  padding: 14px 16px;
+  border-radius: 16px;
+  border: 1px solid rgba(24, 50, 71, 0.08);
+  background: rgba(255, 255, 255, 0.72);
+  min-width: 0;
+}
+
+.activity-card__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.activity-card p,
+.activity-card small {
+  margin: 0;
+  line-height: 1.6;
+}
+
+.activity-card p {
+  color: var(--text);
+}
+
+.activity-card small,
+.activity-card__summary {
+  color: var(--muted);
+}
+
+.activity-card__title {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  line-height: 1.5;
+}
+
+.activity-card__body,
+.activity-card__summary {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  word-break: break-word;
+}
+
+.activity-card__summary {
+  margin-top: 8px !important;
+  font-size: 13px;
+}
+
+.activity-card__summary--error {
+  color: var(--danger);
 }
 
 .dialog-form {

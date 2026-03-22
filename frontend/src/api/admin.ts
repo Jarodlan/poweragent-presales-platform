@@ -6,7 +6,9 @@ import type {
   PermissionItem,
   RoleItem,
   RolePayload,
+  UserConversationActivityItem,
   UserItem,
+  UserTaskActivityItem,
   UserPayload,
 } from '@/types/admin'
 
@@ -42,7 +44,12 @@ export function restoreUser(userId: number) {
 }
 
 export function fetchUserActivity(userId: number) {
-  return apiRequest<{ login_items: AuditLogItem[]; operation_items: AuditLogItem[] }>(`/api/v1/users/${userId}/activity`)
+  return apiRequest<{
+    login_items: AuditLogItem[]
+    operation_items: AuditLogItem[]
+    conversation_items: UserConversationActivityItem[]
+    task_items: UserTaskActivityItem[]
+  }>(`/api/v1/users/${userId}/activity`)
 }
 
 export function resetUserPassword(userId: number, password: string, forcePasswordChange = true) {

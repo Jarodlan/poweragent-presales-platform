@@ -76,3 +76,26 @@ export interface AuditLogItem {
   actor_name: string
   actor_username: string
 }
+
+export interface UserConversationActivityItem {
+  conversation_id: string
+  title: string
+  status: string
+  last_user_message: string
+  last_message_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface UserTaskActivityItem {
+  task_id: string
+  conversation_id: string
+  conversation_title: string
+  status: string
+  current_step: string
+  error_message: string
+  assistant_summary: string
+  created_at: string
+  updated_at: string
+  finished_at: string | null
+}

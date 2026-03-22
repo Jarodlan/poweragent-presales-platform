@@ -16,6 +16,8 @@ from rest_framework.views import APIView
 
 from apps.audit.models import AuditLog
 from apps.audit.serializers import AuditLogSerializer
+from apps.conversations.models import Conversation
+from apps.tasks.models import Task
 
 from .authentication import ExpiringTokenAuthentication, TOKEN_VALIDITY_DAYS
 from .models import Department, Permission, Role, User
@@ -254,6 +256,43 @@ class UserActivityView(APIView):
             .exclude(action__in=["auth.login", "auth.logout"])
             .order_by("-created_at")
         )
+        conversation_qs = (
+            Conversation.objects.filter(user=user)
+            .order_by("-updated_at")[:20]
+        )
+        task_qs = (
+            Task.objects.select_related("conversation", "assistant_message")
+            .filter(conversation__user=user)
+            .order_by("-created_at")[:20]
+        )
+
+        conversations = [
+            {
+                "conversation_id": str(item.id),
+                "title": item.title,
+                "status": item.status,
+                "last_user_message": item.last_user_message,
+                "last_message_at": item.last_message_at.isoformat() if item.last_message_at else None,
+                "created_at": item.created_at.isoformat(),
+                "updated_at": item.updated_at.isoformat(),
+            }
+            for item in conversation_qs
+        ]
+        tasks = [
+            {
+                "task_id": str(item.id),
+                "conversation_id": str(item.conversation_id),
+                "conversation_title": item.conversation.title,
+                "status": item.status,
+                "current_step": item.current_step,
+                "error_message": item.error_message,
+                "assistant_summary": (item.assistant_message.summary_text[:240] if item.assistant_message and item.assistant_message.summary_text else ""),
+                "created_at": item.created_at.isoformat(),
+                "updated_at": item.updated_at.isoformat(),
+                "finished_at": item.finished_at.isoformat() if item.finished_at else None,
+            }
+            for item in task_qs
+        ]
         return Response(
             {
                 "code": 0,
@@ -261,6 +300,8 @@ class UserActivityView(APIView):
                 "data": {
                     "login_items": AuditLogSerializer(login_qs[:20], many=True).data,
                     "operation_items": AuditLogSerializer(operation_qs[:30], many=True).data,
+                    "conversation_items": conversations,
+                    "task_items": tasks,
                 },
             }
         )
