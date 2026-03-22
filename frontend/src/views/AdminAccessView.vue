@@ -12,6 +12,7 @@ import {
   deleteDepartment,
   deleteRole,
   fetchDepartments,
+  fetchUserActivity,
   fetchPermissions,
   fetchRoles,
   fetchUsers,
@@ -22,7 +23,7 @@ import {
   updateUser,
 } from '@/api/admin'
 import { useAuthStore } from '@/stores/auth'
-import type { DepartmentItem, DepartmentPayload, PermissionItem, RoleItem, RolePayload, UserItem, UserPayload } from '@/types/admin'
+import type { AuditLogItem, DepartmentItem, DepartmentPayload, PermissionItem, RoleItem, RolePayload, UserItem, UserPayload } from '@/types/admin'
 import { formatDateTime, formatRelativeTime } from '@/utils/time'
 
 const router = useRouter()
@@ -39,6 +40,9 @@ const users = ref<UserItem[]>([])
 const roles = ref<RoleItem[]>([])
 const departments = ref<DepartmentItem[]>([])
 const permissions = ref<PermissionItem[]>([])
+const loginHistory = ref<AuditLogItem[]>([])
+const operationHistory = ref<AuditLogItem[]>([])
+const userActivityLoading = ref(false)
 const activeTab = ref<'users' | 'roles' | 'departments'>('users')
 const searchKeyword = ref('')
 const userViewMode = ref<'active' | 'recycle'>('active')
@@ -113,6 +117,7 @@ const departmentRules = {
 const canManageUsers = computed(() => authStore.canManageUsers)
 const canManageRoles = computed(() => authStore.canManageRoles)
 const canManageDepartments = computed(() => authStore.canManageDepartments)
+const canViewAudit = computed(() => authStore.canViewAudit)
 
 const visibleTabs = computed(() => {
   const items: Array<{ label: string; name: 'users' | 'roles' | 'departments' }> = []
@@ -288,9 +293,19 @@ function openEditUser(user: UserItem) {
   userDialogVisible.value = true
 }
 
-function openUserDetail(user: UserItem) {
+async function openUserDetail(user: UserItem) {
   selectedUser.value = user
   userDetailVisible.value = true
+  userActivityLoading.value = true
+  loginHistory.value = []
+  operationHistory.value = []
+  try {
+    const data = await fetchUserActivity(user.id)
+    loginHistory.value = data.login_items
+    operationHistory.value = data.operation_items
+  } finally {
+    userActivityLoading.value = false
+  }
 }
 
 async function submitUser() {
@@ -548,6 +563,9 @@ onMounted(loadAdminData)
         <el-button type="primary" plain @click="router.push('/')">
           <el-icon><ArrowLeft /></el-icon>
           返回工作台
+        </el-button>
+        <el-button v-if="canViewAudit" plain @click="router.push('/admin/audit')">
+          审计日志中心
         </el-button>
       </div>
     </header>
@@ -844,6 +862,41 @@ onMounted(loadAdminData)
           </div>
 
           <section class="panel-card detail-card">
+            <div class="detail-card__head">
+              <h4>登录历史</h4>
+              <span v-if="userActivityLoading" class="muted">加载中...</span>
+            </div>
+            <div v-if="loginHistory.length" class="timeline">
+              <article v-for="item in loginHistory" :key="item.id" class="timeline__item">
+                <div class="timeline__dot" />
+                <div>
+                  <strong>{{ item.action === 'auth.login' ? '登录成功' : '主动退出' }}</strong>
+                  <p>{{ formatDateTime(item.created_at) }} · {{ item.actor_name }}</p>
+                </div>
+              </article>
+            </div>
+            <p v-else class="muted">暂无登录历史</p>
+          </section>
+
+          <section class="panel-card detail-card">
+            <div class="detail-card__head">
+              <h4>操作历史</h4>
+              <span class="muted">最近 30 条</span>
+            </div>
+            <div v-if="operationHistory.length" class="timeline">
+              <article v-for="item in operationHistory" :key="item.id" class="timeline__item">
+                <div class="timeline__dot timeline__dot--secondary" />
+                <div>
+                  <strong>{{ item.action }}</strong>
+                  <p>{{ formatDateTime(item.created_at) }} · 操作人：{{ item.actor_name }}</p>
+                  <p class="timeline__meta">{{ JSON.stringify(item.detail_json || {}) }}</p>
+                </div>
+              </article>
+            </div>
+            <p v-else class="muted">暂无操作历史</p>
+          </section>
+
+          <section class="panel-card detail-card">
             <h4>备注</h4>
             <p class="detail-remarks">{{ selectedUser.remarks || '暂无备注' }}</p>
           </section>
@@ -982,6 +1035,14 @@ onMounted(loadAdminData)
   font-size: 16px;
 }
 
+.detail-card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
 .detail-card dl {
   display: grid;
   grid-template-columns: 90px minmax(0, 1fr);
@@ -1016,6 +1077,49 @@ onMounted(loadAdminData)
   margin: 0;
   line-height: 1.7;
   color: var(--text);
+}
+
+.timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.timeline__item {
+  display: grid;
+  grid-template-columns: 14px minmax(0, 1fr);
+  gap: 12px;
+}
+
+.timeline__item strong {
+  display: block;
+  margin-bottom: 4px;
+}
+
+.timeline__item p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.timeline__dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  margin-top: 4px;
+  background: var(--success);
+  box-shadow: 0 0 0 4px rgba(33, 121, 107, 0.12);
+}
+
+.timeline__dot--secondary {
+  background: var(--accent);
+  box-shadow: 0 0 0 4px rgba(15, 93, 140, 0.12);
+}
+
+.timeline__meta {
+  font-family: 'SFMono-Regular', 'JetBrains Mono', Consolas, monospace;
+  font-size: 12px;
+  word-break: break-word;
 }
 
 .dialog-form {

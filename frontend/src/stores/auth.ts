@@ -20,6 +20,7 @@ export const useAuthStore = defineStore('auth', () => {
   const canManageUsers = computed(() => Boolean(user.value?.is_superuser || permissionCodes.value.has('user.manage')))
   const canManageRoles = computed(() => Boolean(user.value?.is_superuser || permissionCodes.value.has('role.manage')))
   const canManageDepartments = computed(() => Boolean(user.value?.is_superuser || permissionCodes.value.has('department.manage')))
+  const canViewAudit = computed(() => Boolean(user.value?.is_superuser || permissionCodes.value.has('audit.view')))
   const canManageAccess = computed(() => Boolean(user.value?.is_superuser || permissionCodes.value.has('platform.manage')))
 
   async function bootstrap() {
@@ -92,6 +93,7 @@ export const useAuthStore = defineStore('auth', () => {
     canManageUsers,
     canManageRoles,
     canManageDepartments,
+    canViewAudit,
     canManageAccess,
     lastUsername,
     bootstrap,

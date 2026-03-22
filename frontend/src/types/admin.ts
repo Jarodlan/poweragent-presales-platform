@@ -65,3 +65,14 @@ export interface UserPayload {
   password?: string
   role_ids: number[]
 }
+
+export interface AuditLogItem {
+  id: number
+  action: string
+  resource_type: string
+  resource_id: string
+  detail_json: Record<string, unknown>
+  created_at: string
+  actor_name: string
+  actor_username: string
+}

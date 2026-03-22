@@ -1,5 +1,6 @@
 import { apiRequest } from '@/api/http'
 import type {
+  AuditLogItem,
   DepartmentItem,
   DepartmentPayload,
   PermissionItem,
@@ -38,6 +39,10 @@ export function restoreUser(userId: number) {
   return apiRequest<UserItem>(`/api/v1/users/${userId}/restore`, {
     method: 'POST',
   })
+}
+
+export function fetchUserActivity(userId: number) {
+  return apiRequest<{ login_items: AuditLogItem[]; operation_items: AuditLogItem[] }>(`/api/v1/users/${userId}/activity`)
 }
 
 export function resetUserPassword(userId: number, password: string, forcePasswordChange = true) {
@@ -97,4 +102,19 @@ export function deleteDepartment(departmentId: number) {
   return apiRequest<{ deleted: boolean }>(`/api/v1/departments/${departmentId}`, {
     method: 'DELETE',
   })
+}
+
+export function fetchAuditLogs(params?: {
+  action?: string
+  resource_type?: string
+  actor_id?: number | string
+  keyword?: string
+}) {
+  const query = new URLSearchParams()
+  if (params?.action) query.set('action', params.action)
+  if (params?.resource_type) query.set('resource_type', params.resource_type)
+  if (params?.actor_id) query.set('actor_id', String(params.actor_id))
+  if (params?.keyword) query.set('keyword', params.keyword)
+  const suffix = query.toString() ? `?${query.toString()}` : ''
+  return apiRequest<{ items: AuditLogItem[] }>(`/api/v1/audit/logs${suffix}`)
 }

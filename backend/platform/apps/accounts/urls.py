@@ -11,6 +11,7 @@ from .views import (
     RoleListView,
     UserDetailView,
     UserListView,
+    UserActivityView,
     UserRestoreView,
     UserResetPasswordView,
 )
@@ -22,6 +23,7 @@ urlpatterns = [
     path("users", UserListView.as_view(), name="user-list"),
     path("users/<int:user_id>", UserDetailView.as_view(), name="user-detail"),
     path("users/<int:user_id>/reset-password", UserResetPasswordView.as_view(), name="user-reset-password"),
+    path("users/<int:user_id>/activity", UserActivityView.as_view(), name="user-activity"),
     path("users/<int:user_id>/restore", UserRestoreView.as_view(), name="user-restore"),
     path("roles", RoleListView.as_view(), name="role-list"),
     path("roles/<int:role_id>", RoleDetailView.as_view(), name="role-detail"),

@@ -15,6 +15,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.audit.models import AuditLog
+from apps.audit.serializers import AuditLogSerializer
 
 from .authentication import ExpiringTokenAuthentication, TOKEN_VALIDITY_DAYS
 from .models import Department, Permission, Role, User
@@ -234,6 +235,35 @@ class UserRestoreView(APIView):
             detail_json={"username": user.username, "restored_status": restored_status},
         )
         return Response({"code": 0, "message": "ok", "data": UserSerializer(user).data})
+
+
+class UserActivityView(APIView):
+    authentication_classes = [ExpiringTokenAuthentication]
+    permission_classes = [CanManageUsers]
+
+    def get(self, request, user_id: int):
+        user = get_object_or_404(User, pk=user_id)
+        login_qs = (
+            AuditLog.objects.select_related("user")
+            .filter(user=user, action__in=["auth.login", "auth.logout"])
+            .order_by("-created_at")
+        )
+        operation_qs = (
+            AuditLog.objects.select_related("user")
+            .filter(resource_type="user", resource_id=str(user.id))
+            .exclude(action__in=["auth.login", "auth.logout"])
+            .order_by("-created_at")
+        )
+        return Response(
+            {
+                "code": 0,
+                "message": "ok",
+                "data": {
+                    "login_items": AuditLogSerializer(login_qs[:20], many=True).data,
+                    "operation_items": AuditLogSerializer(operation_qs[:30], many=True).data,
+                },
+            }
+        )
 
 
 class RoleListView(APIView):

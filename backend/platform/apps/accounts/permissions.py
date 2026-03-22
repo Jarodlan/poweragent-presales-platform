@@ -26,3 +26,7 @@ class CanManageRoles(HasPermissionCode):
 
 class CanManageDepartments(HasPermissionCode):
     permission_code = "department.manage"
+
+
+class CanViewAudit(HasPermissionCode):
+    permission_code = "audit.view"
