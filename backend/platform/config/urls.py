@@ -9,5 +9,6 @@ urlpatterns = [
     path("api/v1/", include("apps.configurations.urls")),
     path("api/v1/", include("apps.conversations.urls")),
     path("api/v1/", include("apps.customer_demand.urls")),
+    path("api/v1/", include("apps.presales_center.urls")),
     path("api/v1/", include("apps.tasks.urls")),
 ]

@@ -23,6 +23,7 @@ INSTALLED_APPS = [
     "rest_framework.authtoken",
     "apps.accounts",
     "apps.customer_demand",
+    "apps.presales_center",
     "apps.conversations",
     "apps.tasks",
     "apps.audit",
@@ -147,3 +148,7 @@ CUSTOMER_DEMAND_AUTO_STAGE_SUMMARY_MIN_CHARS = int(os.getenv("CUSTOMER_DEMAND_AU
 CUSTOMER_DEMAND_AUTO_STAGE_SUMMARY_MIN_INTERVAL_SECONDS = int(
     os.getenv("CUSTOMER_DEMAND_AUTO_STAGE_SUMMARY_MIN_INTERVAL_SECONDS", "45")
 )
+FEISHU_APP_ID = os.getenv("FEISHU_APP_ID", "")
+FEISHU_APP_SECRET = os.getenv("FEISHU_APP_SECRET", "")
+FEISHU_BASE_URL = os.getenv("FEISHU_BASE_URL", "https://open.feishu.cn")
+FEISHU_SYNC_ENABLED = os.getenv("FEISHU_SYNC_ENABLED", "false").lower() == "true"

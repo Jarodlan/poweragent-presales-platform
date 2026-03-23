@@ -10,6 +10,10 @@ class Department(models.Model):
         ("active", "Active"),
         ("inactive", "Inactive"),
     ]
+    SYNC_SOURCE_CHOICES = [
+        ("platform", "Platform"),
+        ("feishu", "Feishu"),
+    ]
 
     name = models.CharField(max_length=128)
     code = models.CharField(max_length=64, unique=True)
@@ -22,6 +26,9 @@ class Department(models.Model):
         related_name="children",
     )
     status = models.CharField(max_length=16, choices=STATUS_CHOICES, default="active")
+    feishu_department_id = models.CharField(max_length=128, null=True, blank=True, unique=True)
+    sync_source = models.CharField(max_length=16, choices=SYNC_SOURCE_CHOICES, default="platform")
+    last_synced_at = models.DateTimeField(null=True, blank=True)
     sort_order = models.PositiveIntegerField(default=0)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -90,6 +97,16 @@ class User(AbstractUser):
         ("department", "Department"),
         ("all", "All"),
     ]
+    SYNC_SOURCE_CHOICES = [
+        ("platform", "Platform"),
+        ("feishu", "Feishu"),
+    ]
+    SYNC_STATUS_CHOICES = [
+        ("manual", "Manual"),
+        ("synced", "Synced"),
+        ("stale", "Stale"),
+        ("disabled", "Disabled"),
+    ]
 
     display_name = models.CharField(max_length=128, blank=True)
     employee_no = models.CharField(max_length=64, blank=True, db_index=True)
@@ -104,6 +121,13 @@ class User(AbstractUser):
     )
     account_status = models.CharField(max_length=16, choices=ACCOUNT_STATUS_CHOICES, default="active")
     data_scope = models.CharField(max_length=16, choices=DATA_SCOPE_CHOICES, default="self")
+    feishu_user_id = models.CharField(max_length=128, null=True, blank=True, unique=True)
+    feishu_open_id = models.CharField(max_length=128, null=True, blank=True, unique=True)
+    feishu_union_id = models.CharField(max_length=128, blank=True)
+    sync_source = models.CharField(max_length=16, choices=SYNC_SOURCE_CHOICES, default="platform")
+    sync_status = models.CharField(max_length=16, choices=SYNC_STATUS_CHOICES, default="manual")
+    last_synced_at = models.DateTimeField(null=True, blank=True)
+    last_external_status = models.CharField(max_length=32, blank=True)
     force_password_change = models.BooleanField(default=True)
     password_changed_at = models.DateTimeField(null=True, blank=True)
     failed_login_attempts = models.PositiveIntegerField(default=0)
