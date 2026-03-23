@@ -5,6 +5,7 @@ import { ElMessage } from 'element-plus'
 import {
   createCustomerDemandManualSegment,
   createCustomerDemandSession,
+  deleteCustomerDemandSession,
   exportCustomerDemandReport,
   fetchCustomerDemandReport,
   reviewCustomerDemandSegment,
@@ -67,8 +68,9 @@ export const useCustomerDemandStore = defineStore('customerDemand', () => {
   const uploadingAudio = ref(false)
   const exporting = ref(false)
   const reviewingSegment = ref(false)
+  const deletingSessionId = ref('')
   const manualInput = ref('')
-  const speakerLabel = ref('客户')
+  const speakerLabel = ref('参会人员')
   const draftForm = ref<CustomerDemandCreateSessionPayload>({ ...DEFAULT_SESSION_FORM })
   const operationState = ref<CustomerDemandOperationState>({
     visible: false,
@@ -79,6 +81,7 @@ export const useCustomerDemandStore = defineStore('customerDemand', () => {
     status: 'running',
   })
   let operationTimer: number | null = null
+  const activeBackgroundTaskIds = new Set<string>()
 
   const currentSession = computed(() =>
     sessions.value.find((item) => item.id === currentSessionId.value) ?? null,
@@ -86,10 +89,16 @@ export const useCustomerDemandStore = defineStore('customerDemand', () => {
 
   const sortedSegments = computed(() =>
     [...segments.value].sort((a, b) => {
-      if (a.sequence_no !== b.sequence_no) return a.sequence_no - b.sequence_no
-      return new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+      const createdAtDiff = new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+      if (createdAtDiff !== 0) return createdAtDiff
+      return a.sequence_no - b.sequence_no
     }),
   )
+
+  const nextSequenceNo = computed(() => {
+    if (!segments.value.length) return 1
+    return Math.max(...segments.value.map((item) => Number(item.sequence_no || 0))) + 1
+  })
 
   const latestStageSummary = computed(() => stageSummaries.value[0] || null)
 
@@ -155,6 +164,20 @@ export const useCustomerDemandStore = defineStore('customerDemand', () => {
       message: task.current_step_label || '系统正在处理中',
       progress: task.progress || 5,
       status: task.status === 'failed' ? 'error' : task.status === 'completed' ? 'success' : 'running',
+    }
+  }
+
+  async function watchTaskInBackground(task: CustomerDemandTaskItem) {
+    if (activeBackgroundTaskIds.has(task.id)) return
+    activeBackgroundTaskIds.add(task.id)
+    currentTask.value = task
+    syncOperationWithTask(task)
+    try {
+      await waitForTask(task.id, task.task_type === 'final_analysis' ? 'final_analysis' : 'stage_summary')
+    } catch {
+      // UI state is already updated by waitForTask; swallow here to avoid noisy console paths.
+    } finally {
+      activeBackgroundTaskIds.delete(task.id)
     }
   }
 
@@ -266,6 +289,34 @@ export const useCustomerDemandStore = defineStore('customerDemand', () => {
     }
   }
 
+  async function deleteSession(sessionId: string) {
+    deletingSessionId.value = sessionId
+    try {
+      await deleteCustomerDemandSession(sessionId)
+      const currentIndex = sessions.value.findIndex((item) => item.id === sessionId)
+      sessions.value = sessions.value.filter((item) => item.id !== sessionId)
+
+      if (currentSessionId.value === sessionId) {
+        const nextSession = sessions.value[currentIndex] || sessions.value[currentIndex - 1] || sessions.value[0] || null
+        if (nextSession) {
+          await loadSessionDetail(nextSession.id)
+        } else {
+          currentSessionId.value = ''
+          segments.value = []
+          stageSummaries.value = []
+          currentReport.value = null
+          currentTask.value = null
+          manualInput.value = ''
+          applySessionToDraft(null)
+        }
+      }
+
+      ElMessage.success('沟通会话已删除')
+    } finally {
+      deletingSessionId.value = ''
+    }
+  }
+
   async function saveCurrentSessionProfile() {
     if (!currentSession.value) return
     savingProfile.value = true
@@ -325,8 +376,8 @@ export const useCustomerDemandStore = defineStore('customerDemand', () => {
     if (!currentSession.value || !manualInput.value.trim()) return
     actionLoading.value = true
     try {
-      await createCustomerDemandManualSegment(currentSession.value.id, {
-        sequence_no: sortedSegments.value.length + 1,
+      const data = await createCustomerDemandManualSegment(currentSession.value.id, {
+        sequence_no: nextSequenceNo.value,
         speaker_label: speakerLabel.value,
         raw_text: manualInput.value.trim(),
         normalized_text: manualInput.value.trim(),
@@ -338,25 +389,65 @@ export const useCustomerDemandStore = defineStore('customerDemand', () => {
       })
       manualInput.value = ''
       await loadSessionDetail(currentSession.value.id)
+      if (data.auto_task) {
+        void watchTaskInBackground(data.auto_task)
+      }
       ElMessage.success('已补录一条沟通分段')
     } finally {
       actionLoading.value = false
     }
   }
 
-  async function uploadAudio(file: File) {
+  async function appendRealtimeSentence(text: string) {
+    if (!currentSession.value || !text.trim()) return
+    const data = await createCustomerDemandManualSegment(currentSession.value.id, {
+      sequence_no: nextSequenceNo.value,
+      speaker_label: '参会人员',
+      raw_text: text.trim(),
+      normalized_text: text.trim(),
+      final_text: text.trim(),
+      asr_provider: 'qwen_realtime',
+      segment_status: 'normalized',
+      review_flag: false,
+      issues_json: [],
+    })
+    await loadSessionDetail(currentSession.value.id)
+    if (data.auto_task) {
+      void watchTaskInBackground(data.auto_task)
+    }
+  }
+
+  async function uploadAudio(
+    file: File,
+    options?: {
+      chunkIndex?: number
+      speakerLabel?: string
+      suppressToast?: boolean
+    },
+  ) {
     if (!currentSession.value) return
     uploadingAudio.value = true
     try {
-      await uploadCustomerDemandAudioChunk(currentSession.value.id, {
+      const data = await uploadCustomerDemandAudioChunk(currentSession.value.id, {
         file,
-        chunkIndex: sortedSegments.value.length + 1,
+        chunkIndex: options?.chunkIndex || nextSequenceNo.value,
         provider: 'qwen',
         language: 'zh',
         audioFs: 16000,
+        speakerLabel: options?.speakerLabel,
       })
-      await loadSessionDetail(currentSession.value.id)
-      ElMessage.success('音频分片已上传并完成识别')
+      if (data.segment) {
+        await loadSessionDetail(currentSession.value.id)
+      }
+      if (data.auto_task) {
+        void watchTaskInBackground(data.auto_task)
+      }
+      if (!data.accepted && !options?.suppressToast) {
+        ElMessage.info(data.reason || '当前分段未识别到有效文本，已自动忽略')
+      } else if (!options?.suppressToast) {
+        ElMessage.success('音频分片已上传并完成识别')
+      }
+      return data
     } finally {
       uploadingAudio.value = false
     }
@@ -366,8 +457,11 @@ export const useCustomerDemandStore = defineStore('customerDemand', () => {
     if (!currentSession.value) return
     reviewingSegment.value = true
     try {
-      await reviewCustomerDemandSegment(currentSession.value.id, segmentId, payload)
+      const data = await reviewCustomerDemandSegment(currentSession.value.id, segmentId, payload)
       await loadSessionDetail(currentSession.value.id)
+      if (data.auto_task) {
+        void watchTaskInBackground(data.auto_task)
+      }
       ElMessage.success(payload.decision === 'accept' ? '分段已保留并通过复核' : '分段已标记为丢弃')
     } finally {
       reviewingSegment.value = false
@@ -443,6 +537,7 @@ export const useCustomerDemandStore = defineStore('customerDemand', () => {
     currentSession,
     segments,
     sortedSegments,
+    nextSequenceNo,
     stageSummaries,
     latestStageSummary,
     currentReport,
@@ -454,6 +549,7 @@ export const useCustomerDemandStore = defineStore('customerDemand', () => {
     actionLoading,
     uploadingAudio,
     reviewingSegment,
+    deletingSessionId,
     exporting,
     manualInput,
     speakerLabel,
@@ -461,11 +557,13 @@ export const useCustomerDemandStore = defineStore('customerDemand', () => {
     loadSessions,
     selectSession,
     createSession,
+    deleteSession,
     saveCurrentSessionProfile,
     startRecording,
     pauseRecording,
     stopRecording,
     appendManualSegment,
+    appendRealtimeSentence,
     uploadAudio,
     reviewSegment,
     triggerStageSummaryNow,

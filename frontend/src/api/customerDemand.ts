@@ -8,6 +8,7 @@ import type {
   CustomerDemandReportItem,
   CustomerDemandReviewSegmentPayload,
   CustomerDemandSegmentListData,
+  CustomerDemandSegmentCreateResult,
   CustomerDemandSessionItem,
   CustomerDemandSessionListData,
   CustomerDemandStageSummaryListData,
@@ -39,6 +40,12 @@ export function createCustomerDemandSession(payload: CustomerDemandCreateSession
 
 export function fetchCustomerDemandSessionDetail(sessionId: string) {
   return apiRequest<CustomerDemandSessionItem>(`/api/v1/customer-demand/sessions/${sessionId}`)
+}
+
+export function deleteCustomerDemandSession(sessionId: string) {
+  return apiRequest<{ session_id: string }>(`/api/v1/customer-demand/sessions/${sessionId}`, {
+    method: 'DELETE',
+  })
 }
 
 export function updateCustomerDemandSession(sessionId: string, payload: CustomerDemandUpdateSessionPayload) {
@@ -77,7 +84,7 @@ export function fetchCustomerDemandSegments(sessionId: string) {
 }
 
 export function createCustomerDemandManualSegment(sessionId: string, payload: CustomerDemandManualSegmentPayload) {
-  return apiRequest(`/api/v1/customer-demand/sessions/${sessionId}/segments`, {
+  return apiRequest<CustomerDemandSegmentCreateResult>(`/api/v1/customer-demand/sessions/${sessionId}/segments`, {
     method: 'POST',
     body: JSON.stringify(payload),
   })
@@ -89,6 +96,7 @@ export function uploadCustomerDemandAudioChunk(sessionId: string, payload: {
   provider?: string
   language?: string
   audioFs?: number
+  speakerLabel?: string
 }) {
   const formData = new FormData()
   formData.append('audio_chunk', payload.file)
@@ -96,6 +104,9 @@ export function uploadCustomerDemandAudioChunk(sessionId: string, payload: {
   formData.append('provider', payload.provider || 'qwen')
   formData.append('language', payload.language || 'zh')
   formData.append('audio_fs', String(payload.audioFs || 16000))
+  if (payload.speakerLabel) {
+    formData.append('speaker_label', payload.speakerLabel)
+  }
 
   return apiRequest<CustomerDemandAudioUploadResult>(`/api/v1/customer-demand/sessions/${sessionId}/segments/audio`, {
     method: 'POST',
@@ -104,7 +115,7 @@ export function uploadCustomerDemandAudioChunk(sessionId: string, payload: {
 }
 
 export function reviewCustomerDemandSegment(sessionId: string, segmentId: string, payload: CustomerDemandReviewSegmentPayload) {
-  return apiRequest(`/api/v1/customer-demand/sessions/${sessionId}/segments/${segmentId}/review`, {
+  return apiRequest<CustomerDemandSegmentCreateResult>(`/api/v1/customer-demand/sessions/${sessionId}/segments/${segmentId}/review`, {
     method: 'POST',
     body: JSON.stringify(payload),
   })

@@ -21,7 +21,12 @@ from .serializers import (
     CustomerDemandSessionWriteSerializer,
     CustomerDemandStageSummarySerializer,
 )
-from .services import enqueue_final_report, enqueue_stage_summary, resolve_visible_customer_demand_sessions
+from .services import (
+    enqueue_final_report,
+    enqueue_stage_summary,
+    maybe_enqueue_auto_stage_summary,
+    resolve_visible_customer_demand_sessions,
+)
 
 
 class CustomerDemandSessionListCreateView(APIView):
@@ -70,6 +75,12 @@ class CustomerDemandSessionDetailView(APIView):
         serializer.is_valid(raise_exception=True)
         session = serializer.save()
         return Response({"code": 0, "message": "ok", "data": CustomerDemandSessionSerializer(session).data})
+
+    def delete(self, request, session_id):
+        session = self.get_object(request, session_id)
+        deleted_session_id = str(session.id)
+        session.delete()
+        return Response({"code": 0, "message": "ok", "data": {"session_id": deleted_session_id}})
 
 
 class CustomerDemandStartView(APIView):
@@ -146,7 +157,18 @@ class CustomerDemandSegmentsView(APIView):
             session.normalized_segment_count = session.segments.filter(segment_status="normalized").count()
         session.raw_segment_count = session.segments.count()
         session.save(update_fields=["raw_segment_count", "normalized_segment_count", "updated_at"])
-        return Response({"code": 0, "message": "ok", "data": CustomerDemandSegmentSerializer(segment).data}, status=status.HTTP_201_CREATED)
+        auto_task = maybe_enqueue_auto_stage_summary(session=session, created_by=request.user)
+        return Response(
+            {
+                "code": 0,
+                "message": "ok",
+                "data": {
+                    "segment": CustomerDemandSegmentSerializer(segment).data,
+                    "auto_task": CustomerDemandAnalysisTaskSerializer(auto_task).data if auto_task else None,
+                },
+            },
+            status=status.HTTP_201_CREATED,
+        )
 
 
 class CustomerDemandSegmentReviewView(APIView):
@@ -193,7 +215,17 @@ class CustomerDemandSegmentReviewView(APIView):
         session.normalized_segment_count = session.segments.filter(segment_status="normalized").count()
         session.raw_segment_count = session.segments.count()
         session.save(update_fields=["raw_segment_count", "normalized_segment_count", "updated_at"])
-        return Response({"code": 0, "message": "ok", "data": CustomerDemandSegmentSerializer(segment).data})
+        auto_task = maybe_enqueue_auto_stage_summary(session=session, created_by=request.user)
+        return Response(
+            {
+                "code": 0,
+                "message": "ok",
+                "data": {
+                    "segment": CustomerDemandSegmentSerializer(segment).data,
+                    "auto_task": CustomerDemandAnalysisTaskSerializer(auto_task).data if auto_task else None,
+                },
+            }
+        )
 
 
 class CustomerDemandAudioSegmentUploadView(APIView):
@@ -237,6 +269,23 @@ class CustomerDemandAudioSegmentUploadView(APIView):
             issues = transcript.issues
             metadata = transcript.metadata
 
+        if not (result_text or "").strip():
+            return Response(
+                {
+                    "code": 0,
+                    "message": "ok",
+                    "data": {
+                        "accepted": False,
+                        "chunk_index": chunk_index,
+                        "session_id": str(session.id),
+                        "segment": None,
+                        "adapter_metadata": metadata,
+                        "reason": issues[0] if issues else "当前分段未识别到有效文本，已自动忽略",
+                        "auto_task": None,
+                    },
+                }
+            )
+
         segment = CustomerDemandSegment.objects.create(
             session=session,
             sequence_no=max(chunk_index, session.segments.count() + 1),
@@ -256,6 +305,7 @@ class CustomerDemandAudioSegmentUploadView(APIView):
         session.raw_segment_count = session.segments.count()
         session.normalized_segment_count = session.segments.filter(segment_status="normalized").count()
         session.save(update_fields=["raw_segment_count", "normalized_segment_count", "updated_at"])
+        auto_task = maybe_enqueue_auto_stage_summary(session=session, created_by=request.user)
 
         return Response(
             {
@@ -267,6 +317,7 @@ class CustomerDemandAudioSegmentUploadView(APIView):
                     "session_id": str(session.id),
                     "segment": CustomerDemandSegmentSerializer(segment).data,
                     "adapter_metadata": metadata,
+                    "auto_task": CustomerDemandAnalysisTaskSerializer(auto_task).data if auto_task else None,
                 },
             }
         )

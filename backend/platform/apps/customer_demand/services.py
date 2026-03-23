@@ -542,6 +542,40 @@ def enqueue_stage_summary(*, session: CustomerDemandSession, trigger_type: str, 
     return task
 
 
+def maybe_enqueue_auto_stage_summary(*, session: CustomerDemandSession, created_by=None) -> CustomerDemandAnalysisTask | None:
+    if not getattr(settings, "CUSTOMER_DEMAND_AUTO_STAGE_SUMMARY_ENABLED", True):
+        return None
+
+    if session.analysis_tasks.filter(task_type="stage_summary", status__in=["queued", "running"]).exists():
+        return None
+
+    accepted_segments = list(_accepted_segments(session))
+    if not accepted_segments:
+        return None
+
+    latest_summary = session.stage_summaries.order_by("-summary_version", "-created_at").first()
+    covered_end = latest_summary.covered_segment_end if latest_summary else 0
+    new_segments = [item for item in accepted_segments if item.sequence_no > covered_end]
+
+    min_delta = max(1, int(getattr(settings, "CUSTOMER_DEMAND_AUTO_STAGE_SUMMARY_SEGMENT_DELTA", 2)))
+    min_chars = max(1, int(getattr(settings, "CUSTOMER_DEMAND_AUTO_STAGE_SUMMARY_MIN_CHARS", 160)))
+    min_interval_seconds = max(
+        0,
+        int(getattr(settings, "CUSTOMER_DEMAND_AUTO_STAGE_SUMMARY_MIN_INTERVAL_SECONDS", 45)),
+    )
+
+    total_chars = sum(len((item.final_text or item.normalized_text or item.raw_text or "").strip()) for item in new_segments)
+    if len(new_segments) < min_delta and total_chars < min_chars:
+        return None
+
+    if latest_summary:
+        elapsed = (timezone.now() - latest_summary.created_at).total_seconds()
+        if elapsed < min_interval_seconds:
+            return None
+
+    return enqueue_stage_summary(session=session, trigger_type="auto_segment_threshold", created_by=created_by)
+
+
 def build_final_report_payload(session: CustomerDemandSession) -> dict[str, Any]:
     accepted_records = _accepted_segment_records(session)
     review_records = _review_segment_records(session)
@@ -656,6 +690,11 @@ def build_final_report_payload(session: CustomerDemandSession) -> dict[str, Any]
 
 
 def build_final_report_markdown(session: CustomerDemandSession, payload: dict[str, Any]) -> tuple[str, str, str]:
+    generated_at = timezone.localtime(timezone.now())
+    generated_at_display = f"{generated_at.year}年{generated_at.month}月{generated_at.day}日 {generated_at:%H:%M}"
+    agent_version = getattr(settings, "CUSTOMER_DEMAND_AGENT_VERSION", "0.1.0-mvp")
+    analysis_subject = f"客户需求分析智能体（{agent_version}）"
+
     if payload.get("_llm_model") and payload.get("_llm_model") != "rule_based_mvp":
         try:
             report_markdown, _ = _call_qwen_markdown(
@@ -663,6 +702,10 @@ def build_final_report_markdown(session: CustomerDemandSession, payload: dict[st
                     "你是企业级客户需求分析智能体的正式报告撰写模块。"
                     "请基于已经结构化的需求分析结果，输出一份专业、简洁、分析型 Markdown 报告。"
                     "不要照抄原始客户对话，不要输出口语化原文大段转写。"
+                    "报告开头必须先输出标题与三行引用块元信息。"
+                    "其中“输出时间”必须使用输入提供的 generated_at_display，"
+                    "“分析主体”必须使用输入提供的 analysis_subject，"
+                    "不要自行编造日期、月份、版本号或主体名称。"
                     "请严格使用以下二级标题："
                     "沟通背景与上下文、当前问题概述、已明确需求、隐性需求与潜在诉求、约束条件与风险点、语义复核提醒、待确认问题清单、建议下一步动作。"
                     "每个部分优先用条目表达，语言要像内部售前/需求分析文档。"
@@ -672,6 +715,8 @@ def build_final_report_markdown(session: CustomerDemandSession, payload: dict[st
                     "session_title": session.session_title,
                     "industry": session.industry,
                     "region": session.region,
+                    "generated_at_display": generated_at_display,
+                    "analysis_subject": analysis_subject,
                     "analysis_payload": {
                         "summary": payload.get("summary", ""),
                         "current_problem": payload.get("current_problem", []),
@@ -697,6 +742,10 @@ def build_final_report_markdown(session: CustomerDemandSession, payload: dict[st
     report = "\n".join(
         [
             f"# {session.customer_name}需求分析报告",
+            "",
+            f"> **输出时间**：{generated_at_display}",
+            f"> **分析主体**：{analysis_subject}",
+            "> **适用场景**：售前方案设计、技术可行性预判、项目立项支撑",
             "",
             "## 沟通背景与上下文",
             f"- 客户名称：{session.customer_name}",

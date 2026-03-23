@@ -149,8 +149,15 @@ export interface CustomerDemandAudioUploadResult {
   accepted: boolean
   chunk_index: number
   session_id: string
-  segment: CustomerDemandSegmentItem
+  segment: CustomerDemandSegmentItem | null
   adapter_metadata: Record<string, unknown>
+  reason?: string
+  auto_task?: CustomerDemandTaskItem | null
+}
+
+export interface CustomerDemandSegmentCreateResult {
+  segment: CustomerDemandSegmentItem
+  auto_task?: CustomerDemandTaskItem | null
 }
 
 export interface CustomerDemandTriggerStageSummaryResult {

@@ -1,15 +1,17 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import {
   ArrowLeft,
   ChatDotRound,
   CircleCheck,
   Connection,
+  Delete,
   Document,
   Expand,
   Fold,
   Microphone,
   Opportunity,
+  Plus,
   QuestionFilled,
   Refresh,
   Right,
@@ -19,7 +21,7 @@ import {
   VideoPlay,
   Warning,
 } from '@element-plus/icons-vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { useRouter } from 'vue-router'
 
 import EmptyState from '@/components/common/EmptyState.vue'
@@ -37,6 +39,7 @@ const keyword = ref('')
 const sidebarCollapsed = ref(false)
 const createDialogVisible = ref(false)
 const uploadInputRef = ref<HTMLInputElement | null>(null)
+const transcriptContainerRef = ref<HTMLElement | null>(null)
 const reviewDialogVisible = ref(false)
 const reviewForm = reactive({
   segmentId: '',
@@ -54,6 +57,39 @@ const createForm = reactive({
   knowledge_enabled: false,
   remarks: '',
 })
+const recorderState = ref<'idle' | 'recording' | 'paused' | 'stopping' | 'unsupported'>(
+  typeof window !== 'undefined' &&
+    typeof navigator !== 'undefined' &&
+    !!navigator.mediaDevices?.getUserMedia &&
+    !!(window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext)
+    ? 'idle'
+    : 'unsupported',
+)
+const liveChunkCount = ref(0)
+const liveChunkSeconds = ref(0.6)
+const liveError = ref('')
+const livePartialText = ref('')
+const liveConversationDraft = ref('')
+const liveConnectionState = ref<'idle' | 'connecting' | 'connected' | 'closed' | 'error'>('idle')
+const isTranscriptPinnedToBottom = ref(true)
+const showScrollToLatest = ref(false)
+let mediaStream: MediaStream | null = null
+let audioContext: AudioContext | null = null
+let sourceNode: MediaStreamAudioSourceNode | null = null
+let processorNode: ScriptProcessorNode | null = null
+let realtimeSocket: WebSocket | null = null
+let audioSendQueue: Promise<void> = Promise.resolve()
+let persistQueue: Promise<void> = Promise.resolve()
+let finalizeTimer: number | null = null
+let lastCommittedRealtimeText = ''
+let nextChunkIndex = 1
+let pcmBuffers: Int16Array[] = []
+let pcmBufferSamples = 0
+let persistPcmBuffers: Int16Array[] = []
+let persistPcmBufferSamples = 0
+const TARGET_SAMPLE_RATE = 16000
+const CHUNK_SAMPLE_TARGET = TARGET_SAMPLE_RATE * liveChunkSeconds.value
+const PERSIST_SAMPLE_TARGET = TARGET_SAMPLE_RATE * 8
 
 const filteredSessions = computed(() => {
   const normalized = keyword.value.trim().toLowerCase()
@@ -88,6 +124,9 @@ const activityLabel = computed(() => {
 })
 
 const createDisabled = computed(() => !createForm.customer_name.trim() || !createForm.session_title.trim())
+const supportsLiveCapture = computed(() => recorderState.value !== 'unsupported')
+const isLiveRecording = computed(() => recorderState.value === 'recording')
+const isLivePaused = computed(() => recorderState.value === 'paused')
 
 const latestSummaryPayload = computed<Record<string, unknown>>(
   () => demandStore.latestStageSummary?.summary_payload || {},
@@ -96,6 +135,10 @@ const latestSummaryPayload = computed<Record<string, unknown>>(
 function payloadList(key: string) {
   const value = latestSummaryPayload.value[key]
   return Array.isArray(value) ? value.map((item) => String(item).trim()).filter(Boolean) : []
+}
+
+function normalizeTranscriptText(text: string) {
+  return String(text || '').replace(/\s+/g, ' ').trim()
 }
 
 function compactPromptText(text: string, limit = 48) {
@@ -125,6 +168,39 @@ const pendingQuestionsCompact = computed(() => compactList(pendingQuestions.valu
 const potentialDirectionsCompact = computed(() => compactList(potentialDirections.value, 3, 42))
 const riskPointsCompact = computed(() => compactList(riskPoints.value, 3, 42))
 const semanticWarningsCompact = computed(() => compactList(semanticWarnings.value, 3, 42))
+
+const transcriptMessages = computed(() => {
+  return demandStore.sortedSegments
+    .filter((segment) => segment.segment_status !== 'discarded')
+    .map((segment) => ({
+      id: segment.id,
+      sequenceNo: segment.sequence_no,
+      speakerLabel: segment.speaker_label || '参会人员',
+      text: segment.final_text || segment.normalized_text || segment.raw_text || '',
+    createdAt: segment.created_at,
+    status: segment.segment_status,
+    provider: segment.asr_provider || 'manual',
+    semanticScore: segment.semantic_score,
+    reasoning: segment.semantic_payload?.reasoning ? String(segment.semantic_payload.reasoning) : '',
+    issues: segment.issues_json || [],
+      reviewFlag: segment.review_flag,
+      raw: segment,
+      kind: 'persisted' as const,
+    }))
+})
+
+const transcriptRenderCount = computed(
+  () => transcriptMessages.value.length + (shouldShowLiveDraft.value ? 1 : 0),
+)
+
+const shouldShowLiveDraft = computed(() => {
+  const draft = normalizeTranscriptText(liveConversationDraft.value)
+  if (!draft) return false
+  return !demandStore.sortedSegments.some((segment) => {
+    const persisted = normalizeTranscriptText(segment.final_text || segment.normalized_text || segment.raw_text || '')
+    return persisted && (persisted === draft || persisted.includes(draft) || draft.includes(persisted))
+  })
+})
 
 const quickInsightCards = computed(() => [
   {
@@ -166,6 +242,433 @@ function sessionAvatarLabel(title: string) {
   return cleaned.slice(0, 2)
 }
 
+function resetLiveConversationState() {
+  clearFinalizeTimer()
+  livePartialText.value = ''
+  liveConversationDraft.value = ''
+  liveError.value = ''
+  lastCommittedRealtimeText = ''
+  isTranscriptPinnedToBottom.value = true
+  showScrollToLatest.value = false
+}
+
+function updateTranscriptPinnedState() {
+  const container = transcriptContainerRef.value
+  if (!container) return
+  const distanceToBottom = container.scrollHeight - container.scrollTop - container.clientHeight
+  const pinned = distanceToBottom <= 48
+  isTranscriptPinnedToBottom.value = pinned
+  showScrollToLatest.value = !pinned
+}
+
+function scrollTranscriptToBottom(behavior: ScrollBehavior = 'smooth') {
+  const container = transcriptContainerRef.value
+  if (!container) return
+  container.scrollTo({
+    top: container.scrollHeight,
+    behavior,
+  })
+  isTranscriptPinnedToBottom.value = true
+  showScrollToLatest.value = false
+}
+
+function buildRealtimeWsUrl() {
+  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+  return `${protocol}//${window.location.hostname}:9100/ws/customer-demand/asr`
+}
+
+function pcmToBase64(pcm: Int16Array) {
+  const bytes = new Uint8Array(pcm.buffer)
+  let binary = ''
+  const chunkSize = 0x8000
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    const slice = bytes.subarray(i, i + chunkSize)
+    binary += String.fromCharCode(...slice)
+  }
+  return btoa(binary)
+}
+
+function downsampleToInt16(input: Float32Array, inputSampleRate: number, outputSampleRate = TARGET_SAMPLE_RATE) {
+  if (inputSampleRate === outputSampleRate) {
+    const pcm = new Int16Array(input.length)
+    for (let i = 0; i < input.length; i += 1) {
+      const sample = Math.max(-1, Math.min(1, input[i]))
+      pcm[i] = sample < 0 ? sample * 0x8000 : sample * 0x7fff
+    }
+    return pcm
+  }
+
+  const sampleRateRatio = inputSampleRate / outputSampleRate
+  const newLength = Math.max(1, Math.round(input.length / sampleRateRatio))
+  const result = new Int16Array(newLength)
+  let offsetResult = 0
+  let offsetBuffer = 0
+
+  while (offsetResult < result.length) {
+    const nextOffsetBuffer = Math.round((offsetResult + 1) * sampleRateRatio)
+    let accum = 0
+    let count = 0
+    for (let i = offsetBuffer; i < nextOffsetBuffer && i < input.length; i += 1) {
+      accum += input[i]
+      count += 1
+    }
+    const sample = count ? accum / count : 0
+    const clamped = Math.max(-1, Math.min(1, sample))
+    result[offsetResult] = clamped < 0 ? clamped * 0x8000 : clamped * 0x7fff
+    offsetResult += 1
+    offsetBuffer = nextOffsetBuffer
+  }
+  return result
+}
+
+function appendPcmChunk(pcmChunk: Int16Array) {
+  if (!pcmChunk.length) return
+  pcmBuffers.push(pcmChunk)
+  pcmBufferSamples += pcmChunk.length
+}
+
+function appendPersistChunk(pcmChunk: Int16Array) {
+  if (!pcmChunk.length) return
+  persistPcmBuffers.push(pcmChunk)
+  persistPcmBufferSamples += pcmChunk.length
+}
+
+function consumePcmChunk() {
+  if (pcmBufferSamples === 0) return null
+  const merged = new Int16Array(pcmBufferSamples)
+  let offset = 0
+  for (const chunk of pcmBuffers) {
+    merged.set(chunk, offset)
+    offset += chunk.length
+  }
+  pcmBuffers = []
+  pcmBufferSamples = 0
+  return merged
+}
+
+function consumePersistChunk() {
+  if (persistPcmBufferSamples === 0) return null
+  const merged = new Int16Array(persistPcmBufferSamples)
+  let offset = 0
+  for (const chunk of persistPcmBuffers) {
+    merged.set(chunk, offset)
+    offset += chunk.length
+  }
+  persistPcmBuffers = []
+  persistPcmBufferSamples = 0
+  return merged
+}
+
+function encodePcmToWav(pcm: Int16Array, sampleRate: number) {
+  const buffer = new ArrayBuffer(44 + pcm.length * 2)
+  const view = new DataView(buffer)
+  const writeString = (offset: number, value: string) => {
+    for (let i = 0; i < value.length; i += 1) {
+      view.setUint8(offset + i, value.charCodeAt(i))
+    }
+  }
+
+  writeString(0, 'RIFF')
+  view.setUint32(4, 36 + pcm.length * 2, true)
+  writeString(8, 'WAVE')
+  writeString(12, 'fmt ')
+  view.setUint32(16, 16, true)
+  view.setUint16(20, 1, true)
+  view.setUint16(22, 1, true)
+  view.setUint32(24, sampleRate, true)
+  view.setUint32(28, sampleRate * 2, true)
+  view.setUint16(32, 2, true)
+  view.setUint16(34, 16, true)
+  writeString(36, 'data')
+  view.setUint32(40, pcm.length * 2, true)
+
+  let offset = 44
+  for (let i = 0; i < pcm.length; i += 1) {
+    view.setInt16(offset, pcm[i], true)
+    offset += 2
+  }
+  return new Blob([buffer], { type: 'audio/wav' })
+}
+
+function clearFinalizeTimer() {
+  if (finalizeTimer !== null) {
+    window.clearTimeout(finalizeTimer)
+    finalizeTimer = null
+  }
+}
+
+async function commitRealtimeTranscript(text: string) {
+  const normalized = normalizeTranscriptText(text)
+  if (!normalized) return
+  if (normalized === lastCommittedRealtimeText) {
+    livePartialText.value = normalized
+    liveConversationDraft.value = normalized
+    return
+  }
+  lastCommittedRealtimeText = normalized
+  livePartialText.value = normalized
+  liveConversationDraft.value = normalized
+}
+
+function scheduleRealtimeFinalize(delay = 700) {
+  clearFinalizeTimer()
+  if (!livePartialText.value.trim()) return
+  finalizeTimer = window.setTimeout(() => {
+    void commitRealtimeTranscript(livePartialText.value)
+  }, delay)
+}
+
+async function ensureRealtimeSocket() {
+  if (realtimeSocket && liveConnectionState.value === 'connected') return realtimeSocket
+  liveConnectionState.value = 'connecting'
+  livePartialText.value = ''
+  return await new Promise<WebSocket>((resolve, reject) => {
+    const socket = new WebSocket(buildRealtimeWsUrl())
+    socket.onopen = () => {
+      socket.send(
+        JSON.stringify({
+          type: 'session.start',
+          language: 'zh',
+          sample_rate: 16000,
+          session_id: demandStore.currentSessionId || '',
+        }),
+      )
+    }
+    socket.onmessage = (event) => {
+      try {
+        const payload = JSON.parse(String(event.data || '{}'))
+        if (payload.type === 'session.ready') {
+          realtimeSocket = socket
+          liveConnectionState.value = 'connected'
+          resolve(socket)
+          return
+        }
+        if (payload.type === 'transcript.partial') {
+          livePartialText.value = String(payload.text || '').trim()
+          liveConversationDraft.value = livePartialText.value
+          scheduleRealtimeFinalize(1200)
+          return
+        }
+        if (payload.type === 'transcript.final') {
+          clearFinalizeTimer()
+          const finalText = String(payload.text || '').trim()
+          if (finalText) {
+            void commitRealtimeTranscript(finalText)
+          }
+          return
+        }
+        if (payload.type === 'speech.stopped') {
+          scheduleRealtimeFinalize()
+          return
+        }
+        if (payload.type === 'session.finished' || payload.type === 'session.ended') {
+          scheduleRealtimeFinalize(200)
+          return
+        }
+        if (payload.type === 'error') {
+          liveConnectionState.value = 'error'
+          liveError.value = String(payload.message || '实时转写通道异常')
+          return
+        }
+        if (payload.type === 'connection.close') {
+          scheduleRealtimeFinalize(100)
+          liveConnectionState.value = 'closed'
+        }
+      } catch (error) {
+        liveError.value = error instanceof Error ? error.message : '实时转写结果解析失败'
+      }
+    }
+    socket.onerror = () => {
+      liveConnectionState.value = 'error'
+      reject(new Error('实时转写通道连接失败'))
+    }
+    socket.onclose = () => {
+      if (liveConnectionState.value !== 'error') {
+        liveConnectionState.value = 'closed'
+      }
+      if (realtimeSocket === socket) {
+        realtimeSocket = null
+      }
+    }
+  })
+}
+
+async function flushRealtimePcmChunk(force = false) {
+  if (!force && pcmBufferSamples < CHUNK_SAMPLE_TARGET) {
+    return
+  }
+  const pcmChunk = consumePcmChunk()
+  if (!pcmChunk || pcmChunk.length < TARGET_SAMPLE_RATE / 4) {
+    return
+  }
+  const chunkIndex = nextChunkIndex
+  nextChunkIndex += 1
+  audioSendQueue = audioSendQueue.then(async () => {
+    try {
+      const socket = await ensureRealtimeSocket()
+      socket.send(
+        JSON.stringify({
+          type: 'audio_chunk',
+          chunk_index: chunkIndex,
+          mime_type: 'audio/pcm16',
+          audio_b64: pcmToBase64(pcmChunk),
+        }),
+      )
+      liveChunkCount.value += 1
+      liveError.value = ''
+    } catch (error) {
+      liveError.value = error instanceof Error ? error.message : `第 ${chunkIndex} 段上传失败`
+      ElMessage.error(liveError.value)
+    }
+  })
+  return audioSendQueue
+}
+
+async function flushPersistAudioChunk(force = false) {
+  if (!force && persistPcmBufferSamples < PERSIST_SAMPLE_TARGET) {
+    return
+  }
+  const pcmChunk = consumePersistChunk()
+  if (!pcmChunk || pcmChunk.length < TARGET_SAMPLE_RATE * 2) {
+    return
+  }
+  const chunkIndex = nextChunkIndex
+  const blob = encodePcmToWav(pcmChunk, TARGET_SAMPLE_RATE)
+  const file = new File([blob], `live-chunk-${chunkIndex}.wav`, { type: 'audio/wav' })
+  persistQueue = persistQueue.then(async () => {
+    try {
+      await demandStore.uploadAudio(file, {
+        chunkIndex,
+        speakerLabel: '参会人员',
+        suppressToast: true,
+      })
+      liveError.value = ''
+    } catch (error) {
+      liveError.value = error instanceof Error ? error.message : '沟通记录补写失败'
+    }
+  })
+  return persistQueue
+}
+
+async function ensureAudioCapture() {
+  if (audioContext && processorNode && sourceNode && mediaStream) return
+  if (!supportsLiveCapture.value) {
+    throw new Error('当前浏览器不支持实时录音分片上传')
+  }
+
+  mediaStream = await navigator.mediaDevices.getUserMedia({
+    audio: {
+      echoCancellation: true,
+      noiseSuppression: true,
+      autoGainControl: true,
+    },
+  })
+  const AudioContextCtor =
+    window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
+  audioContext = new AudioContextCtor({ sampleRate: 48000 })
+  sourceNode = audioContext.createMediaStreamSource(mediaStream)
+  processorNode = audioContext.createScriptProcessor(4096, 1, 1)
+  processorNode.onaudioprocess = (event) => {
+    if (recorderState.value !== 'recording') return
+    const input = event.inputBuffer.getChannelData(0)
+    const pcmChunk = downsampleToInt16(input, audioContext?.sampleRate || 48000, TARGET_SAMPLE_RATE)
+    appendPcmChunk(pcmChunk)
+    appendPersistChunk(pcmChunk)
+    void flushRealtimePcmChunk(false)
+    void flushPersistAudioChunk(false)
+  }
+  sourceNode.connect(processorNode)
+  processorNode.connect(audioContext.destination)
+}
+
+async function handleStartRecording() {
+  liveError.value = ''
+  try {
+    if (!demandStore.currentSession) {
+      ElMessage.warning('请先选择或创建一个沟通会话')
+      return
+    }
+
+    if (!supportsLiveCapture.value) {
+      ElMessage.warning('当前浏览器不支持实时录音分片上传')
+      return
+    }
+
+    if (isLivePaused.value && audioContext) {
+      await demandStore.startRecording()
+      await ensureRealtimeSocket()
+      await audioContext?.resume()
+      recorderState.value = 'recording'
+      ElMessage.success('已继续实时记录')
+      return
+    }
+
+    await demandStore.startRecording()
+    resetLiveConversationState()
+    await ensureRealtimeSocket()
+    nextChunkIndex = demandStore.nextSequenceNo
+    liveChunkCount.value = demandStore.segments.length
+    await ensureAudioCapture()
+    await audioContext?.resume()
+    recorderState.value = 'recording'
+    ElMessage.success('已开始实时录音与分片转写')
+  } catch (error) {
+    recorderState.value = 'idle'
+    liveError.value = error instanceof Error ? error.message : '实时录音启动失败'
+    ElMessage.error(liveError.value)
+  }
+}
+
+async function handlePauseRecording() {
+  try {
+    if (!demandStore.currentSession) return
+    await demandStore.pauseRecording()
+    if (audioContext && recorderState.value === 'recording') {
+      await flushRealtimePcmChunk(true)
+      await audioContext.suspend()
+      recorderState.value = 'paused'
+    }
+  } catch (error) {
+    liveError.value = error instanceof Error ? error.message : '暂停记录失败'
+    ElMessage.error(liveError.value)
+  }
+}
+
+async function handleStopRecording() {
+  try {
+    if (!demandStore.currentSession) return
+    recorderState.value = 'stopping'
+    await demandStore.stopRecording()
+    await flushRealtimePcmChunk(true)
+    await flushPersistAudioChunk(true)
+    await audioSendQueue.catch(() => undefined)
+    await persistQueue.catch(() => undefined)
+    scheduleRealtimeFinalize(100)
+    if (realtimeSocket && liveConnectionState.value === 'connected') {
+      realtimeSocket.send(JSON.stringify({ type: 'session.stop' }))
+    }
+    sourceNode?.disconnect()
+    processorNode?.disconnect()
+    mediaStream?.getTracks().forEach((track) => track.stop())
+    await audioContext?.close()
+    sourceNode = null
+    processorNode = null
+    mediaStream = null
+    audioContext = null
+    realtimeSocket?.close()
+    realtimeSocket = null
+    liveConnectionState.value = 'closed'
+    livePartialText.value = ''
+    liveConversationDraft.value = ''
+    recorderState.value = 'idle'
+    ElMessage.success('已结束实时记录，当前分片已全部上传')
+  } catch (error) {
+    recorderState.value = 'idle'
+    liveError.value = error instanceof Error ? error.message : '结束记录失败'
+    ElMessage.error(liveError.value)
+  }
+}
+
 async function handleCreateSession() {
   if (createDisabled.value) {
     ElMessage.warning('请先填写客户名称和会话标题')
@@ -196,7 +699,32 @@ async function handleCreateSession() {
 }
 
 async function handleSelectSession(sessionId: string) {
+  resetLiveConversationState()
   await demandStore.selectSession(sessionId)
+}
+
+function openCreateDialog() {
+  createDialogVisible.value = true
+}
+
+async function handleDeleteSession(sessionId: string, title: string) {
+  try {
+    await ElMessageBox.confirm(`删除后，这条沟通会话及其分段、阶段整理、分析报告都会被移除。确定删除“${title}”吗？`, '删除沟通会话', {
+      type: 'warning',
+      confirmButtonText: '确认删除',
+      cancelButtonText: '取消',
+      confirmButtonClass: 'el-button--danger',
+    })
+  } catch {
+    return
+  }
+
+  if (demandStore.currentSessionId === sessionId && (isLiveRecording.value || isLivePaused.value)) {
+    await handleStopRecording()
+  }
+
+  resetLiveConversationState()
+  await demandStore.deleteSession(sessionId)
 }
 
 function triggerAudioUpload() {
@@ -265,7 +793,42 @@ function openReportPage() {
 onMounted(async () => {
   await demandStore.loadSessions()
   if (demandStore.currentSessionId) {
+    resetLiveConversationState()
     await demandStore.selectSession(demandStore.currentSessionId)
+    await nextTick()
+    scrollTranscriptToBottom('auto')
+  }
+})
+
+watch(
+  () => demandStore.currentSessionId,
+  async () => {
+    await nextTick()
+    scrollTranscriptToBottom('auto')
+  },
+)
+
+watch(
+  transcriptRenderCount,
+  async (nextValue, previousValue) => {
+    if (nextValue <= previousValue) return
+    await nextTick()
+    if (isTranscriptPinnedToBottom.value) {
+      scrollTranscriptToBottom('smooth')
+    } else {
+      showScrollToLatest.value = true
+    }
+  },
+)
+
+onBeforeUnmount(() => {
+  clearFinalizeTimer()
+  mediaStream?.getTracks().forEach((track) => track.stop())
+  sourceNode?.disconnect()
+  processorNode?.disconnect()
+  void audioContext?.close()
+  if (realtimeSocket && liveConnectionState.value === 'connected') {
+    realtimeSocket.close()
   }
 })
 </script>
@@ -286,7 +849,7 @@ onMounted(async () => {
             </el-button>
           </el-tooltip>
           <el-tooltip content="新建沟通会话" placement="right">
-            <el-button circle type="primary" @click="createDialogVisible = true">
+            <el-button circle type="primary" @click="openCreateDialog">
               <el-icon><ChatDotRound /></el-icon>
             </el-button>
           </el-tooltip>
@@ -317,27 +880,45 @@ onMounted(async () => {
 
       <div v-if="!sidebarCollapsed" class="customer-demand-sidebar__list panel-card">
         <div class="customer-demand-sidebar__list-head">
-          <strong>沟通会话</strong>
-          <span>{{ filteredSessions.length }}</span>
+          <div class="customer-demand-sidebar__list-title">
+            <strong>沟通会话</strong>
+            <span>{{ filteredSessions.length }}</span>
+          </div>
+          <el-button type="primary" plain size="small" @click="openCreateDialog">
+            <el-icon><Plus /></el-icon>
+            新建会话
+          </el-button>
         </div>
         <div v-if="demandStore.loadingSessions" class="customer-demand-sidebar__empty">正在加载会话...</div>
         <div v-else-if="!filteredSessions.length" class="customer-demand-sidebar__empty">
           还没有客户需求会话，先创建一条开始试跑吧。
         </div>
-        <button
+        <article
           v-for="item in filteredSessions"
           :key="item.id"
           class="customer-demand-sidebar__item"
           :class="{ 'is-active': item.id === demandStore.currentSessionId }"
-          @click="handleSelectSession(item.id)"
         >
-          <div class="customer-demand-sidebar__item-top">
-            <strong>{{ item.session_title }}</strong>
-            <span>{{ formatRelativeTime(item.updated_at) }}</span>
-          </div>
-          <p>{{ item.customer_name }} · {{ item.region || '未标注区域' }}</p>
-          <small>{{ item.topic || '未补充会话主题' }}</small>
-        </button>
+          <button class="customer-demand-sidebar__item-main" @click="handleSelectSession(item.id)">
+            <div class="customer-demand-sidebar__item-top">
+              <strong>{{ item.session_title }}</strong>
+              <span>{{ formatRelativeTime(item.updated_at) }}</span>
+            </div>
+            <p>{{ item.customer_name }} · {{ item.region || '未标注区域' }}</p>
+            <small>{{ item.topic || '未补充会话主题' }}</small>
+          </button>
+          <el-tooltip content="删除沟通会话" placement="top">
+            <el-button
+              class="customer-demand-sidebar__item-delete"
+              circle
+              text
+              :loading="demandStore.deletingSessionId === item.id"
+              @click.stop="handleDeleteSession(item.id, item.session_title)"
+            >
+              <el-icon><Delete /></el-icon>
+            </el-button>
+          </el-tooltip>
+        </article>
       </div>
 
       <div v-else class="customer-demand-sidebar__mini-list panel-card">
@@ -427,19 +1008,45 @@ onMounted(async () => {
                   <p>当前活动：{{ activityLabel }}</p>
                 </div>
                 <div class="customer-card__actions">
-                  <el-button :loading="demandStore.actionLoading" type="primary" @click="demandStore.startRecording()">
+                  <el-button :loading="demandStore.actionLoading" type="primary" @click="handleStartRecording">
                     <el-icon><VideoPlay /></el-icon>
-                    开始记录
+                    {{ isLivePaused ? '继续记录' : '开始记录' }}
                   </el-button>
-                  <el-button :loading="demandStore.actionLoading" @click="demandStore.pauseRecording()">
+                  <el-button :loading="demandStore.actionLoading" :disabled="!isLiveRecording" @click="handlePauseRecording">
                     <el-icon><VideoPause /></el-icon>
                     暂停
                   </el-button>
-                  <el-button :loading="demandStore.actionLoading" type="danger" plain @click="demandStore.stopRecording()">
+                  <el-button :loading="demandStore.actionLoading" :disabled="!isLiveRecording && !isLivePaused" type="danger" plain @click="handleStopRecording">
                     <el-icon><Microphone /></el-icon>
                     结束记录
                   </el-button>
                 </div>
+              </div>
+
+              <div class="live-status-strip">
+                <el-tag v-if="supportsLiveCapture" :type="isLiveRecording ? 'danger' : isLivePaused ? 'warning' : 'info'" effect="light">
+                  {{
+                    isLiveRecording
+                      ? `实时转写中 · 约每 ${liveChunkSeconds} 秒发送一段`
+                      : isLivePaused
+                        ? '录音已暂停'
+                        : '可开始实时录音'
+                  }}
+                </el-tag>
+                <el-tag v-else type="warning" effect="light">当前浏览器不支持实时录音</el-tag>
+                <el-tag effect="plain" type="info">已发送 {{ liveChunkCount }} 段</el-tag>
+                <el-tag effect="plain" :type="liveConnectionState === 'connected' ? 'success' : liveConnectionState === 'error' ? 'danger' : 'info'">
+                  {{
+                    liveConnectionState === 'connected'
+                      ? '实时转写通道已连接'
+                      : liveConnectionState === 'connecting'
+                        ? '正在连接实时转写通道'
+                        : liveConnectionState === 'error'
+                          ? '实时转写通道异常'
+                          : '等待连接实时转写通道'
+                  }}
+                </el-tag>
+                <span v-if="liveError" class="live-status-strip__error">{{ liveError }}</span>
               </div>
 
               <div class="customer-card__manual">
@@ -450,12 +1057,7 @@ onMounted(async () => {
                   placeholder="MVP 阶段支持手动补录：把现场沟通中的一句或一段内容贴进来，直接形成一条结构化分段。"
                 />
                 <div class="customer-card__manual-bar">
-                  <el-select v-model="demandStore.speakerLabel" style="width: 140px">
-                    <el-option label="客户" value="客户" />
-                    <el-option label="销售" value="销售" />
-                    <el-option label="技术支持" value="技术支持" />
-                    <el-option label="项目经理" value="项目经理" />
-                  </el-select>
+                  <el-tag effect="plain" type="info">当前记录统一标记为：参会人员</el-tag>
                   <div class="customer-card__manual-actions">
                     <input
                       ref="uploadInputRef"
@@ -479,8 +1081,8 @@ onMounted(async () => {
             <section class="customer-card panel-card customer-card--segments">
               <div class="customer-card__head">
                 <div>
-                  <h3>沟通分段</h3>
-                  <p>这里会累积现场转写、人工补录和语义校验后的最终文本。</p>
+                  <h3>实时沟通记录</h3>
+                  <p>像聊天窗一样滚动呈现现场沟通内容，便于边聊边看，不在这里做分析。</p>
                 </div>
                 <el-button plain @click="demandStore.selectSession(demandStore.currentSession.id)">
                   <el-icon><Refresh /></el-icon>
@@ -488,40 +1090,63 @@ onMounted(async () => {
                 </el-button>
               </div>
 
-              <div v-if="!demandStore.sortedSegments.length" class="customer-card__empty">
+              <div v-if="!transcriptMessages.length && !shouldShowLiveDraft" class="customer-card__empty">
                 还没有分段内容。你可以先手动补录一段文本，或者上传一段音频做 ASR 识别。
               </div>
-              <div v-else class="segment-list">
-                <article v-for="segment in demandStore.sortedSegments" :key="segment.id" class="segment-item">
-                  <div class="segment-item__head">
-                    <div class="segment-item__head-main">
-                      <strong>#{{ segment.sequence_no }} {{ segment.speaker_label || '未标注说话人' }}</strong>
-                      <div class="segment-item__badges">
-                        <el-tag size="small" :type="segmentStatusType(segment.segment_status)" effect="light">
-                          {{ segmentStatusLabel(segment.segment_status) }}
-                        </el-tag>
-                        <el-tag size="small" effect="plain" type="info">{{ segment.asr_provider || 'manual' }}</el-tag>
-                        <el-tag size="small" effect="plain">语义分：{{ semanticScoreDisplay(segment.semantic_score) }}</el-tag>
-                      </div>
+              <div v-else class="transcript-area">
+                <div ref="transcriptContainerRef" class="transcript-chat" @scroll="updateTranscriptPinnedState">
+                <article v-for="segment in transcriptMessages" :key="segment.id" class="transcript-message">
+                  <div class="transcript-message__avatar">参</div>
+                  <div class="transcript-message__body">
+                    <div class="transcript-message__head">
+                      <strong>{{ segment.speakerLabel }}</strong>
+                      <span>{{ formatDateTime(segment.createdAt) }}</span>
                     </div>
-                    <span>{{ formatDateTime(segment.created_at) }}</span>
-                  </div>
-                  <p>{{ segment.final_text || segment.normalized_text || segment.raw_text || '当前分段暂无文本' }}</p>
-                  <div class="segment-item__meta">
-                    <div class="segment-item__meta-text">
-                      <span v-if="segment.semantic_payload?.reasoning" class="segment-item__reasoning">
-                        {{ String(segment.semantic_payload.reasoning) }}
+                    <div class="transcript-message__bubble">
+                      <p>{{ segment.text || '当前分段暂无文本' }}</p>
+                    </div>
+                    <div class="transcript-message__foot">
+                      <el-tag size="small" :type="segmentStatusType(segment.status)" effect="light">
+                        {{ segmentStatusLabel(segment.status) }}
+                      </el-tag>
+                      <el-tag size="small" effect="plain" type="info">{{ segment.provider || 'manual' }}</el-tag>
+                      <el-tag v-if="segment.semanticScore !== null" size="small" effect="plain">语义分：{{ semanticScoreDisplay(segment.semanticScore) }}</el-tag>
+                    </div>
+                    <div v-if="segment.reasoning || segment.issues?.length" class="transcript-message__note">
+                      <span v-if="segment.reasoning" class="segment-item__reasoning">
+                        {{ segment.reasoning }}
                       </span>
-                      <span v-if="segment.issues_json?.length" class="segment-item__issues">
-                        {{ segment.issues_json.join('；') }}
+                      <span v-if="segment.issues?.length" class="segment-item__issues">
+                        {{ segment.issues.join('；') }}
                       </span>
                     </div>
-                    <div v-if="segment.review_flag" class="segment-item__review-actions">
-                      <el-button size="small" type="success" plain @click="openReviewDialog(segment, 'accept')">人工保留</el-button>
-                      <el-button size="small" type="danger" plain @click="openReviewDialog(segment, 'discard')">确认丢弃</el-button>
+                    <div v-if="segment.reviewFlag && segment.raw" class="segment-item__review-actions">
+                      <el-button size="small" type="success" plain @click="openReviewDialog(segment.raw, 'accept')">人工保留</el-button>
+                      <el-button size="small" type="danger" plain @click="openReviewDialog(segment.raw, 'discard')">确认丢弃</el-button>
                     </div>
                   </div>
                 </article>
+                <article v-if="shouldShowLiveDraft" class="transcript-message transcript-message--live">
+                  <div class="transcript-message__avatar">参</div>
+                  <div class="transcript-message__body">
+                    <div class="transcript-message__head">
+                      <strong>参会人员</strong>
+                      <span>实时更新中</span>
+                    </div>
+                    <div class="transcript-message__bubble">
+                      <p>{{ liveConversationDraft }}</p>
+                    </div>
+                    <div class="transcript-message__foot">
+                      <el-tag size="small" type="primary" effect="light">实时转写中</el-tag>
+                    </div>
+                  </div>
+                </article>
+                </div>
+                <div v-if="showScrollToLatest" class="transcript-jump-bar">
+                  <el-button type="primary" plain size="small" @click="scrollTranscriptToBottom()">
+                    回到最新记录
+                  </el-button>
+                </div>
               </div>
             </section>
           </div>
@@ -883,14 +1508,22 @@ onMounted(async () => {
   gap: 12px;
 }
 
+.customer-demand-sidebar__list-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .customer-demand-sidebar__item {
   width: 100%;
   border: 1px solid transparent;
   border-radius: 18px;
-  padding: 14px;
-  text-align: left;
+  padding: 12px 12px 12px 14px;
   background: transparent;
-  cursor: pointer;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
   transition: 0.18s ease;
 }
 
@@ -899,6 +1532,27 @@ onMounted(async () => {
   background: rgba(255, 255, 255, 0.9);
   border-color: rgba(15, 93, 140, 0.16);
   box-shadow: 0 12px 22px rgba(15, 38, 56, 0.08);
+}
+
+.customer-demand-sidebar__item-main {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.customer-demand-sidebar__item-delete {
+  flex: 0 0 auto;
+  margin-top: -2px;
+  color: var(--muted);
+}
+
+.customer-demand-sidebar__item-delete:hover {
+  color: var(--danger, #d03050);
+  background: rgba(208, 48, 80, 0.08);
 }
 
 .customer-demand-sidebar__item strong,
@@ -979,6 +1633,20 @@ onMounted(async () => {
   margin-top: 18px;
 }
 
+.live-status-strip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+}
+
+.live-status-strip__error {
+  color: var(--danger);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
 .customer-card__file-input {
   display: none;
 }
@@ -987,49 +1655,96 @@ onMounted(async () => {
   min-height: 420px;
 }
 
-.segment-list {
+.transcript-area {
+  position: relative;
+  margin-top: 16px;
+}
+
+.transcript-chat {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  margin-top: 16px;
+  gap: 14px;
   max-height: 760px;
   overflow: auto;
+  padding-right: 4px;
 }
 
-.segment-item {
-  border-radius: 18px;
-  border: 1px solid rgba(24, 50, 71, 0.08);
-  background: rgba(255, 255, 255, 0.72);
-  padding: 14px 16px;
-}
-
-.segment-item p {
-  margin: 10px 0;
-  line-height: 1.75;
-  white-space: pre-wrap;
-}
-
-.segment-item__meta {
+.transcript-jump-bar {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
   display: flex;
-  gap: 12px;
-  flex-wrap: wrap;
-  align-items: flex-start;
-  justify-content: space-between;
+  justify-content: flex-end;
+  pointer-events: none;
 }
 
-.segment-item__head-main,
-.segment-item__meta-text {
+.transcript-jump-bar :deep(.el-button) {
+  pointer-events: auto;
+  box-shadow: 0 12px 24px rgba(15, 38, 56, 0.14);
+}
+
+.transcript-message {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.transcript-message__avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #0f5d8c, #3a84c3);
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.transcript-message__body {
+  min-width: 0;
+  max-width: calc(100% - 46px);
   display: flex;
   flex-direction: column;
   gap: 8px;
-  min-width: 0;
 }
 
-.segment-item__badges,
+.transcript-message__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  color: rgba(15, 38, 56, 0.7);
+  font-size: 12px;
+}
+
+.transcript-message__bubble {
+  border-radius: 18px 18px 18px 6px;
+  border: 1px solid rgba(24, 50, 71, 0.08);
+  background: rgba(255, 255, 255, 0.78);
+  padding: 14px 16px;
+  box-shadow: 0 10px 18px rgba(15, 38, 56, 0.05);
+}
+
+.transcript-message__bubble p {
+  margin: 0;
+  line-height: 1.8;
+  white-space: pre-wrap;
+}
+
+.transcript-message__foot,
 .segment-item__review-actions {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
+}
+
+.transcript-message__note {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
 .segment-item__reasoning {
@@ -1041,6 +1756,15 @@ onMounted(async () => {
   color: var(--warning);
   font-size: 12px;
   line-height: 1.7;
+}
+
+.transcript-message--live .transcript-message__bubble {
+  border-color: rgba(15, 93, 140, 0.18);
+  background: linear-gradient(180deg, rgba(245, 251, 255, 0.98), rgba(236, 247, 255, 0.94));
+}
+
+.transcript-message--live .transcript-message__bubble p {
+  color: #174e75;
 }
 
 .task-card {
