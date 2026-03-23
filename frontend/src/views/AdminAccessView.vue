@@ -131,8 +131,6 @@ const departmentRules = {
 const canManageUsers = computed(() => authStore.canManageUsers)
 const canManageRoles = computed(() => authStore.canManageRoles)
 const canManageDepartments = computed(() => authStore.canManageDepartments)
-const canViewAudit = computed(() => authStore.canViewAudit)
-
 const visibleTabs = computed(() => {
   const items: Array<{ label: string; name: 'users' | 'roles' | 'departments' }> = []
   if (canManageUsers.value) items.push({ label: '用户管理', name: 'users' })
@@ -582,12 +580,9 @@ onMounted(loadAdminData)
           <el-icon><Refresh /></el-icon>
           刷新数据
         </el-button>
-        <el-button type="primary" plain @click="router.push('/')">
+        <el-button type="primary" plain @click="router.push('/modules')">
           <el-icon><ArrowLeft /></el-icon>
-          返回工作台
-        </el-button>
-        <el-button v-if="canViewAudit" plain @click="router.push('/admin/audit')">
-          审计日志中心
+          返回模块入口
         </el-button>
       </div>
     </header>

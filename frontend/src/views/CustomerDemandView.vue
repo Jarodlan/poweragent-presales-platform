@@ -102,6 +102,31 @@ const filteredSessions = computed(() => {
   )
 })
 
+function compactText(text: string, limit = 30) {
+  const normalized = String(text || '').replace(/\s+/g, ' ').trim()
+  if (!normalized) return ''
+  if (normalized.length <= limit) return normalized
+  return `${normalized.slice(0, limit).trim()}...`
+}
+
+function compactTitle(text: string) {
+  return compactText(text, 22)
+}
+
+function compactPreview(text: string) {
+  return compactText(text, 34)
+}
+
+const activeSessionPreview = computed(() => {
+  const session = demandStore.currentSession
+  if (!session) return '新建一条沟通会话后，会中记录和分析结果会在这里沉淀。'
+  return (
+    compactPreview(session.topic || '') ||
+    compactPreview([session.customer_name, session.region].filter(Boolean).join(' · ')) ||
+    '这条会话还没有补充主题信息。'
+  )
+})
+
 const currentStatusLabel = computed(() => {
   const statusMap: Record<string, string> = {
     draft: '草稿',
@@ -852,8 +877,8 @@ onBeforeUnmount(() => {
               <el-icon><component :is="sidebarCollapsed ? Expand : Fold" /></el-icon>
             </el-button>
           </el-tooltip>
-          <el-tooltip content="返回方案工作台" placement="right">
-            <el-button circle plain @click="router.push('/')">
+          <el-tooltip content="返回模块入口" placement="right">
+            <el-button circle plain @click="router.push('/modules')">
               <el-icon><ArrowLeft /></el-icon>
             </el-button>
           </el-tooltip>
@@ -870,20 +895,34 @@ onBeforeUnmount(() => {
               <strong>{{ authStore.displayName || '未登录用户' }}</strong>
               <p>{{ authStore.user?.department?.name || '未设置部门' }}</p>
             </div>
-            <el-button text @click="router.push('/')">返回方案工作台</el-button>
+            <el-button text @click="router.push('/modules')">返回模块入口</el-button>
           </div>
 
           <div class="customer-demand-sidebar__hero">
             <p class="section-title">Demand Agent</p>
-            <h1>客户需求分析工作台</h1>
+            <h1>需求分析工作台</h1>
             <p>会中优先帮助你明确需求、挖掘问题、识别风险，会后再单独查看完整分析报告。</p>
           </div>
+
+          <el-button type="primary" round @click="openCreateDialog">
+            <el-icon><Plus /></el-icon>
+            新建会话
+          </el-button>
 
           <el-input v-model="keyword" placeholder="搜索客户、主题或区域" clearable>
             <template #prefix>
               <el-icon><Search /></el-icon>
             </template>
           </el-input>
+
+          <div class="customer-demand-sidebar__summary panel-card">
+            <div class="customer-demand-sidebar__summary-head">
+              <strong>当前会话</strong>
+              <span>{{ demandStore.sessions.length }} 条</span>
+            </div>
+            <p>{{ compactTitle(demandStore.currentSession?.session_title || '') || '新的沟通会话' }}</p>
+            <small>{{ activeSessionPreview }}</small>
+          </div>
         </template>
       </div>
 
@@ -893,10 +932,6 @@ onBeforeUnmount(() => {
             <strong>沟通会话</strong>
             <span>{{ filteredSessions.length }}</span>
           </div>
-          <el-button type="primary" plain size="small" @click="openCreateDialog">
-            <el-icon><Plus /></el-icon>
-            新建会话
-          </el-button>
         </div>
         <div v-if="demandStore.loadingSessions" class="customer-demand-sidebar__empty">正在加载会话...</div>
         <div v-else-if="!filteredSessions.length" class="customer-demand-sidebar__empty">
@@ -910,11 +945,11 @@ onBeforeUnmount(() => {
         >
           <button class="customer-demand-sidebar__item-main" @click="handleSelectSession(item.id)">
             <div class="customer-demand-sidebar__item-top">
-              <strong>{{ item.session_title }}</strong>
+              <strong>{{ compactTitle(item.session_title) || '未命名会话' }}</strong>
               <span>{{ formatRelativeTime(item.updated_at) }}</span>
             </div>
-            <p>{{ item.customer_name }} · {{ item.region || '未标注区域' }}</p>
-            <small>{{ item.topic || '未补充会话主题' }}</small>
+            <p>{{ compactPreview([item.customer_name, item.region || '未标注区域'].filter(Boolean).join(' · ')) }}</p>
+            <small>{{ compactPreview(item.topic || '') || '未补充会话主题' }}</small>
           </button>
           <el-tooltip content="删除沟通会话" placement="top">
             <el-button
@@ -1430,6 +1465,7 @@ onBeforeUnmount(() => {
 }
 
 .customer-demand-sidebar__account,
+.customer-demand-sidebar__summary,
 .customer-demand-sidebar__list,
 .customer-demand-sidebar__mini-list,
 .customer-demand-header,
@@ -1464,6 +1500,41 @@ onBeforeUnmount(() => {
 .customer-demand-header h2 {
   margin: 8px 0 0;
   line-height: 1.2;
+}
+
+.customer-demand-sidebar__summary {
+  border-radius: 22px;
+}
+
+.customer-demand-sidebar__summary-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.customer-demand-sidebar__summary-head strong {
+  font-size: 14px;
+}
+
+.customer-demand-sidebar__summary-head span {
+  font-size: 12px;
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.customer-demand-sidebar__summary p {
+  margin: 0 0 8px;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.customer-demand-sidebar__summary small {
+  display: block;
+  color: var(--muted);
+  line-height: 1.6;
 }
 
 .customer-demand-sidebar__list,
@@ -1565,7 +1636,11 @@ onBeforeUnmount(() => {
   background: rgba(208, 48, 80, 0.08);
 }
 
-.customer-demand-sidebar__item strong,
+.customer-demand-sidebar__item strong {
+  font-size: 15px;
+  line-height: 1.45;
+}
+
 .customer-demand-header h2 {
   font-size: 20px;
 }
@@ -1573,9 +1648,10 @@ onBeforeUnmount(() => {
 .customer-demand-sidebar__item p,
 .customer-demand-sidebar__item small {
   display: block;
-  margin: 8px 0 0;
+  margin: 6px 0 0;
   color: var(--muted);
   line-height: 1.55;
+  font-size: 12px;
 }
 
 .customer-demand-main {

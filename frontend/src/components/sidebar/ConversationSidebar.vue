@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Delete, Plus, Search, Setting, SwitchButton, ChatLineSquare } from '@element-plus/icons-vue'
+import { ArrowLeft, Delete, Plus, Search } from '@element-plus/icons-vue'
 import { computed, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useRouter } from 'vue-router'
@@ -34,32 +34,29 @@ const groups = computed(() => {
 
 const totalCount = computed(() => workspace.conversations.length)
 
+function compactText(text: string, limit = 28) {
+  const normalized = String(text || '').replace(/\s+/g, ' ').trim()
+  if (!normalized) return ''
+  if (normalized.length <= limit) return normalized
+  return `${normalized.slice(0, limit).trim()}...`
+}
+
+function compactTitle(text: string) {
+  return compactText(text, 22)
+}
+
+function compactPreview(text: string) {
+  return compactText(text, 34)
+}
+
 const activePreview = computed(() => {
   const current = workspace.currentConversation
   if (!current) return '新会话会出现在这里，支持继续追问和历史回看。'
-  return current.last_user_message || '这条会话还没有发起第一轮需求。'
+  return compactPreview(current.last_user_message || '') || '这条会话还没有发起第一轮需求。'
 })
 
-async function handleLogout() {
-  try {
-    await ElMessageBox.confirm('确认退出当前登录状态吗？', '退出登录', {
-      type: 'warning',
-      confirmButtonText: '退出',
-      cancelButtonText: '取消',
-    })
-  } catch {
-    return
-  }
-  await authStore.logout()
-  await router.replace('/login')
-}
-
-function goToAccessAdmin() {
-  router.push('/admin/access')
-}
-
-function goToCustomerDemand() {
-  router.push('/customer-demand')
+function goToModules() {
+  router.push('/modules')
 }
 
 async function handleDeleteConversation(conversationId: string, title: string) {
@@ -91,30 +88,11 @@ async function handleDeleteConversation(conversationId: string, title: string) {
           <strong>{{ authStore.displayName || '未登录用户' }}</strong>
           <p>{{ authStore.user?.department?.name || '未设置部门' }}</p>
         </div>
-        <el-button text class="sidebar__logout" @click="handleLogout">
-          <el-icon><SwitchButton /></el-icon>
-          退出登录
+        <el-button text class="sidebar__logout" @click="goToModules">
+          <el-icon><ArrowLeft /></el-icon>
+          返回模块入口
         </el-button>
       </div>
-      <el-button
-        v-if="authStore.canManageAccess"
-        plain
-        class="sidebar__admin-entry"
-        @click="goToAccessAdmin"
-      >
-        <el-icon><Setting /></el-icon>
-        组织与权限管理
-      </el-button>
-      <el-button
-        v-if="authStore.canViewCustomerDemand"
-        plain
-        class="sidebar__admin-entry"
-        @click="goToCustomerDemand"
-      >
-        <el-icon><ChatLineSquare /></el-icon>
-        客户需求分析
-      </el-button>
-
       <div class="sidebar__brand">
         <p class="section-title">PowerAgent</p>
         <h1>解决方案工作台</h1>
@@ -137,7 +115,7 @@ async function handleDeleteConversation(conversationId: string, title: string) {
         <strong>当前会话</strong>
         <span>{{ totalCount }} 条</span>
       </div>
-      <p>{{ workspace.currentConversation?.title || '新的解决方案会话' }}</p>
+      <p>{{ compactTitle(workspace.currentConversation?.title || '') || '新的解决方案会话' }}</p>
       <small>{{ activePreview }}</small>
     </div>
 
@@ -164,7 +142,7 @@ async function handleDeleteConversation(conversationId: string, title: string) {
           tabindex="0"
         >
           <div class="sidebar__item-top">
-            <strong>{{ item.title || '未命名会话' }}</strong>
+            <strong>{{ compactTitle(item.title || '') || '未命名会话' }}</strong>
             <div class="sidebar__item-actions">
               <span :class="['sidebar__status', `is-${item.status}`]">{{ statusLabelMap[item.status] || item.status }}</span>
               <el-button
@@ -177,7 +155,7 @@ async function handleDeleteConversation(conversationId: string, title: string) {
               </el-button>
             </div>
           </div>
-          <p>{{ item.last_user_message || '等待第一次提问' }}</p>
+          <p>{{ compactPreview(item.last_user_message || '') || '等待第一次提问' }}</p>
           <div class="sidebar__item-meta">
             <time>{{ formatRelativeTime(item.last_message_at || item.updated_at) }}</time>
             <span>{{ formatDateTime(item.last_message_at || item.updated_at) }}</span>
@@ -237,10 +215,6 @@ async function handleDeleteConversation(conversationId: string, title: string) {
   display: flex;
   flex-direction: column;
   gap: 4px;
-}
-
-.sidebar__admin-entry {
-  justify-content: flex-start;
 }
 
 .sidebar__top h1 {

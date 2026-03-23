@@ -65,3 +65,19 @@ export interface LoginResult {
   expires_in_days: number
   user: CurrentUser
 }
+
+export const SOLUTION_WORKSPACE_PERMISSION_CODES = [
+  'conversation.view',
+  'conversation.manage_department',
+  'conversation.manage_all',
+  'task.view',
+  'task.manage_department',
+  'task.manage_all',
+]
+
+export const CUSTOMER_DEMAND_PERMISSION_CODES = [
+  'customer_demand.view',
+  'customer_demand.create',
+  'customer_demand.manage_all',
+  'customer_demand.export',
+]

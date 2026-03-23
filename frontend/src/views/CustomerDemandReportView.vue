@@ -6,6 +6,7 @@ import { ElMessage } from 'element-plus'
 
 import EmptyState from '@/components/common/EmptyState.vue'
 import { DEFAULT_PARAMS, SCENARIO_PRESET_MAP, type ComposerParams } from '@/config/solutionComposer'
+import { useAuthStore } from '@/stores/auth'
 import { useCustomerDemandStore } from '@/stores/customerDemand'
 import { useMetaStore } from '@/stores/meta'
 import type { OptionItem } from '@/types/meta'
@@ -22,6 +23,7 @@ const route = useRoute()
 const router = useRouter()
 const demandStore = useCustomerDemandStore()
 const metaStore = useMetaStore()
+const authStore = useAuthStore()
 
 const sessionId = computed(() => String(route.params.sessionId || ''))
 const report = computed(() => demandStore.currentReport)
@@ -77,6 +79,8 @@ const handoffSummary = computed(() => {
       : null,
   ].filter(Boolean) as Array<{ label: string; value: string }>
 })
+
+const canAccessSolutionWorkspace = computed(() => authStore.canAccessSolutionWorkspace)
 
 const knowledgeSources = computed<CustomerDemandKnowledgeSource[]>(() => {
   const raw = report.value?.used_knowledge_sources || []
@@ -273,6 +277,10 @@ function buildHandoffQuery(currentReport: CustomerDemandReportItem | null, curre
 }
 
 function openHandoffDialog() {
+  if (!canAccessSolutionWorkspace.value) {
+    ElMessage.warning('当前账户没有进入解决方案智能体的权限。')
+    return
+  }
   handoffParams.value = inferParamsFromReport(report.value, demandStore.currentSession)
   handoffQuery.value = buildHandoffQuery(report.value, demandStore.currentSession)
   handoffDialogVisible.value = true
@@ -336,7 +344,7 @@ watch(sessionId, async () => {
         </div>
       </div>
       <div class="customer-demand-report-header__actions">
-        <el-button type="success" :disabled="!report" @click="openHandoffDialog">
+        <el-button v-if="canAccessSolutionWorkspace" type="success" :disabled="!report" @click="openHandoffDialog">
           <el-icon><Right /></el-icon>
           转入方案生成
         </el-button>

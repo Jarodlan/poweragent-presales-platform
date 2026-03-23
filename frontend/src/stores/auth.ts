@@ -3,7 +3,11 @@ import { defineStore } from 'pinia'
 
 import { fetchCurrentUser, login as loginRequest, logout as logoutRequest } from '@/api/auth'
 import { clearStoredAuth, getStoredToken, setStoredToken } from '@/api/http'
-import type { CurrentUser } from '@/types/auth'
+import {
+  CUSTOMER_DEMAND_PERMISSION_CODES,
+  SOLUTION_WORKSPACE_PERMISSION_CODES,
+  type CurrentUser,
+} from '@/types/auth'
 
 const LAST_USERNAME_KEY = 'poweragent_last_username'
 
@@ -22,7 +26,11 @@ export const useAuthStore = defineStore('auth', () => {
   const canManageDepartments = computed(() => Boolean(user.value?.is_superuser || permissionCodes.value.has('department.manage')))
   const canViewAudit = computed(() => Boolean(user.value?.is_superuser || permissionCodes.value.has('audit.view')))
   const canManageAccess = computed(() => Boolean(user.value?.is_superuser || permissionCodes.value.has('platform.manage')))
-  const canViewCustomerDemand = computed(() => Boolean(user.value?.is_superuser || permissionCodes.value.has('customer_demand.view')))
+  const canViewCustomerDemand = computed(() => Boolean(user.value?.is_superuser || CUSTOMER_DEMAND_PERMISSION_CODES.some((code) => permissionCodes.value.has(code))))
+  const canAccessSolutionWorkspace = computed(
+    () => Boolean(user.value?.is_superuser || SOLUTION_WORKSPACE_PERMISSION_CODES.some((code) => permissionCodes.value.has(code))),
+  )
+  const canAccessKnowledgeBase = computed(() => Boolean(user.value?.is_superuser || permissionCodes.value.has('knowledge.manage')))
 
   async function bootstrap() {
     if (bootstrapped.value) return
@@ -97,6 +105,8 @@ export const useAuthStore = defineStore('auth', () => {
     canViewAudit,
     canManageAccess,
     canViewCustomerDemand,
+    canAccessSolutionWorkspace,
+    canAccessKnowledgeBase,
     lastUsername,
     bootstrap,
     login,

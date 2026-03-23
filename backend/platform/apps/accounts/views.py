@@ -7,6 +7,7 @@ from django.db import transaction
 from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
+from django.conf import settings
 from rest_framework.exceptions import PermissionDenied
 from rest_framework import status
 from rest_framework.authtoken.models import Token
@@ -34,6 +35,98 @@ from .serializers import (
     UserWriteSerializer,
 )
 from .services import record_login_failure, record_login_success
+
+
+SOLUTION_MODULE_PERMISSION_CODES = [
+    "conversation.view",
+    "conversation.manage_department",
+    "conversation.manage_all",
+    "task.view",
+    "task.manage_department",
+    "task.manage_all",
+]
+
+CUSTOMER_DEMAND_MODULE_PERMISSION_CODES = [
+    "customer_demand.view",
+    "customer_demand.create",
+    "customer_demand.manage_all",
+    "customer_demand.export",
+]
+
+
+def _user_has_any_permission(user: User, codes: list[str]) -> bool:
+    return bool(user.is_superuser or any(code in user.get_permission_codes() for code in codes))
+
+
+def _build_platform_modules_for_user(user: User) -> list[dict]:
+    modules: list[dict] = []
+
+    if _user_has_any_permission(user, SOLUTION_MODULE_PERMISSION_CODES):
+        modules.append(
+            {
+                "module_id": "solution_workspace",
+                "name": "解决方案智能体",
+                "description": "基于场景、参数、知识库与模板生成行业解决方案。",
+                "icon": "Cpu",
+                "route_type": "internal",
+                "route_target": "/",
+                "open_mode": "same_tab",
+            }
+        )
+
+    if _user_has_any_permission(user, CUSTOMER_DEMAND_MODULE_PERMISSION_CODES):
+        modules.append(
+            {
+                "module_id": "customer_demand_workspace",
+                "name": "客户需求分析智能体",
+                "description": "会中记录客户沟通，生成阶段整理、需求分析报告与建议追问。",
+                "icon": "ChatDotRound",
+                "route_type": "internal",
+                "route_target": "/customer-demand",
+                "open_mode": "same_tab",
+            }
+        )
+
+    if _user_has_any_permission(user, ["knowledge.manage"]):
+        modules.append(
+            {
+                "module_id": "knowledge_base_admin",
+                "name": "知识库管理",
+                "description": "进入 RAGFlow 知识库平台，维护资料与检索数据。",
+                "icon": "FolderOpened",
+                "route_type": "external",
+                "route_target": settings.KNOWLEDGE_BASE_ENTRY_URL,
+                "open_mode": "new_tab",
+            }
+        )
+
+    if _user_has_any_permission(user, ["platform.manage"]):
+        modules.append(
+            {
+                "module_id": "access_admin",
+                "name": "组织与权限管理",
+                "description": "管理用户、角色、部门与权限分配。",
+                "icon": "Setting",
+                "route_type": "internal",
+                "route_target": "/admin/access",
+                "open_mode": "same_tab",
+            }
+        )
+
+    if _user_has_any_permission(user, ["audit.view"]):
+        modules.append(
+            {
+                "module_id": "audit_center",
+                "name": "审计日志中心",
+                "description": "查看关键操作、访问轨迹与平台审计日志。",
+                "icon": "Document",
+                "route_type": "internal",
+                "route_target": "/admin/audit",
+                "open_mode": "same_tab",
+            }
+        )
+
+    return modules
 
 
 class LoginView(APIView):
@@ -113,6 +206,22 @@ class CurrentUserView(APIView):
 
     def get(self, request):
         return Response({"code": 0, "message": "ok", "data": UserSerializer(request.user).data})
+
+
+class PlatformModuleListView(APIView):
+    authentication_classes = [ExpiringTokenAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        return Response(
+            {
+                "code": 0,
+                "message": "ok",
+                "data": {
+                    "items": _build_platform_modules_for_user(request.user),
+                },
+            }
+        )
 
 
 class UserListView(APIView):

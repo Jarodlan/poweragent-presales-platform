@@ -29,8 +29,8 @@ async function submit() {
   }
   try {
     await authStore.login(form.username.trim(), form.password)
-    ElMessage.success('登录成功，正在进入工作台。')
-    const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : '/'
+    ElMessage.success('登录成功，正在进入平台首页。')
+    const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : '/modules'
     await router.replace(redirect)
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '登录失败，请检查账户信息。')

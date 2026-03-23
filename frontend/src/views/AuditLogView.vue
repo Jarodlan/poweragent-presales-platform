@@ -98,9 +98,9 @@ onMounted(async () => {
           <el-icon><Refresh /></el-icon>
           刷新日志
         </el-button>
-        <el-button type="primary" plain @click="router.push('/admin/access')">
+        <el-button type="primary" plain @click="router.push('/modules')">
           <el-icon><ArrowLeft /></el-icon>
-          返回权限中心
+          返回模块入口
         </el-button>
       </div>
     </header>
