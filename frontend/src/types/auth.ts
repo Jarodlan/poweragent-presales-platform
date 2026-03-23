@@ -67,6 +67,7 @@ export interface LoginResult {
 }
 
 export const SOLUTION_WORKSPACE_PERMISSION_CODES = [
+  'solution.access',
   'conversation.view',
   'conversation.manage_department',
   'conversation.manage_all',
@@ -76,8 +77,13 @@ export const SOLUTION_WORKSPACE_PERMISSION_CODES = [
 ]
 
 export const CUSTOMER_DEMAND_PERMISSION_CODES = [
+  'customer_demand.access',
   'customer_demand.view',
   'customer_demand.create',
   'customer_demand.manage_all',
   'customer_demand.export',
 ]
+
+export const KNOWLEDGE_BASE_PERMISSION_CODES = ['knowledge.access', 'knowledge.manage']
+export const ACCESS_ADMIN_PERMISSION_CODES = ['access_admin.access', 'platform.manage']
+export const AUDIT_CENTER_PERMISSION_CODES = ['audit.access', 'audit.view']

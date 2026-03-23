@@ -140,12 +140,36 @@ const visibleTabs = computed(() => {
 })
 
 const permissionGroups = computed(() => {
+  const moduleMeta: Record<string, { label: string; description: string; order: number }> = {
+    solution: { label: '解决方案智能体入口', description: '控制是否可进入解决方案智能体模块。', order: 1 },
+    conversation: { label: '解决方案会话', description: '控制解决方案会话可见范围与管理边界。', order: 2 },
+    task: { label: '解决方案任务', description: '控制解决方案生成任务的查看与管理范围。', order: 3 },
+    customer_demand_module: { label: '客户需求分析智能体入口', description: '控制是否可进入客户需求分析智能体模块。', order: 4 },
+    customer_demand: { label: '客户需求分析业务', description: '控制客户需求会话、报告和导出能力。', order: 5 },
+    knowledge: { label: '知识库管理', description: '控制知识库管理模块入口与配置能力。', order: 6 },
+    access_admin: { label: '组织与权限管理入口', description: '控制是否可进入组织与权限管理中心。', order: 7 },
+    platform: { label: '平台治理', description: '控制平台治理级配置与管理能力。', order: 8 },
+    user: { label: '用户管理', description: '控制用户创建、编辑、停用与恢复能力。', order: 9 },
+    role: { label: '角色管理', description: '控制角色创建、授权与复制能力。', order: 10 },
+    department: { label: '部门管理', description: '控制部门树管理与维护能力。', order: 11 },
+    audit_center: { label: '审计日志入口', description: '控制是否可进入审计日志中心。', order: 12 },
+    audit: { label: '审计日志查看', description: '控制审计日志数据的查看能力。', order: 13 },
+    template: { label: '模板管理', description: '控制模板与场景配置能力。', order: 14 },
+  }
   const map = new Map<string, PermissionItem[]>()
   permissions.value.forEach((item) => {
     if (!map.has(item.module)) map.set(item.module, [])
     map.get(item.module)?.push(item)
   })
-  return Array.from(map.entries()).map(([module, items]) => ({ module, items }))
+  return Array.from(map.entries())
+    .map(([module, items]) => ({
+      module,
+      label: moduleMeta[module]?.label || module,
+      description: moduleMeta[module]?.description || '该分组包含同一业务模块下的权限项。',
+      order: moduleMeta[module]?.order || 99,
+      items,
+    }))
+    .sort((a, b) => a.order - b.order)
 })
 
 const filteredUsers = computed(() => {
@@ -799,13 +823,13 @@ onMounted(loadAdminData)
           <div class="permission-groups">
             <section v-for="group in permissionGroups" :key="group.module" class="permission-group panel-card">
               <header>
-                <strong>{{ group.module }}</strong>
+                <strong>{{ group.label }}</strong>
+                <p>{{ group.description }}</p>
               </header>
               <el-checkbox-group v-model="roleForm.permission_codes">
                 <el-checkbox v-for="item in group.items" :key="item.code" :label="item.code">
                   <div class="permission-item">
                     <span>{{ item.name }}</span>
-                    <small>{{ item.code }}</small>
                   </div>
                 </el-checkbox>
               </el-checkbox-group>
@@ -1305,11 +1329,13 @@ onMounted(loadAdminData)
 .permission-item {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  min-width: 0;
 }
 
-.permission-item small {
-  color: var(--muted);
+.permission-item span {
+  font-size: 14px;
+  line-height: 1.45;
+  font-weight: 600;
 }
 
 :deep(.el-checkbox) {

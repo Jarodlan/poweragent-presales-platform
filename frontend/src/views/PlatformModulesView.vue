@@ -71,8 +71,8 @@ onMounted(loadModules)
     <header class="modules-header panel-card">
       <div>
         <p class="section-title">PowerAgent</p>
-        <h1>统一模块入口</h1>
-        <p>登录后先从这里进入有权限使用的业务模块与管理模块，平台级入口不再分散在各个工作台内部。</p>
+        <h1>电力行业智能体平台</h1>
+        <p>登录后从平台首页进入有权限使用的业务模块与管理模块，统一承接智能体能力、知识库入口与平台治理能力。</p>
       </div>
       <div class="modules-header__actions">
         <div class="modules-user panel-card">
@@ -89,8 +89,8 @@ onMounted(loadModules)
 
     <section class="modules-summary panel-card">
       <div>
-        <strong>当前平台首页</strong>
-        <p>按权限展示功能模块，减少从某个工作台再绕去其他模块的情况。</p>
+        <strong>平台模块入口</strong>
+        <p>按权限展示当前可访问的功能模块，让导航更清晰，也便于后续继续扩展新的智能体能力。</p>
       </div>
       <el-tag type="info" effect="plain">{{ moduleCountLabel }}</el-tag>
     </section>

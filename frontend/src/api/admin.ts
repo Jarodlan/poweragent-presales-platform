@@ -116,8 +116,12 @@ export function fetchAuditLogs(params?: {
   resource_type?: string
   actor_id?: number | string
   keyword?: string
+  start_date?: string
+  end_date?: string
 }) {
   const query = new URLSearchParams()
+  if (params?.start_date) query.set('start_date', params.start_date)
+  if (params?.end_date) query.set('end_date', params.end_date)
   if (params?.action) query.set('action', params.action)
   if (params?.resource_type) query.set('resource_type', params.resource_type)
   if (params?.actor_id) query.set('actor_id', String(params.actor_id))

@@ -9,7 +9,12 @@ import PlatformModulesView from '@/views/PlatformModulesView.vue'
 import WorkspaceView from '@/views/WorkspaceView.vue'
 import { useAuthStore } from '@/stores/auth'
 import { pinia } from '@/stores'
-import { CUSTOMER_DEMAND_PERMISSION_CODES, SOLUTION_WORKSPACE_PERMISSION_CODES } from '@/types/auth'
+import {
+  ACCESS_ADMIN_PERMISSION_CODES,
+  AUDIT_CENTER_PERMISSION_CODES,
+  CUSTOMER_DEMAND_PERMISSION_CODES,
+  SOLUTION_WORKSPACE_PERMISSION_CODES,
+} from '@/types/auth'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -54,7 +59,7 @@ const router = createRouter({
       name: 'admin-access',
       component: AdminAccessView,
       meta: {
-        requiredAnyPermission: ['platform.manage'],
+        requiredAnyPermission: ACCESS_ADMIN_PERMISSION_CODES,
       },
     },
     {
@@ -62,7 +67,7 @@ const router = createRouter({
       name: 'admin-audit',
       component: AuditLogView,
       meta: {
-        requiredAnyPermission: ['audit.view'],
+        requiredAnyPermission: AUDIT_CENTER_PERMISSION_CODES,
       },
     },
   ],

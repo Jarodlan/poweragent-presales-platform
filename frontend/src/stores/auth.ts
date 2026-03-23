@@ -4,7 +4,10 @@ import { defineStore } from 'pinia'
 import { fetchCurrentUser, login as loginRequest, logout as logoutRequest } from '@/api/auth'
 import { clearStoredAuth, getStoredToken, setStoredToken } from '@/api/http'
 import {
+  ACCESS_ADMIN_PERMISSION_CODES,
+  AUDIT_CENTER_PERMISSION_CODES,
   CUSTOMER_DEMAND_PERMISSION_CODES,
+  KNOWLEDGE_BASE_PERMISSION_CODES,
   SOLUTION_WORKSPACE_PERMISSION_CODES,
   type CurrentUser,
 } from '@/types/auth'
@@ -24,13 +27,15 @@ export const useAuthStore = defineStore('auth', () => {
   const canManageUsers = computed(() => Boolean(user.value?.is_superuser || permissionCodes.value.has('user.manage')))
   const canManageRoles = computed(() => Boolean(user.value?.is_superuser || permissionCodes.value.has('role.manage')))
   const canManageDepartments = computed(() => Boolean(user.value?.is_superuser || permissionCodes.value.has('department.manage')))
-  const canViewAudit = computed(() => Boolean(user.value?.is_superuser || permissionCodes.value.has('audit.view')))
-  const canManageAccess = computed(() => Boolean(user.value?.is_superuser || permissionCodes.value.has('platform.manage')))
+  const canViewAudit = computed(() => Boolean(user.value?.is_superuser || AUDIT_CENTER_PERMISSION_CODES.some((code) => permissionCodes.value.has(code))))
+  const canManageAccess = computed(() => Boolean(user.value?.is_superuser || ACCESS_ADMIN_PERMISSION_CODES.some((code) => permissionCodes.value.has(code))))
   const canViewCustomerDemand = computed(() => Boolean(user.value?.is_superuser || CUSTOMER_DEMAND_PERMISSION_CODES.some((code) => permissionCodes.value.has(code))))
   const canAccessSolutionWorkspace = computed(
     () => Boolean(user.value?.is_superuser || SOLUTION_WORKSPACE_PERMISSION_CODES.some((code) => permissionCodes.value.has(code))),
   )
-  const canAccessKnowledgeBase = computed(() => Boolean(user.value?.is_superuser || permissionCodes.value.has('knowledge.manage')))
+  const canAccessKnowledgeBase = computed(
+    () => Boolean(user.value?.is_superuser || KNOWLEDGE_BASE_PERMISSION_CODES.some((code) => permissionCodes.value.has(code))),
+  )
 
   async function bootstrap() {
     if (bootstrapped.value) return

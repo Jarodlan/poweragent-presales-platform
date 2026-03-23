@@ -14,6 +14,11 @@ class PermissionSeed:
 
 
 PERMISSION_SEEDS = [
+    PermissionSeed("solution.access", "进入解决方案智能体", "solution", "access", "self", "进入解决方案智能体模块。"),
+    PermissionSeed("customer_demand.access", "进入客户需求分析智能体", "customer_demand_module", "access", "self", "进入客户需求分析智能体模块。"),
+    PermissionSeed("knowledge.access", "进入知识库管理", "knowledge", "access", "platform", "进入知识库管理模块。"),
+    PermissionSeed("access_admin.access", "进入组织与权限管理", "access_admin", "access", "platform", "进入组织与权限管理模块。"),
+    PermissionSeed("audit.access", "进入审计日志中心", "audit_center", "access", "platform", "进入审计日志中心模块。"),
     PermissionSeed("platform.manage", "平台管理", "platform", "manage", "platform", "管理平台配置与系统能力。"),
     PermissionSeed("user.manage", "用户管理", "user", "manage", "platform", "创建、编辑、停用用户。"),
     PermissionSeed("role.manage", "角色管理", "role", "manage", "platform", "创建、编辑角色及授权。"),
@@ -46,6 +51,11 @@ ROLE_SEEDS = {
         "description": "负责平台配置、知识库和模板管理。",
         "data_scope": "all",
         "permissions": [
+            "solution.access",
+            "customer_demand.access",
+            "knowledge.access",
+            "access_admin.access",
+            "audit.access",
             "platform.manage",
             "user.manage",
             "role.manage",
@@ -64,10 +74,14 @@ ROLE_SEEDS = {
         "description": "管理本部门成员、会话与任务。",
         "data_scope": "department",
         "permissions": [
+            "solution.access",
+            "customer_demand.access",
             "conversation.manage_department",
             "task.manage_department",
             "conversation.view",
             "task.view",
+            "customer_demand.view",
+            "customer_demand.create",
         ],
     },
     "power_user": {
@@ -75,6 +89,8 @@ ROLE_SEEDS = {
         "description": "可创建和查看本人的解决方案任务。",
         "data_scope": "self",
         "permissions": [
+            "solution.access",
+            "customer_demand.access",
             "conversation.view",
             "task.view",
             "customer_demand.view",
@@ -86,6 +102,8 @@ ROLE_SEEDS = {
         "description": "可使用基础解决方案生成能力。",
         "data_scope": "self",
         "permissions": [
+            "solution.access",
+            "customer_demand.access",
             "conversation.view",
             "task.view",
             "customer_demand.view",

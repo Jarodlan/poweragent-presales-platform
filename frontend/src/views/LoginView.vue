@@ -52,9 +52,9 @@ async function submit() {
     <section class="login-panel panel-card">
       <div class="login-panel__intro">
         <p class="section-title">PowerAgent</p>
-        <h1>电力行业解决方案工作台</h1>
+        <h1>电力行业智能体平台</h1>
         <p>
-          面向公司内部员工的解决方案生成平台。登录后可访问历史会话、知识证据和多场景模板能力。
+          面向公司内部员工的智能体协作平台。登录后可按权限进入解决方案生成、客户需求分析、知识库管理与平台治理等模块。
         </p>
       </div>
 
@@ -89,7 +89,7 @@ async function submit() {
         </el-form-item>
 
         <el-button type="primary" size="large" round :loading="authStore.loading" @click="submit">
-          登录进入工作台
+          登录进入平台
         </el-button>
       </el-form>
 

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
+import { ElMessage } from 'element-plus'
 import { ArrowLeft, Refresh } from '@element-plus/icons-vue'
 import { useRouter } from 'vue-router'
 
@@ -12,11 +13,13 @@ const loading = ref(false)
 const usersLoading = ref(false)
 const logs = ref<AuditLogItem[]>([])
 const users = ref<UserItem[]>([])
+const hasSearched = ref(false)
 const filters = reactive({
   keyword: '',
   action: '',
   resource_type: '',
   actor_id: '',
+  date_range: [] as [Date, Date] | [],
 })
 
 const actionOptions = [
@@ -58,15 +61,23 @@ async function loadUsers() {
 }
 
 async function loadLogs() {
+  if (!Array.isArray(filters.date_range) || filters.date_range.length !== 2) {
+    ElMessage.warning('请先选择日期范围，再执行审计日志查询')
+    return
+  }
   loading.value = true
   try {
+    const [startDate, endDate] = filters.date_range
     const data = await fetchAuditLogs({
+      start_date: formatDateParam(startDate),
+      end_date: formatDateParam(endDate),
       keyword: filters.keyword || undefined,
       action: filters.action || undefined,
       resource_type: filters.resource_type || undefined,
       actor_id: filters.actor_id || undefined,
     })
     logs.value = data.items
+    hasSearched.value = true
   } finally {
     loading.value = false
   }
@@ -77,11 +88,20 @@ function resetFilters() {
   filters.action = ''
   filters.resource_type = ''
   filters.actor_id = ''
-  loadLogs()
+  filters.date_range = []
+  logs.value = []
+  hasSearched.value = false
+}
+
+function formatDateParam(date: Date) {
+  const year = date.getFullYear()
+  const month = `${date.getMonth() + 1}`.padStart(2, '0')
+  const day = `${date.getDate()}`.padStart(2, '0')
+  return `${year}-${month}-${day}`
 }
 
 onMounted(async () => {
-  await Promise.all([loadUsers(), loadLogs()])
+  await loadUsers()
 })
 </script>
 
@@ -106,29 +126,65 @@ onMounted(async () => {
     </header>
 
     <section class="audit-filters panel-card">
-      <el-input v-model="filters.keyword" placeholder="搜索动作、资源、操作者或细节" clearable class="audit-filters__keyword" />
-      <el-select v-model="filters.action" clearable placeholder="动作类型">
-        <el-option v-for="item in actionOptions" :key="item" :label="item" :value="item" />
-      </el-select>
-      <el-select v-model="filters.resource_type" clearable placeholder="资源类型">
-        <el-option v-for="item in resourceTypeOptions" :key="item" :label="item" :value="item" />
-      </el-select>
-      <el-select v-model="filters.actor_id" clearable placeholder="操作人" :loading="usersLoading">
-        <el-option v-for="item in users" :key="item.id" :label="item.display_name || item.username" :value="String(item.id)" />
-      </el-select>
-      <div class="audit-filters__actions">
-        <el-button type="primary" @click="loadLogs">筛选</el-button>
-        <el-button @click="resetFilters">重置</el-button>
+      <div class="audit-filters__intro">
+        <strong>检索条件</strong>
+        <p>请先选择日期范围，再按动作、资源类型、操作人和关键词缩小结果范围。</p>
+      </div>
+      <div class="audit-filters__layout">
+        <div class="audit-filter-field audit-filter-field--wide">
+          <label>日期范围</label>
+          <el-date-picker
+            v-model="filters.date_range"
+            type="daterange"
+            range-separator="至"
+            start-placeholder="开始日期"
+            end-placeholder="结束日期"
+            value-format=""
+            class="audit-filters__date"
+          />
+        </div>
+        <div class="audit-filter-field audit-filter-field--full">
+          <label>关键词</label>
+          <el-input v-model="filters.keyword" placeholder="搜索动作、资源、操作者或细节" clearable class="audit-filters__keyword" />
+        </div>
+        <div class="audit-filter-grid">
+          <div class="audit-filter-field">
+            <label>动作类型</label>
+            <el-select v-model="filters.action" clearable placeholder="全部动作">
+              <el-option v-for="item in actionOptions" :key="item" :label="item" :value="item" />
+            </el-select>
+          </div>
+          <div class="audit-filter-field">
+            <label>资源类型</label>
+            <el-select v-model="filters.resource_type" clearable placeholder="全部资源">
+              <el-option v-for="item in resourceTypeOptions" :key="item" :label="item" :value="item" />
+            </el-select>
+          </div>
+          <div class="audit-filter-field">
+            <label>操作人</label>
+            <el-select v-model="filters.actor_id" clearable placeholder="全部人员" :loading="usersLoading">
+              <el-option v-for="item in users" :key="item.id" :label="item.display_name || item.username" :value="String(item.id)" />
+            </el-select>
+          </div>
+        </div>
+        <div class="audit-filters__actions">
+          <el-button type="primary" :disabled="!filters.date_range.length" @click="loadLogs">查询日志</el-button>
+          <el-button @click="resetFilters">重置</el-button>
+        </div>
       </div>
     </section>
 
     <section class="audit-summary panel-card">
-      <span>共 {{ logs.length }} 条日志</span>
-      <span v-if="logs.length">最新时间：{{ formatDateTime(logs[0].created_at) }}</span>
+      <span v-if="hasSearched">共 {{ logs.length }} 条日志</span>
+      <span v-else>请先选择日期范围并执行查询</span>
+      <span v-if="hasSearched && logs.length">最新时间：{{ formatDateTime(logs[0].created_at) }}</span>
     </section>
 
     <section class="audit-content panel-card" v-loading="loading">
-      <div v-if="!logs.length" class="audit-empty">
+      <div v-if="!hasSearched" class="audit-empty">
+        审计日志默认不直接展示，请先选择日期范围，再结合动作、资源和操作人进行检索。
+      </div>
+      <div v-else-if="!logs.length" class="audit-empty">
         暂无匹配日志，换个筛选条件试试。
       </div>
       <div v-else class="audit-groups">
@@ -188,7 +244,6 @@ onMounted(async () => {
 }
 
 .audit-header__actions,
-.audit-filters,
 .audit-filters__actions,
 .audit-summary {
   display: flex;
@@ -197,9 +252,65 @@ onMounted(async () => {
   flex-wrap: wrap;
 }
 
+.audit-filters {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.audit-filters__intro strong {
+  font-size: 16px;
+}
+
+.audit-filters__intro p {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.audit-filters__layout {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.audit-filter-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.audit-filter-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.audit-filter-field label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.audit-filter-field--wide {
+  max-width: 460px;
+}
+
+.audit-filter-field--full {
+  width: 100%;
+}
+
 .audit-filters__keyword {
-  min-width: 280px;
-  flex: 1;
+  width: 100%;
+}
+
+.audit-filters__date {
+  width: 100%;
+}
+
+.audit-filters__actions {
+  justify-content: flex-end;
 }
 
 .audit-groups {
@@ -263,10 +374,17 @@ onMounted(async () => {
 
 @media (max-width: 1080px) {
   .audit-header,
-  .audit-filters,
   .audit-item__meta {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .audit-filter-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .audit-filters__actions {
+    justify-content: flex-start;
   }
 }
 </style>

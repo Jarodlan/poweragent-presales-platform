@@ -38,6 +38,7 @@ from .services import record_login_failure, record_login_success
 
 
 SOLUTION_MODULE_PERMISSION_CODES = [
+    "solution.access",
     "conversation.view",
     "conversation.manage_department",
     "conversation.manage_all",
@@ -47,6 +48,7 @@ SOLUTION_MODULE_PERMISSION_CODES = [
 ]
 
 CUSTOMER_DEMAND_MODULE_PERMISSION_CODES = [
+    "customer_demand.access",
     "customer_demand.view",
     "customer_demand.create",
     "customer_demand.manage_all",
@@ -87,7 +89,7 @@ def _build_platform_modules_for_user(user: User) -> list[dict]:
             }
         )
 
-    if _user_has_any_permission(user, ["knowledge.manage"]):
+    if _user_has_any_permission(user, ["knowledge.access", "knowledge.manage"]):
         modules.append(
             {
                 "module_id": "knowledge_base_admin",
@@ -100,7 +102,7 @@ def _build_platform_modules_for_user(user: User) -> list[dict]:
             }
         )
 
-    if _user_has_any_permission(user, ["platform.manage"]):
+    if _user_has_any_permission(user, ["access_admin.access", "platform.manage"]):
         modules.append(
             {
                 "module_id": "access_admin",
@@ -113,7 +115,7 @@ def _build_platform_modules_for_user(user: User) -> list[dict]:
             }
         )
 
-    if _user_has_any_permission(user, ["audit.view"]):
+    if _user_has_any_permission(user, ["audit.access", "audit.view"]):
         modules.append(
             {
                 "module_id": "audit_center",
