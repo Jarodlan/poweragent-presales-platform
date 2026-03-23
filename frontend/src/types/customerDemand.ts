@@ -48,6 +48,17 @@ export interface CustomerDemandSegmentItem {
   updated_at: string
 }
 
+export interface CustomerDemandRecordingItem {
+  id: string
+  session: string
+  file_name: string
+  file_type: string
+  uploaded_by: number | null
+  created_at: string
+  file_size: number
+  mime_type: string
+}
+
 export interface CustomerDemandReviewSegmentPayload {
   decision: 'accept' | 'discard'
   edited_text?: string
@@ -126,6 +137,10 @@ export interface CustomerDemandSegmentListData {
 
 export interface CustomerDemandStageSummaryListData {
   items: CustomerDemandStageSummaryItem[]
+}
+
+export interface CustomerDemandRecordingListData {
+  items: CustomerDemandRecordingItem[]
 }
 
 export interface CustomerDemandCreateSessionPayload {

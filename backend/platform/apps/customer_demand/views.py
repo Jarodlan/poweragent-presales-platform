@@ -1,6 +1,13 @@
 from __future__ import annotations
 
+import mimetypes
+import os
+import uuid
+from pathlib import Path
+
+from django.conf import settings
 from django.db.models import Q
+from django.http import FileResponse
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework import status
@@ -9,11 +16,19 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from .asr.service import transcribe_audio_chunk
-from .models import CustomerDemandAnalysisTask, CustomerDemandReport, CustomerDemandSegment, CustomerDemandSession, CustomerDemandStageSummary
+from .models import (
+    CustomerDemandAnalysisTask,
+    CustomerDemandAttachment,
+    CustomerDemandReport,
+    CustomerDemandSegment,
+    CustomerDemandSession,
+    CustomerDemandStageSummary,
+)
 from .permissions import CanExportCustomerDemand
 from .semantic import validate_segment_semantics
 from .serializers import (
     CustomerDemandAnalysisTaskSerializer,
+    CustomerDemandRecordingAttachmentSerializer,
     CustomerDemandReportSerializer,
     CustomerDemandSegmentSerializer,
     CustomerDemandSegmentWriteSerializer,
@@ -27,6 +42,35 @@ from .services import (
     maybe_enqueue_auto_stage_summary,
     resolve_visible_customer_demand_sessions,
 )
+
+
+RECORDING_FILE_TYPE_PREFIX = "recording:"
+
+
+def _recordings_dir(session_id):
+    return Path(settings.MEDIA_ROOT) / "customer_demand_recordings" / str(session_id)
+
+
+def _recording_mime_type(file_type):
+    file_type = (file_type or "").strip()
+    if file_type.startswith(RECORDING_FILE_TYPE_PREFIX):
+        return file_type.split(":", 1)[1] or "audio/wav"
+    return file_type or "audio/wav"
+
+
+def _recording_queryset(session):
+    return session.attachments.filter(file_type__startswith=RECORDING_FILE_TYPE_PREFIX).order_by("-created_at")
+
+
+def _safe_remove_file(path_value):
+    path = Path(path_value or "")
+    if not path.exists():
+        return
+    try:
+        if path.is_file():
+            path.unlink()
+    except OSError:
+        pass
 
 
 class CustomerDemandSessionListCreateView(APIView):
@@ -79,6 +123,8 @@ class CustomerDemandSessionDetailView(APIView):
     def delete(self, request, session_id):
         session = self.get_object(request, session_id)
         deleted_session_id = str(session.id)
+        for attachment in session.attachments.all():
+            _safe_remove_file(attachment.storage_path)
         session.delete()
         return Response({"code": 0, "message": "ok", "data": {"session_id": deleted_session_id}})
 
@@ -321,6 +367,95 @@ class CustomerDemandAudioSegmentUploadView(APIView):
                 },
             }
         )
+
+
+class CustomerDemandRecordingListCreateView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get_session(self, request, session_id):
+        return get_object_or_404(resolve_visible_customer_demand_sessions(request.user), id=session_id)
+
+    def get(self, request, session_id):
+        session = self.get_session(request, session_id)
+        items = _recording_queryset(session)
+        return Response(
+            {
+                "code": 0,
+                "message": "ok",
+                "data": {
+                    "items": CustomerDemandRecordingAttachmentSerializer(items, many=True).data,
+                },
+            }
+        )
+
+    def post(self, request, session_id):
+        session = self.get_session(request, session_id)
+        recording_file = request.FILES.get("recording_file")
+        if not recording_file:
+            return Response(
+                {"code": 40060, "message": "缺少 recording_file", "data": None},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        recordings_dir = _recordings_dir(session.id)
+        recordings_dir.mkdir(parents=True, exist_ok=True)
+        extension = Path(recording_file.name or "").suffix or ".wav"
+        stored_name = f"{timezone.now().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:8]}{extension}"
+        absolute_path = recordings_dir / stored_name
+
+        with absolute_path.open("wb") as stream:
+            for chunk in recording_file.chunks():
+                stream.write(chunk)
+
+        attachment = CustomerDemandAttachment.objects.create(
+            session=session,
+            file_name=request.data.get("display_name") or recording_file.name or stored_name,
+            file_type=f"{RECORDING_FILE_TYPE_PREFIX}{getattr(recording_file, 'content_type', '') or 'audio/wav'}",
+            storage_path=str(absolute_path),
+            uploaded_by=request.user,
+        )
+        session.updated_at = timezone.now()
+        session.save(update_fields=["updated_at"])
+        return Response(
+            {
+                "code": 0,
+                "message": "ok",
+                "data": CustomerDemandRecordingAttachmentSerializer(attachment).data,
+            },
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class CustomerDemandRecordingDetailView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get_object(self, request, session_id, recording_id):
+        session = get_object_or_404(resolve_visible_customer_demand_sessions(request.user), id=session_id)
+        return get_object_or_404(_recording_queryset(session), id=recording_id)
+
+    def delete(self, request, session_id, recording_id):
+        recording = self.get_object(request, session_id, recording_id)
+        deleted_id = str(recording.id)
+        _safe_remove_file(recording.storage_path)
+        recording.delete()
+        return Response({"code": 0, "message": "ok", "data": {"recording_id": deleted_id}})
+
+
+class CustomerDemandRecordingDownloadView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get_object(self, request, session_id, recording_id):
+        session = get_object_or_404(resolve_visible_customer_demand_sessions(request.user), id=session_id)
+        return get_object_or_404(_recording_queryset(session), id=recording_id)
+
+    def get(self, request, session_id, recording_id):
+        recording = self.get_object(request, session_id, recording_id)
+        file_path = Path(recording.storage_path)
+        if not file_path.exists() or not file_path.is_file():
+            return Response({"code": 404, "message": "录音文件不存在", "data": None}, status=status.HTTP_404_NOT_FOUND)
+        response = FileResponse(file_path.open("rb"), content_type=_recording_mime_type(recording.file_type))
+        response["Content-Disposition"] = f'attachment; filename="{os.path.basename(recording.file_name) or file_path.name}"'
+        return response
 
 
 class CustomerDemandStageSummariesView(APIView):

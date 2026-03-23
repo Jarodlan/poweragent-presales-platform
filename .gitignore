@@ -35,3 +35,5 @@ Thumbs.db
 # Local smoke-test artifacts
 tmp/
 test_data/
+# Local uploaded media / recordings
+backend/platform/media/

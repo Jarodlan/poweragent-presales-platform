@@ -11,6 +11,16 @@ interface ApiEnvelope<T> {
   data: T
 }
 
+function buildRequestHeaders(init?: RequestInit) {
+  const token = getStoredToken()
+  const isFormDataBody = typeof FormData !== 'undefined' && init?.body instanceof FormData
+  return {
+    ...(!isFormDataBody ? DEFAULT_HEADERS : {}),
+    ...(token ? { Authorization: `Token ${token}` } : {}),
+    ...(init?.headers ?? {}),
+  }
+}
+
 export function getStoredToken() {
   return localStorage.getItem(TOKEN_STORAGE_KEY) || ''
 }
@@ -41,15 +51,9 @@ export function clearStoredAuth() {
 }
 
 export async function apiRequest<T>(input: string, init?: RequestInit): Promise<T> {
-  const token = getStoredToken()
-  const isFormDataBody = typeof FormData !== 'undefined' && init?.body instanceof FormData
   const response = await fetch(input, {
     ...init,
-    headers: {
-      ...(!isFormDataBody ? DEFAULT_HEADERS : {}),
-      ...(token ? { Authorization: `Token ${token}` } : {}),
-      ...(init?.headers ?? {}),
-    },
+    headers: buildRequestHeaders(init),
   })
 
   if (response.status === 401) {
@@ -71,4 +75,26 @@ export async function apiRequest<T>(input: string, init?: RequestInit): Promise<
   }
 
   return payload.data
+}
+
+export async function apiRequestBlob(input: string, init?: RequestInit): Promise<Blob> {
+  const response = await fetch(input, {
+    ...init,
+    headers: buildRequestHeaders(init),
+  })
+
+  if (response.status === 401) {
+    clearStoredAuth()
+    if (window.location.pathname !== '/login') {
+      window.location.href = '/login'
+    }
+    throw new Error('登录状态已失效，请重新登录。')
+  }
+
+  if (!response.ok) {
+    const text = await response.text()
+    throw new Error(text || `Request failed with status ${response.status}`)
+  }
+
+  return response.blob()
 }

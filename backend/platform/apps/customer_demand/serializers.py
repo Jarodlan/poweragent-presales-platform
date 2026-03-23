@@ -4,6 +4,7 @@ from rest_framework import serializers
 
 from .models import (
     CustomerDemandAnalysisTask,
+    CustomerDemandAttachment,
     CustomerDemandParticipant,
     CustomerDemandReport,
     CustomerDemandSegment,
@@ -213,3 +214,36 @@ class CustomerDemandAnalysisTaskSerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at",
         ]
+
+
+class CustomerDemandRecordingAttachmentSerializer(serializers.ModelSerializer):
+    file_size = serializers.SerializerMethodField()
+    mime_type = serializers.SerializerMethodField()
+
+    class Meta:
+        model = CustomerDemandAttachment
+        fields = [
+            "id",
+            "session",
+            "file_name",
+            "file_type",
+            "uploaded_by",
+            "created_at",
+            "file_size",
+            "mime_type",
+        ]
+        read_only_fields = fields
+
+    def get_file_size(self, obj):
+        from pathlib import Path
+
+        path = Path(obj.storage_path)
+        if not path.exists():
+            return 0
+        return path.stat().st_size
+
+    def get_mime_type(self, obj):
+        file_type = (obj.file_type or "").strip()
+        if file_type.startswith("recording:"):
+            return file_type.split(":", 1)[1] or "audio/wav"
+        return file_type or "audio/wav"

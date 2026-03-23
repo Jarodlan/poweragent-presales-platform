@@ -5,8 +5,11 @@ import { ElMessage } from 'element-plus'
 import {
   createCustomerDemandManualSegment,
   createCustomerDemandSession,
+  deleteCustomerDemandRecording,
   deleteCustomerDemandSession,
+  downloadCustomerDemandRecording,
   exportCustomerDemandReport,
+  fetchCustomerDemandRecordings,
   fetchCustomerDemandReport,
   reviewCustomerDemandSegment,
   fetchCustomerDemandSegments,
@@ -21,9 +24,11 @@ import {
   triggerCustomerDemandStageSummary,
   updateCustomerDemandSession,
   uploadCustomerDemandAudioChunk,
+  uploadCustomerDemandRecording,
 } from '@/api/customerDemand'
 import type {
   CustomerDemandCreateSessionPayload,
+  CustomerDemandRecordingItem,
   CustomerDemandReportItem,
   CustomerDemandReviewSegmentPayload,
   CustomerDemandSegmentItem,
@@ -59,6 +64,7 @@ export const useCustomerDemandStore = defineStore('customerDemand', () => {
   const currentSessionId = ref('')
   const segments = ref<CustomerDemandSegmentItem[]>([])
   const stageSummaries = ref<CustomerDemandStageSummaryItem[]>([])
+  const recordings = ref<CustomerDemandRecordingItem[]>([])
   const currentReport = ref<CustomerDemandReportItem | null>(null)
   const currentTask = ref<CustomerDemandTaskItem | null>(null)
   const loadingSessions = ref(false)
@@ -69,6 +75,9 @@ export const useCustomerDemandStore = defineStore('customerDemand', () => {
   const uploadingAudio = ref(false)
   const exporting = ref(false)
   const reviewingSegment = ref(false)
+  const loadingRecordings = ref(false)
+  const uploadingRecording = ref(false)
+  const deletingRecordingId = ref('')
   const deletingSessionId = ref('')
   const manualInput = ref('')
   const speakerLabel = ref('参会人员')
@@ -262,17 +271,19 @@ export const useCustomerDemandStore = defineStore('customerDemand', () => {
     loadingDetail.value = true
     try {
       const preserveKnowledgeToggle = currentSessionId.value === sessionId && !!currentSession.value
-      const [detail, segmentData, summaryData, reportData] = await Promise.all([
+      const [detail, segmentData, summaryData, reportData, recordingData] = await Promise.all([
         fetchCustomerDemandSessionDetail(sessionId),
         fetchCustomerDemandSegments(sessionId),
         fetchCustomerDemandStageSummaries(sessionId),
         fetchCustomerDemandReport(sessionId),
+        fetchCustomerDemandRecordings(sessionId),
       ])
       currentSessionId.value = sessionId
       syncCurrentSession(detail)
       applySessionToDraft(detail, { preserveKnowledgeToggle })
       segments.value = segmentData.items
       stageSummaries.value = summaryData.items
+      recordings.value = recordingData.items
       currentReport.value = reportData
       currentTask.value = null
     } finally {
@@ -312,6 +323,7 @@ export const useCustomerDemandStore = defineStore('customerDemand', () => {
           currentSessionId.value = ''
           segments.value = []
           stageSummaries.value = []
+          recordings.value = []
           currentReport.value = null
           currentTask.value = null
           manualInput.value = ''
@@ -477,6 +489,56 @@ export const useCustomerDemandStore = defineStore('customerDemand', () => {
     }
   }
 
+  async function loadRecordings(sessionId: string) {
+    loadingRecordings.value = true
+    try {
+      const data = await fetchCustomerDemandRecordings(sessionId)
+      recordings.value = data.items
+    } finally {
+      loadingRecordings.value = false
+    }
+  }
+
+  async function uploadRecordingFile(file: File, displayName?: string) {
+    if (!currentSession.value) return null
+    uploadingRecording.value = true
+    try {
+      const recording = await uploadCustomerDemandRecording(currentSession.value.id, {
+        file,
+        displayName,
+      })
+      recordings.value.unshift(recording)
+      return recording
+    } finally {
+      uploadingRecording.value = false
+    }
+  }
+
+  async function removeRecording(recordingId: string) {
+    if (!currentSession.value) return
+    deletingRecordingId.value = recordingId
+    try {
+      await deleteCustomerDemandRecording(currentSession.value.id, recordingId)
+      recordings.value = recordings.value.filter((item) => item.id !== recordingId)
+      ElMessage.success('录音源文件已删除')
+    } finally {
+      deletingRecordingId.value = ''
+    }
+  }
+
+  async function downloadRecording(recording: CustomerDemandRecordingItem) {
+    if (!currentSession.value) return
+    const blob = await downloadCustomerDemandRecording(currentSession.value.id, recording.id)
+    const objectUrl = window.URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = objectUrl
+    link.download = recording.file_name || 'customer-demand-recording.wav'
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    window.URL.revokeObjectURL(objectUrl)
+  }
+
   async function reviewSegment(segmentId: string, payload: CustomerDemandReviewSegmentPayload) {
     if (!currentSession.value) return
     reviewingSegment.value = true
@@ -568,6 +630,7 @@ export const useCustomerDemandStore = defineStore('customerDemand', () => {
     nextSequenceNo,
     stageSummaries,
     latestStageSummary,
+    recordings,
     currentReport,
     currentTask,
     operationState,
@@ -578,6 +641,9 @@ export const useCustomerDemandStore = defineStore('customerDemand', () => {
     actionLoading,
     uploadingAudio,
     reviewingSegment,
+    loadingRecordings,
+    uploadingRecording,
+    deletingRecordingId,
     deletingSessionId,
     exporting,
     manualInput,
@@ -595,6 +661,10 @@ export const useCustomerDemandStore = defineStore('customerDemand', () => {
     appendManualSegment,
     appendRealtimeSentence,
     uploadAudio,
+    loadRecordings,
+    uploadRecordingFile,
+    removeRecording,
+    downloadRecording,
     reviewSegment,
     triggerStageSummaryNow,
     triggerFinalAnalysisNow,

@@ -1,10 +1,12 @@
-import { apiRequest } from './http'
+import { apiRequest, apiRequestBlob } from './http'
 import type {
   CustomerDemandAnalyzeResult,
   CustomerDemandAudioUploadResult,
   CustomerDemandCreateSessionPayload,
   CustomerDemandExportResult,
   CustomerDemandManualSegmentPayload,
+  CustomerDemandRecordingItem,
+  CustomerDemandRecordingListData,
   CustomerDemandReportItem,
   CustomerDemandReviewSegmentPayload,
   CustomerDemandSegmentListData,
@@ -112,6 +114,35 @@ export function uploadCustomerDemandAudioChunk(sessionId: string, payload: {
     method: 'POST',
     body: formData,
   })
+}
+
+export function fetchCustomerDemandRecordings(sessionId: string) {
+  return apiRequest<CustomerDemandRecordingListData>(`/api/v1/customer-demand/sessions/${sessionId}/recordings`)
+}
+
+export function uploadCustomerDemandRecording(sessionId: string, payload: {
+  file: File
+  displayName?: string
+}) {
+  const formData = new FormData()
+  formData.append('recording_file', payload.file)
+  if (payload.displayName) {
+    formData.append('display_name', payload.displayName)
+  }
+  return apiRequest<CustomerDemandRecordingItem>(`/api/v1/customer-demand/sessions/${sessionId}/recordings`, {
+    method: 'POST',
+    body: formData,
+  })
+}
+
+export function deleteCustomerDemandRecording(sessionId: string, recordingId: string) {
+  return apiRequest<{ recording_id: string }>(`/api/v1/customer-demand/sessions/${sessionId}/recordings/${recordingId}`, {
+    method: 'DELETE',
+  })
+}
+
+export function downloadCustomerDemandRecording(sessionId: string, recordingId: string) {
+  return apiRequestBlob(`/api/v1/customer-demand/sessions/${sessionId}/recordings/${recordingId}/download`)
 }
 
 export function reviewCustomerDemandSegment(sessionId: string, segmentId: string, payload: CustomerDemandReviewSegmentPayload) {

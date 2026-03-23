@@ -6,6 +6,7 @@ import {
   CircleCheck,
   Connection,
   Delete,
+  Download,
   Document,
   Expand,
   Fold,
@@ -38,6 +39,7 @@ const demandStore = useCustomerDemandStore()
 const keyword = ref('')
 const sidebarCollapsed = ref(false)
 const createDialogVisible = ref(false)
+const recordingDialogVisible = ref(false)
 const uploadInputRef = ref<HTMLInputElement | null>(null)
 const transcriptContainerRef = ref<HTMLElement | null>(null)
 const reviewDialogVisible = ref(false)
@@ -87,6 +89,8 @@ let pcmBuffers: Int16Array[] = []
 let pcmBufferSamples = 0
 let persistPcmBuffers: Int16Array[] = []
 let persistPcmBufferSamples = 0
+let archivePcmBuffers: Int16Array[] = []
+let archivePcmBufferSamples = 0
 const TARGET_SAMPLE_RATE = 16000
 const CHUNK_SAMPLE_TARGET = TARGET_SAMPLE_RATE * liveChunkSeconds.value
 const PERSIST_SAMPLE_TARGET = TARGET_SAMPLE_RATE * 8
@@ -275,6 +279,8 @@ function resetLiveConversationState() {
   lastCommittedRealtimeText = ''
   isTranscriptPinnedToBottom.value = true
   showScrollToLatest.value = false
+  archivePcmBuffers = []
+  archivePcmBufferSamples = 0
 }
 
 function updateTranscriptPinnedState() {
@@ -300,6 +306,22 @@ function scrollTranscriptToBottom(behavior: ScrollBehavior = 'smooth') {
 function buildRealtimeWsUrl() {
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
   return `${protocol}//${window.location.hostname}:9100/ws/customer-demand/asr`
+}
+
+function buildRecordingDisplayName() {
+  const sessionTitle = demandStore.currentSession?.session_title || '沟通录音'
+  const safeTitle = sessionTitle.replace(/[\\/:*?"<>|]/g, '-').trim() || '沟通录音'
+  const stamp = formatDateTime(new Date().toISOString())
+    .replace(/\s+/g, '_')
+    .replace(/:/g, '-')
+  return `${safeTitle}_${stamp}.wav`
+}
+
+function formatRecordingSize(size: number) {
+  if (!size) return '0 B'
+  if (size < 1024) return `${size} B`
+  if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`
+  return `${(size / (1024 * 1024)).toFixed(1)} MB`
 }
 
 function pcmToBase64(pcm: Int16Array) {
@@ -358,6 +380,12 @@ function appendPersistChunk(pcmChunk: Int16Array) {
   persistPcmBufferSamples += pcmChunk.length
 }
 
+function appendArchiveChunk(pcmChunk: Int16Array) {
+  if (!pcmChunk.length) return
+  archivePcmBuffers.push(pcmChunk)
+  archivePcmBufferSamples += pcmChunk.length
+}
+
 function consumePcmChunk() {
   if (pcmBufferSamples === 0) return null
   const merged = new Int16Array(pcmBufferSamples)
@@ -381,6 +409,19 @@ function consumePersistChunk() {
   }
   persistPcmBuffers = []
   persistPcmBufferSamples = 0
+  return merged
+}
+
+function consumeArchiveChunk() {
+  if (archivePcmBufferSamples === 0) return null
+  const merged = new Int16Array(archivePcmBufferSamples)
+  let offset = 0
+  for (const chunk of archivePcmBuffers) {
+    merged.set(chunk, offset)
+    offset += chunk.length
+  }
+  archivePcmBuffers = []
+  archivePcmBufferSamples = 0
   return merged
 }
 
@@ -599,6 +640,7 @@ async function ensureAudioCapture() {
     const pcmChunk = downsampleToInt16(input, audioContext?.sampleRate || 48000, TARGET_SAMPLE_RATE)
     appendPcmChunk(pcmChunk)
     appendPersistChunk(pcmChunk)
+    appendArchiveChunk(pcmChunk)
     void flushRealtimePcmChunk(false)
     void flushPersistAudioChunk(false)
   }
@@ -668,6 +710,17 @@ async function handleStopRecording() {
     await flushPersistAudioChunk(true)
     await audioSendQueue.catch(() => undefined)
     await persistQueue.catch(() => undefined)
+    const archivePcm = consumeArchiveChunk()
+    if (archivePcm && archivePcm.length >= TARGET_SAMPLE_RATE) {
+      const archiveBlob = encodePcmToWav(archivePcm, TARGET_SAMPLE_RATE)
+      const archiveFile = new File([archiveBlob], buildRecordingDisplayName(), { type: 'audio/wav' })
+      try {
+        await demandStore.uploadRecordingFile(archiveFile, archiveFile.name)
+      } catch (error) {
+        liveError.value = error instanceof Error ? error.message : '录音源文件保存失败'
+        ElMessage.warning('本轮录音已结束，但录音源文件保存失败。')
+      }
+    }
     scheduleRealtimeFinalize(100)
     if (realtimeSocket && liveConnectionState.value === 'connected') {
       realtimeSocket.send(JSON.stringify({ type: 'session.stop' }))
@@ -732,6 +785,12 @@ function openCreateDialog() {
   createDialogVisible.value = true
 }
 
+async function openRecordingDialog() {
+  if (!demandStore.currentSession) return
+  recordingDialogVisible.value = true
+  await demandStore.loadRecordings(demandStore.currentSession.id)
+}
+
 async function handleDeleteSession(sessionId: string, title: string) {
   try {
     await ElMessageBox.confirm(`删除后，这条沟通会话及其分段、阶段整理、分析报告都会被移除。确定删除“${title}”吗？`, '删除沟通会话', {
@@ -750,6 +809,20 @@ async function handleDeleteSession(sessionId: string, title: string) {
 
   resetLiveConversationState()
   await demandStore.deleteSession(sessionId)
+}
+
+async function handleDeleteRecording(recordingId: string, title: string) {
+  try {
+    await ElMessageBox.confirm(`删除后将无法再回听或下载这份录音。确定删除“${title}”吗？`, '删除录音源文件', {
+      type: 'warning',
+      confirmButtonText: '确认删除',
+      cancelButtonText: '取消',
+      confirmButtonClass: 'el-button--danger',
+    })
+  } catch {
+    return
+  }
+  await demandStore.removeRecording(recordingId)
 }
 
 function triggerAudioUpload() {
@@ -1047,6 +1120,10 @@ onBeforeUnmount(() => {
                   <p>当前活动：{{ activityLabel }}</p>
                 </div>
                 <div class="customer-card__actions">
+                  <el-button plain @click="openRecordingDialog">
+                    <el-icon><Document /></el-icon>
+                    录音源文件
+                  </el-button>
                   <el-button :loading="demandStore.actionLoading" type="primary" @click="handleStartRecording">
                     <el-icon><VideoPlay /></el-icon>
                     {{ isLivePaused ? '继续记录' : '开始记录' }}
@@ -1378,6 +1455,44 @@ onBeforeUnmount(() => {
         </section>
       </template>
     </main>
+
+    <el-dialog
+      v-model="recordingDialogVisible"
+      title="录音源文件"
+      width="680px"
+      destroy-on-close
+    >
+      <div class="recording-dialog">
+        <p class="recording-dialog__hint">
+          这里保留每次“开始记录”到“结束记录”之间的原始录音文件，便于后续回听、下载和清理。
+        </p>
+        <div v-if="demandStore.loadingRecordings" class="customer-card__empty">正在加载录音文件...</div>
+        <div v-else-if="!demandStore.recordings.length" class="customer-card__empty">当前会话还没有保存过录音源文件。</div>
+        <div v-else class="recording-dialog__list">
+          <article v-for="item in demandStore.recordings" :key="item.id" class="recording-dialog__item">
+            <div class="recording-dialog__meta">
+              <strong>{{ item.file_name }}</strong>
+              <p>{{ formatDateTime(item.created_at) }} · {{ formatRecordingSize(item.file_size) }} · {{ item.mime_type || 'audio/wav' }}</p>
+            </div>
+            <div class="recording-dialog__actions">
+              <el-button plain @click="demandStore.downloadRecording(item)">
+                <el-icon><Download /></el-icon>
+                下载
+              </el-button>
+              <el-button
+                type="danger"
+                plain
+                :loading="demandStore.deletingRecordingId === item.id"
+                @click="handleDeleteRecording(item.id, item.file_name)"
+              >
+                <el-icon><Delete /></el-icon>
+                删除
+              </el-button>
+            </div>
+          </article>
+        </div>
+      </div>
+    </el-dialog>
 
     <el-dialog v-model="createDialogVisible" title="新建客户沟通会话" width="560px">
       <div class="create-form">
@@ -2053,6 +2168,53 @@ onBeforeUnmount(() => {
 .insight-list li {
   position: relative;
   padding-left: 2px;
+}
+
+.recording-dialog {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.recording-dialog__hint {
+  margin: 0;
+  color: #5f7088;
+  line-height: 1.6;
+}
+
+.recording-dialog__list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.recording-dialog__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 16px;
+  border-radius: 16px;
+  background: #f7fafd;
+  border: 1px solid rgba(18, 98, 154, 0.12);
+}
+
+.recording-dialog__meta strong {
+  display: block;
+  margin-bottom: 6px;
+  color: #17324d;
+}
+
+.recording-dialog__meta p {
+  margin: 0;
+  color: #6b7f96;
+  font-size: 13px;
+}
+
+.recording-dialog__actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
 .report-preview-card {
