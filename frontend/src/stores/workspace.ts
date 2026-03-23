@@ -10,113 +10,16 @@ import {
   sendConversationMessage,
 } from '@/api/conversation'
 import { cancelTask } from '@/api/task'
+import { DEFAULT_PARAMS, SCENARIO_PRESET_MAP, type ComposerParams } from '@/config/solutionComposer'
 import { createTaskEventSource } from '@/utils/sse'
 import { groupConversationLabel } from '@/utils/time'
 import type { ConversationItem, EvidenceCard, MessageItem } from '@/types/conversation'
 import type { ContentStreamData, EvidenceStreamData, SendMessageResult, StatusStreamData, StreamEnvelope } from '@/types/task'
 
-interface ComposerParams {
-  scenario: string
-  grid_environment: string
-  equipment_type: string
-  resource_type: string
-  data_basis: string[]
-  target_capability: string[]
-  market_policy_focus: string[]
-  planning_objective: string[]
-  forecast_target: string[]
-  coordination_scope: string
-  lifecycle_goal: string
-}
-
 interface WorkflowStageItem {
   key: string
   label: string
   status: 'completed' | 'current' | 'failed' | 'stopped'
-}
-
-const DEFAULT_PARAMS: ComposerParams = {
-  scenario: 'fault_diagnosis_solution',
-  grid_environment: 'distribution_network',
-  equipment_type: 'comprehensive',
-  resource_type: 'not_involved',
-  data_basis: ['scada', 'online_monitoring', 'historical_workorder'],
-  target_capability: ['fault_diagnosis', 'root_cause_analysis'],
-  market_policy_focus: [],
-  planning_objective: [],
-  forecast_target: [],
-  coordination_scope: 'not_involved',
-  lifecycle_goal: 'not_involved',
-}
-
-const SCENARIO_PRESET_MAP: Record<string, Partial<ComposerParams>> = {
-  fault_diagnosis_solution: {
-    equipment_type: 'comprehensive',
-    resource_type: 'not_involved',
-    data_basis: ['scada', 'online_monitoring', 'historical_workorder'],
-    target_capability: ['fault_diagnosis', 'root_cause_analysis'],
-    market_policy_focus: [],
-    planning_objective: [],
-    forecast_target: [],
-    coordination_scope: 'not_involved',
-    lifecycle_goal: 'not_involved',
-  },
-  storage_aggregation_solution: {
-    equipment_type: 'not_involved',
-    resource_type: 'distributed_storage',
-    data_basis: ['market_price_data', 'load_curve', 'bms_pcs_data'],
-    target_capability: ['storage_aggregation_operation', 'market_bidding_optimization'],
-    market_policy_focus: ['spot_market', 'peak_valley_arbitrage'],
-    planning_objective: [],
-    forecast_target: [],
-    coordination_scope: 'not_involved',
-    lifecycle_goal: 'lifecycle_revenue_balance',
-  },
-  distribution_planning_solution: {
-    equipment_type: 'feeder_transformer_area',
-    resource_type: 'not_involved',
-    data_basis: ['scada', 'load_curve', 'renewable_curve'],
-    target_capability: ['distribution_planning_optimization'],
-    market_policy_focus: [],
-    planning_objective: ['overload_mitigation', 'investment_benefit_optimization'],
-    forecast_target: [],
-    coordination_scope: 'not_involved',
-    lifecycle_goal: 'not_involved',
-  },
-  power_forecast_solution: {
-    equipment_type: 'not_involved',
-    resource_type: 'not_involved',
-    data_basis: ['weather_data', 'renewable_curve', 'historical_workorder'],
-    target_capability: ['renewable_power_forecast'],
-    market_policy_focus: [],
-    planning_objective: [],
-    forecast_target: ['day_ahead_forecast', 'deviation_assessment_optimization'],
-    coordination_scope: 'not_involved',
-    lifecycle_goal: 'not_involved',
-  },
-  vpp_coordination_solution: {
-    equipment_type: 'not_involved',
-    resource_type: 'hybrid_flexible_resources',
-    data_basis: ['market_price_data', 'load_curve', 'renewable_curve', 'bms_pcs_data'],
-    target_capability: ['vpp_dispatch_coordination', 'market_bidding_optimization'],
-    market_policy_focus: ['spot_market', 'demand_response'],
-    planning_objective: [],
-    forecast_target: [],
-    coordination_scope: 'virtual_power_plant',
-    lifecycle_goal: 'comprehensive_benefit_optimization',
-  },
-  other_solution: {
-    grid_environment: 'not_involved',
-    equipment_type: 'not_involved',
-    resource_type: 'not_involved',
-    data_basis: [],
-    target_capability: [],
-    market_policy_focus: [],
-    planning_objective: [],
-    forecast_target: [],
-    coordination_scope: 'not_involved',
-    lifecycle_goal: 'not_involved',
-  },
 }
 
 export const useWorkspaceStore = defineStore('workspace', () => {
@@ -137,6 +40,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
   const activeEvidenceCards = ref<EvidenceCard[]>([])
   const composerText = ref('')
   const composerParams = ref<ComposerParams>({ ...DEFAULT_PARAMS })
+  const importedDraftNotice = ref('')
   let eventSource: EventSource | null = null
   let ribbonHideTimer: number | null = null
 
@@ -257,6 +161,42 @@ export const useWorkspaceStore = defineStore('workspace', () => {
       scenario,
       ...(preset ?? {}),
     }
+  }
+
+  function sanitizeComposerParams(raw?: Partial<ComposerParams> | Record<string, unknown>) {
+    const scenario = typeof raw?.scenario === 'string' ? raw.scenario : DEFAULT_PARAMS.scenario
+    const preset = SCENARIO_PRESET_MAP[scenario] ?? {}
+    const pickString = (key: keyof ComposerParams) =>
+      typeof raw?.[key] === 'string' ? String(raw[key]) : (preset[key] as string | undefined) ?? DEFAULT_PARAMS[key]
+    const pickArray = (key: keyof ComposerParams) =>
+      Array.isArray(raw?.[key])
+        ? (raw?.[key] as unknown[]).map((item) => String(item)).filter(Boolean)
+        : ((preset[key] as string[] | undefined) ?? DEFAULT_PARAMS[key]) as string[]
+
+    return {
+      scenario,
+      grid_environment: pickString('grid_environment') as string,
+      equipment_type: pickString('equipment_type') as string,
+      resource_type: pickString('resource_type') as string,
+      data_basis: [...pickArray('data_basis')],
+      target_capability: [...pickArray('target_capability')],
+      market_policy_focus: [...pickArray('market_policy_focus')],
+      planning_objective: [...pickArray('planning_objective')],
+      forecast_target: [...pickArray('forecast_target')],
+      coordination_scope: pickString('coordination_scope') as string,
+      lifecycle_goal: pickString('lifecycle_goal') as string,
+    } satisfies ComposerParams
+  }
+
+  async function applyImportedDraft(payload: { query: string; params?: Partial<ComposerParams> | Record<string, unknown> }) {
+    await createNewConversation()
+    composerParams.value = sanitizeComposerParams(payload.params)
+    composerText.value = (payload.query || '').trim()
+    importedDraftNotice.value = '已从客户需求分析报告导入方案草稿，请确认内容与参数后再发送。'
+  }
+
+  function clearImportedDraftNotice() {
+    importedDraftNotice.value = ''
   }
 
   async function loadConversationList() {
@@ -648,9 +588,12 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     activeEvidenceCards,
     composerText,
     composerParams,
+    importedDraftNotice,
     applyDefaultParams,
     resetComposerParams,
     applyScenarioPreset,
+    applyImportedDraft,
+    clearImportedDraftNotice,
     loadConversationList,
     selectConversation,
     createNewConversation,

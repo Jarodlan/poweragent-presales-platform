@@ -7,6 +7,7 @@ import MessageStream from '@/components/chat/MessageStream.vue'
 import EvidenceDrawer from '@/components/evidence/EvidenceDrawer.vue'
 import { useMetaStore } from '@/stores/meta'
 import { useWorkspaceStore } from '@/stores/workspace'
+import { consumeSolutionHandoffDraft } from '@/utils/solutionHandoff'
 
 const metaStore = useMetaStore()
 const workspace = useWorkspaceStore()
@@ -15,7 +16,10 @@ onMounted(async () => {
   await metaStore.loadOptions()
   workspace.applyDefaultParams(metaStore.options?.default_params)
   await workspace.loadConversationList()
-  if (workspace.currentConversationId) {
+  const handoffDraft = consumeSolutionHandoffDraft()
+  if (handoffDraft) {
+    await workspace.applyImportedDraft(handoffDraft)
+  } else if (workspace.currentConversationId) {
     await workspace.selectConversation(workspace.currentConversationId)
   }
 })
@@ -40,6 +44,11 @@ function useExamplePrompt(text: string) {
           <span>{{ workspace.currentMessages.length }} 条消息</span>
         </div>
       </header>
+
+      <div v-if="workspace.importedDraftNotice" class="workspace-main__imported-banner">
+        <span>{{ workspace.importedDraftNotice }}</span>
+        <el-button link type="primary" @click="workspace.clearImportedDraftNotice()">知道了</el-button>
+      </div>
 
       <section class="workspace-main__stream">
         <MessageStream
@@ -114,6 +123,18 @@ function useExamplePrompt(text: string) {
   overflow: auto;
   padding-right: 6px;
   padding-bottom: 24px;
+}
+
+.workspace-main__imported-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: rgba(242, 169, 59, 0.12);
+  border: 1px solid rgba(242, 169, 59, 0.24);
+  color: #7a4a00;
 }
 
 .workspace-main__composer {

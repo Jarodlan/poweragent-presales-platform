@@ -1,23 +1,270 @@
 <script setup lang="ts">
-import { computed, onMounted, watch } from 'vue'
-import { ArrowLeft, Download, Refresh } from '@element-plus/icons-vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { ArrowLeft, Download, Refresh, Right } from '@element-plus/icons-vue'
 import { useRoute, useRouter } from 'vue-router'
+import { ElMessage } from 'element-plus'
 
 import EmptyState from '@/components/common/EmptyState.vue'
+import { DEFAULT_PARAMS, SCENARIO_PRESET_MAP, type ComposerParams } from '@/config/solutionComposer'
 import { useCustomerDemandStore } from '@/stores/customerDemand'
+import { useMetaStore } from '@/stores/meta'
+import type { OptionItem } from '@/types/meta'
+import type { CustomerDemandReportItem, CustomerDemandSessionItem } from '@/types/customerDemand'
+import { saveSolutionHandoffDraft } from '@/utils/solutionHandoff'
 import { renderMarkdown } from '@/utils/markdown'
 import { formatDateTime } from '@/utils/time'
 
 const route = useRoute()
 const router = useRouter()
 const demandStore = useCustomerDemandStore()
+const metaStore = useMetaStore()
 
 const sessionId = computed(() => String(route.params.sessionId || ''))
 const report = computed(() => demandStore.currentReport)
+const handoffDialogVisible = ref(false)
+const handoffQuery = ref('')
+const handoffParams = ref<ComposerParams>({ ...DEFAULT_PARAMS })
+
+const scenarioFlags = computed(() => {
+  const value = handoffParams.value.scenario
+  return {
+    isOther: value === 'other_solution',
+    isFaultDiagnosis: value === 'fault_diagnosis_solution',
+    isStorageAggregation: value === 'storage_aggregation_solution',
+    isDistributionPlanning: value === 'distribution_planning_solution',
+    isPowerForecast: value === 'power_forecast_solution',
+    isVppCoordination: value === 'vpp_coordination_solution',
+  }
+})
+
+const handoffSummary = computed(() => {
+  const options = metaStore.options
+  if (!options) return []
+  const resolveLabel = (items: OptionItem[], value: string) => items.find((item) => item.value === value)?.label || value
+  const resolveMany = (items: OptionItem[], values: string[]) => values.map((value) => resolveLabel(items, value)).join(' / ')
+  return [
+    {
+      label: '方案场景',
+      value: resolveLabel(options.scenario_options, handoffParams.value.scenario),
+    },
+    handoffParams.value.grid_environment !== 'not_involved'
+      ? {
+          label: '电网环境',
+          value: resolveLabel(options.grid_environment_options, handoffParams.value.grid_environment),
+        }
+      : null,
+    handoffParams.value.resource_type !== 'not_involved'
+      ? {
+          label: '资源类型',
+          value: resolveLabel(options.resource_type_options, handoffParams.value.resource_type),
+        }
+      : null,
+    handoffParams.value.data_basis.length
+      ? {
+          label: '数据基础',
+          value: resolveMany(options.data_basis_options, handoffParams.value.data_basis),
+        }
+      : null,
+    handoffParams.value.target_capability.length
+      ? {
+          label: '目标能力',
+          value: resolveMany(options.target_capability_options, handoffParams.value.target_capability),
+        }
+      : null,
+  ].filter(Boolean) as Array<{ label: string; value: string }>
+})
 
 async function loadReportContext() {
   if (!sessionId.value) return
+  await metaStore.loadOptions()
   await demandStore.selectSession(sessionId.value)
+}
+
+function compactLine(text: string, limit = 28) {
+  const normalized = text.replace(/\s+/g, ' ').trim()
+  if (normalized.length <= limit) return normalized
+  return `${normalized.slice(0, limit).trim()}...`
+}
+
+function extractStringArray(source: Record<string, unknown> | null | undefined, key: string) {
+  const value = source?.[key]
+  if (!Array.isArray(value)) return []
+  return value.map((item) => String(item || '').trim()).filter(Boolean)
+}
+
+function detectScenario(text: string) {
+  const normalized = text.toLowerCase()
+  const scenarios = [
+    { id: 'power_forecast_solution', keywords: ['功率预测', '出力预测', '偏差考核', '日前预测', '日内预测', '风电', '光伏预测'] },
+    { id: 'distribution_planning_solution', keywords: ['配网规划', '网架', '台区', '重过载', 'n-1', '投资优化'] },
+    { id: 'fault_diagnosis_solution', keywords: ['故障诊断', '故障定位', '接地', '自愈', '停电', '保护动作'] },
+    { id: 'vpp_coordination_solution', keywords: ['虚拟电厂', '源网荷储', '需求响应', '聚合调度', '可调负荷'] },
+    { id: 'storage_aggregation_solution', keywords: ['储能', '弃电', '消纳', '充放电', '峰谷', '套利', 'bms', 'pcs'] },
+  ]
+  let best = { id: 'other_solution', score: 0 }
+  for (const scenario of scenarios) {
+    const score = scenario.keywords.reduce((sum, keyword) => sum + (normalized.includes(keyword) ? 1 : 0), 0)
+    if (score > best.score) {
+      best = { id: scenario.id, score }
+    }
+  }
+  return best.score > 0 ? best.id : 'other_solution'
+}
+
+function pushUnique(target: string[], value: string) {
+  if (value && !target.includes(value)) {
+    target.push(value)
+  }
+}
+
+function inferParamsFromReport(currentReport: CustomerDemandReportItem | null, currentSession: CustomerDemandSessionItem | null): ComposerParams {
+  const payload = (currentReport?.report_payload || {}) as Record<string, unknown>
+  const sourceText = [
+    currentReport?.report_title,
+    currentSession?.session_title,
+    currentSession?.topic,
+    currentSession?.industry,
+    currentSession?.region,
+    currentReport?.report_markdown,
+    ...extractStringArray(payload, 'current_problem'),
+    ...extractStringArray(payload, 'explicit_requirements'),
+    ...extractStringArray(payload, 'implicit_requirements'),
+    ...extractStringArray(payload, 'constraints_and_risks'),
+  ]
+    .filter(Boolean)
+    .join(' ')
+
+  const scenario = detectScenario(sourceText)
+  const preset = SCENARIO_PRESET_MAP[scenario] ?? {}
+  const next: ComposerParams = {
+    ...DEFAULT_PARAMS,
+    ...(preset as Partial<ComposerParams>),
+    scenario,
+    data_basis: [...((preset.data_basis as string[] | undefined) ?? DEFAULT_PARAMS.data_basis)],
+    target_capability: [...((preset.target_capability as string[] | undefined) ?? DEFAULT_PARAMS.target_capability)],
+    market_policy_focus: [...((preset.market_policy_focus as string[] | undefined) ?? DEFAULT_PARAMS.market_policy_focus)],
+    planning_objective: [...((preset.planning_objective as string[] | undefined) ?? DEFAULT_PARAMS.planning_objective)],
+    forecast_target: [...((preset.forecast_target as string[] | undefined) ?? DEFAULT_PARAMS.forecast_target)],
+  }
+
+  if (/(园区|工业园|厂区|办公园区|综合能源站|微网)/.test(sourceText)) {
+    next.grid_environment = 'microgrid'
+  } else if (/(综合能源)/.test(sourceText)) {
+    next.grid_environment = 'integrated_energy'
+  } else if (/(配电|配网|台区)/.test(sourceText)) {
+    next.grid_environment = 'distribution_network'
+  } else if (/(输电|变电主网)/.test(sourceText)) {
+    next.grid_environment = 'transmission_network'
+  }
+
+  if (/(风电.*光伏.*储能|光伏.*风电.*储能)/.test(sourceText)) {
+    next.resource_type = 'wind_pv_storage'
+  } else if (/(光伏.*储能|储能.*光伏)/.test(sourceText)) {
+    next.resource_type = 'pv_storage'
+  } else if (/(储能)/.test(sourceText)) {
+    next.resource_type = 'distributed_storage'
+  }
+
+  if (/(气象|天气|风速|辐照)/.test(sourceText)) {
+    pushUnique(next.data_basis, 'weather_data')
+  }
+  if (/(负荷|用电量|尖峰负荷)/.test(sourceText)) {
+    pushUnique(next.data_basis, 'load_curve')
+  }
+  if (/(光伏|风电|新能源出力|消纳)/.test(sourceText)) {
+    pushUnique(next.data_basis, 'renewable_curve')
+  }
+  if (/(电价|现货|峰谷|套利)/.test(sourceText)) {
+    pushUnique(next.data_basis, 'market_price_data')
+    pushUnique(next.market_policy_focus, 'spot_market')
+  }
+  if (/(储能|pcs|bms|充放电)/.test(sourceText)) {
+    pushUnique(next.data_basis, 'bms_pcs_data')
+  }
+  if (/(需求响应)/.test(sourceText)) {
+    pushUnique(next.market_policy_focus, 'demand_response')
+  }
+
+  return next
+}
+
+function buildHandoffQuery(currentReport: CustomerDemandReportItem | null, currentSession: CustomerDemandSessionItem | null) {
+  const payload = (currentReport?.report_payload || {}) as Record<string, unknown>
+  const currentProblems = extractStringArray(payload, 'current_problem')
+  const explicitRequirements = extractStringArray(payload, 'explicit_requirements')
+  const implicitRequirements = extractStringArray(payload, 'implicit_requirements')
+  const constraintsAndRisks = extractStringArray(payload, 'constraints_and_risks')
+  const pendingQuestions = extractStringArray(payload, 'pending_questions')
+
+  return [
+    '请基于以下客户需求分析结果，生成一份结构完整、偏实施型的电力行业解决方案。',
+    '',
+    `客户名称：${currentSession?.customer_name || '未填写'}`,
+    `沟通主题：${currentSession?.topic || currentSession?.session_title || '未填写'}`,
+    currentSession?.industry ? `行业：${currentSession.industry}` : '',
+    currentSession?.region ? `区域：${currentSession.region}` : '',
+    '',
+    '当前问题：',
+    ...(currentProblems.length ? currentProblems : ['暂无明确问题，请结合下方需求自行归纳。']).map((item) => `- ${compactLine(item, 120)}`),
+    '',
+    '已明确需求：',
+    ...(explicitRequirements.length ? explicitRequirements : ['暂无，请从客户诉求中提炼。']).map((item) => `- ${compactLine(item, 120)}`),
+    '',
+    '隐性需求与潜在诉求：',
+    ...(implicitRequirements.length ? implicitRequirements : ['暂无，请结合沟通背景适度推断。']).map((item) => `- ${compactLine(item, 120)}`),
+    '',
+    '约束条件与风险点：',
+    ...(constraintsAndRisks.length ? constraintsAndRisks : ['暂无，请结合实施场景补充。']).map((item) => `- ${compactLine(item, 120)}`),
+    '',
+    '待确认问题：',
+    ...(pendingQuestions.length ? pendingQuestions : ['暂无，请给出合理的待确认项。']).map((item) => `- ${compactLine(item, 120)}`),
+    '',
+    '要求：',
+    '- 输出正式解决方案标题。',
+    '- 结合上述需求自动匹配最合适的电力业务场景。',
+    '- 重点体现实施路径、系统架构、能力模块、关键指标和落地建议。',
+  ]
+    .filter(Boolean)
+    .join('\n')
+}
+
+function openHandoffDialog() {
+  handoffParams.value = inferParamsFromReport(report.value, demandStore.currentSession)
+  handoffQuery.value = buildHandoffQuery(report.value, demandStore.currentSession)
+  handoffDialogVisible.value = true
+}
+
+function handleScenarioChange(value: string) {
+  handoffParams.value = {
+    ...handoffParams.value,
+    scenario: value,
+    ...(SCENARIO_PRESET_MAP[value] ?? {}),
+  }
+}
+
+function updateArrayField(key: keyof ComposerParams, values: string[]) {
+  handoffParams.value = {
+    ...handoffParams.value,
+    [key]: values,
+  }
+}
+
+async function confirmHandoff() {
+  if (!report.value || !sessionId.value || !handoffQuery.value.trim()) {
+    ElMessage.warning('请先确认要导入的方案草稿内容。')
+    return
+  }
+  saveSolutionHandoffDraft({
+    source: 'customer-demand',
+    sourceSessionId: sessionId.value,
+    sourceReportId: report.value.id,
+    query: handoffQuery.value.trim(),
+    params: handoffParams.value,
+    createdAt: new Date().toISOString(),
+  })
+  handoffDialogVisible.value = false
+  ElMessage.success('已带入方案工作台，请继续确认并发送。')
+  await router.push('/')
 }
 
 onMounted(loadReportContext)
@@ -45,6 +292,10 @@ watch(sessionId, async () => {
         </div>
       </div>
       <div class="customer-demand-report-header__actions">
+        <el-button type="success" :disabled="!report" @click="openHandoffDialog">
+          <el-icon><Right /></el-icon>
+          转入方案生成
+        </el-button>
         <el-button plain @click="loadReportContext">
           <el-icon><Refresh /></el-icon>
           刷新
@@ -112,6 +363,206 @@ watch(sessionId, async () => {
         description="你可以先回到会中工作台，点击“会后生成正式报告”，生成完成后再回来查看。"
       />
     </div>
+
+    <el-dialog
+      v-model="handoffDialogVisible"
+      title="转入解决方案生成"
+      width="900px"
+      destroy-on-close
+    >
+      <div class="handoff-dialog">
+        <section class="panel-card handoff-dialog__section">
+          <div class="handoff-dialog__head">
+            <div>
+              <h3>生成请求草稿</h3>
+              <p>这里会自动带入需求分析结果，你可以先人工确认和修改，再带到方案工作台。</p>
+            </div>
+            <div class="handoff-summary">
+              <span v-for="item in handoffSummary" :key="item.label">{{ item.label }}：{{ item.value }}</span>
+            </div>
+          </div>
+
+          <el-input
+            v-model="handoffQuery"
+            type="textarea"
+            :rows="14"
+            resize="vertical"
+            placeholder="请确认导入到方案生成工作台的内容"
+          />
+        </section>
+
+        <section class="panel-card handoff-dialog__section">
+          <div class="handoff-dialog__head">
+            <div>
+              <h3>方案参数配置</h3>
+              <p>系统已根据需求分析结果自动加载较匹配的参数，你仍然可以继续调整。</p>
+            </div>
+          </div>
+
+          <div class="handoff-dialog__grid">
+            <el-form-item label="方案场景">
+              <el-select :model-value="handoffParams.scenario" @update:model-value="handleScenarioChange">
+                <el-option
+                  v-for="item in metaStore.options?.scenario_options || []"
+                  :key="item.value"
+                  :label="item.label"
+                  :value="item.value"
+                />
+              </el-select>
+            </el-form-item>
+
+            <el-form-item label="电网环境">
+              <el-select v-model="handoffParams.grid_environment">
+                <el-option
+                  v-for="item in metaStore.options?.grid_environment_options || []"
+                  :key="item.value"
+                  :label="item.label"
+                  :value="item.value"
+                />
+              </el-select>
+            </el-form-item>
+
+            <el-form-item label="对象/设备">
+              <el-select v-model="handoffParams.equipment_type">
+                <el-option
+                  v-for="item in metaStore.options?.equipment_type_options || []"
+                  :key="item.value"
+                  :label="item.label"
+                  :value="item.value"
+                />
+              </el-select>
+            </el-form-item>
+
+            <el-form-item label="资源类型">
+              <el-select v-model="handoffParams.resource_type">
+                <el-option
+                  v-for="item in metaStore.options?.resource_type_options || []"
+                  :key="item.value"
+                  :label="item.label"
+                  :value="item.value"
+                />
+              </el-select>
+            </el-form-item>
+
+            <el-form-item label="协同范围">
+              <el-select v-model="handoffParams.coordination_scope">
+                <el-option
+                  v-for="item in metaStore.options?.coordination_scope_options || []"
+                  :key="item.value"
+                  :label="item.label"
+                  :value="item.value"
+                />
+              </el-select>
+            </el-form-item>
+
+            <el-form-item label="生命周期目标">
+              <el-select v-model="handoffParams.lifecycle_goal">
+                <el-option
+                  v-for="item in metaStore.options?.lifecycle_goal_options || []"
+                  :key="item.value"
+                  :label="item.label"
+                  :value="item.value"
+                />
+              </el-select>
+            </el-form-item>
+          </div>
+
+          <div class="handoff-dialog__grid handoff-dialog__grid--wide">
+            <el-form-item label="数据基础">
+              <el-select
+                :model-value="handoffParams.data_basis"
+                multiple
+                collapse-tags
+                collapse-tags-tooltip
+                @update:model-value="updateArrayField('data_basis', $event)"
+              >
+                <el-option
+                  v-for="item in metaStore.options?.data_basis_options || []"
+                  :key="item.value"
+                  :label="item.label"
+                  :value="item.value"
+                />
+              </el-select>
+            </el-form-item>
+
+            <el-form-item label="目标能力">
+              <el-select
+                :model-value="handoffParams.target_capability"
+                multiple
+                collapse-tags
+                collapse-tags-tooltip
+                @update:model-value="updateArrayField('target_capability', $event)"
+              >
+                <el-option
+                  v-for="item in metaStore.options?.target_capability_options || []"
+                  :key="item.value"
+                  :label="item.label"
+                  :value="item.value"
+                />
+              </el-select>
+            </el-form-item>
+
+            <el-form-item v-if="!scenarioFlags.isOther" label="市场/政策关注">
+              <el-select
+                :model-value="handoffParams.market_policy_focus"
+                multiple
+                collapse-tags
+                collapse-tags-tooltip
+                @update:model-value="updateArrayField('market_policy_focus', $event)"
+              >
+                <el-option
+                  v-for="item in metaStore.options?.market_policy_focus_options || []"
+                  :key="item.value"
+                  :label="item.label"
+                  :value="item.value"
+                />
+              </el-select>
+            </el-form-item>
+
+            <el-form-item v-if="scenarioFlags.isDistributionPlanning" label="规划目标">
+              <el-select
+                :model-value="handoffParams.planning_objective"
+                multiple
+                collapse-tags
+                collapse-tags-tooltip
+                @update:model-value="updateArrayField('planning_objective', $event)"
+              >
+                <el-option
+                  v-for="item in metaStore.options?.planning_objective_options || []"
+                  :key="item.value"
+                  :label="item.label"
+                  :value="item.value"
+                />
+              </el-select>
+            </el-form-item>
+
+            <el-form-item v-if="scenarioFlags.isPowerForecast" label="预测目标">
+              <el-select
+                :model-value="handoffParams.forecast_target"
+                multiple
+                collapse-tags
+                collapse-tags-tooltip
+                @update:model-value="updateArrayField('forecast_target', $event)"
+              >
+                <el-option
+                  v-for="item in metaStore.options?.forecast_target_options || []"
+                  :key="item.value"
+                  :label="item.label"
+                  :value="item.value"
+                />
+              </el-select>
+            </el-form-item>
+          </div>
+        </section>
+      </div>
+
+      <template #footer>
+        <div class="handoff-dialog__footer">
+          <el-button @click="handoffDialogVisible = false">取消</el-button>
+          <el-button type="primary" @click="confirmHandoff">带入方案工作台</el-button>
+        </div>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -183,6 +634,72 @@ watch(sessionId, async () => {
   gap: 18px;
 }
 
+.handoff-dialog {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.handoff-dialog__section {
+  padding: 18px 20px;
+}
+
+.handoff-dialog__head {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+
+.handoff-dialog__head h3 {
+  margin: 0 0 6px;
+}
+
+.handoff-dialog__head p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.handoff-summary {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.handoff-summary span {
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.88);
+  border: 1px solid rgba(15, 93, 140, 0.14);
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.handoff-dialog__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 16px;
+}
+
+.handoff-dialog__grid--wide {
+  margin-top: 8px;
+}
+
+.handoff-dialog__grid :deep(.el-form-item) {
+  margin-bottom: 16px;
+}
+
+.handoff-dialog__grid :deep(.el-select) {
+  width: 100%;
+}
+
+.handoff-dialog__footer {
+  display: flex;
+  justify-content: flex-end;
+}
+
 .report-meta-list {
   display: flex;
   flex-direction: column;
@@ -246,6 +763,18 @@ watch(sessionId, async () => {
 
   .customer-demand-report-header__actions {
     flex-wrap: wrap;
+  }
+
+  .handoff-dialog__head {
+    flex-direction: column;
+  }
+
+  .handoff-summary {
+    justify-content: flex-start;
+  }
+
+  .handoff-dialog__grid {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 </style>
