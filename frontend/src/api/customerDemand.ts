@@ -125,10 +125,10 @@ export function fetchCustomerDemandStageSummaries(sessionId: string) {
   return apiRequest<CustomerDemandStageSummaryListData>(`/api/v1/customer-demand/sessions/${sessionId}/stage-summaries`)
 }
 
-export function triggerCustomerDemandStageSummary(sessionId: string, triggerType = 'manual') {
+export function triggerCustomerDemandStageSummary(sessionId: string, triggerType = 'manual', knowledgeEnabled?: boolean) {
   return apiRequest<CustomerDemandTriggerStageSummaryResult>(`/api/v1/customer-demand/sessions/${sessionId}/stage-summary`, {
     method: 'POST',
-    body: JSON.stringify({ trigger_type: triggerType }),
+    body: JSON.stringify({ trigger_type: triggerType, knowledge_enabled: knowledgeEnabled }),
   })
 }
 

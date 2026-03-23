@@ -80,12 +80,21 @@ export interface CustomerDemandReportItem {
   digging_suggestions_payload: Record<string, unknown>
   recommended_questions_markdown: string
   knowledge_enabled: boolean
-  used_knowledge_sources: unknown[]
+  used_knowledge_sources: CustomerDemandKnowledgeSource[]
   llm_model: string
   status: string
   created_by: number | null
   created_at: string
   updated_at: string
+}
+
+export interface CustomerDemandKnowledgeSource {
+  source_type: string
+  source_label: string
+  title: string
+  snippet: string
+  score: number
+  metadata: Record<string, unknown>
 }
 
 export interface CustomerDemandTaskItem {

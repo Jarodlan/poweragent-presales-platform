@@ -11,6 +11,7 @@ from django.db import close_old_connections
 from django.conf import settings
 from django.utils import timezone
 
+from .knowledge import retrieve_customer_demand_knowledge
 from .models import (
     CustomerDemandAnalysisTask,
     CustomerDemandReport,
@@ -305,9 +306,50 @@ def _safe_list(parsed: dict[str, Any], key: str, default: list[str] | None = Non
     return [str(item).strip() for item in value if str(item).strip()]
 
 
-def build_stage_summary_payload(session: CustomerDemandSession) -> dict[str, Any]:
+def _knowledge_hint_items(knowledge_context: dict[str, Any], *, limit: int) -> list[str]:
+    hints: list[str] = []
+    for item in (knowledge_context.get("sources") or [])[:limit]:
+        title = str(item.get("title") or "").strip()
+        snippet = str(item.get("snippet") or "").strip()
+        if title and snippet:
+            hints.append(f"{title}：{snippet}")
+        elif title:
+            hints.append(title)
+        elif snippet:
+            hints.append(snippet)
+    return hints
+
+
+def _knowledge_sources_payload(knowledge_context: dict[str, Any]) -> list[dict[str, Any]]:
+    normalized: list[dict[str, Any]] = []
+    for item in knowledge_context.get("sources") or []:
+        normalized.append(
+            {
+                "source_type": item.get("source_type", ""),
+                "source_label": item.get("source_label", ""),
+                "title": item.get("title", ""),
+                "snippet": item.get("snippet", ""),
+                "score": item.get("score", 0),
+                "metadata": item.get("metadata", {}),
+            }
+        )
+    return normalized
+
+
+def build_stage_summary_payload(
+    session: CustomerDemandSession,
+    *,
+    knowledge_enabled: bool | None = None,
+) -> dict[str, Any]:
     accepted_records = _accepted_segment_records(session)
     review_records = _review_segment_records(session)
+    effective_knowledge_enabled = session.knowledge_enabled if knowledge_enabled is None else knowledge_enabled
+    knowledge_context = retrieve_customer_demand_knowledge(
+        session,
+        accepted_records,
+        enabled=effective_knowledge_enabled,
+        lightweight=True,
+    )
     if accepted_records:
         try:
             parsed, model = _call_qwen_json(
@@ -316,6 +358,7 @@ def build_stage_summary_payload(session: CustomerDemandSession) -> dict[str, Any
                     "请基于已经通过语义校验的沟通分段，抽取结构化阶段整理。"
                     "要求输出高价值分析，不要粘贴原始大段口语，不要逐字复述客户原话。"
                     "每个条目尽量控制在一到两句话内，优先写抽象后的需求点、约束、疑问和风险。"
+                    "如果输入中包含知识补证，请把它作为辅助背景，用来增强判断，不要照抄知识原文。"
                 ),
                 {
                     "session_context": {
@@ -328,12 +371,15 @@ def build_stage_summary_payload(session: CustomerDemandSession) -> dict[str, Any
                     },
                     "accepted_segments": accepted_records[:8],
                     "review_segments": review_records,
+                    "knowledge_enabled": effective_knowledge_enabled,
+                    "knowledge_context": knowledge_context.get("context_lines", []),
                     "output_schema": {
                         "current_topics": ["当前核心讨论主题，2-4条"],
                         "confirmed_requirements": ["已明确需求点，3-6条"],
                         "pending_questions": ["仍需补问的问题，3-5条"],
                         "potential_directions": ["后续可继续挖掘的方向，2-4条"],
                         "risk_points": ["当前风险与约束，2-4条"],
+                        "knowledge_hints": ["知识补证给出的辅助判断，0-3条"],
                         "semantic_warnings": ["待复核内容的提醒，0-3条"],
                     },
                 },
@@ -344,8 +390,13 @@ def build_stage_summary_payload(session: CustomerDemandSession) -> dict[str, Any
                 "pending_questions": _safe_list(parsed, "pending_questions"),
                 "potential_directions": _safe_list(parsed, "potential_directions"),
                 "risk_points": _safe_list(parsed, "risk_points"),
+                "knowledge_hints": _safe_list(parsed, "knowledge_hints"),
                 "semantic_warnings": _safe_list(parsed, "semantic_warnings"),
                 "_llm_model": model,
+                "_knowledge_enabled": effective_knowledge_enabled,
+                "_knowledge_query": knowledge_context.get("query", ""),
+                "_knowledge_sources": _knowledge_sources_payload(knowledge_context),
+                "_knowledge_error": knowledge_context.get("error", ""),
             }
         except Exception as exc:
             llm_error = str(exc)
@@ -374,6 +425,7 @@ def build_stage_summary_payload(session: CustomerDemandSession) -> dict[str, Any
     pending_questions = inferred["pending_questions"]
     potential_directions = inferred["potential_directions"]
     risk_points = inferred["risk_points"]
+    knowledge_hints = _knowledge_hint_items(knowledge_context, limit=3)
     semantic_warnings = []
     for item in _review_segments(session)[:3]:
         preview = (item.final_text or item.normalized_text or item.raw_text or "").strip()[:80]
@@ -386,9 +438,14 @@ def build_stage_summary_payload(session: CustomerDemandSession) -> dict[str, Any
         "pending_questions": pending_questions,
         "potential_directions": potential_directions,
         "risk_points": risk_points,
+        "knowledge_hints": knowledge_hints,
         "semantic_warnings": semantic_warnings,
         "_llm_model": "rule_based_mvp",
         "_llm_error": llm_error,
+        "_knowledge_enabled": effective_knowledge_enabled,
+        "_knowledge_query": knowledge_context.get("query", ""),
+        "_knowledge_sources": _knowledge_sources_payload(knowledge_context),
+        "_knowledge_error": knowledge_context.get("error", ""),
     }
 
 
@@ -405,12 +462,20 @@ def build_stage_summary_markdown(payload: dict[str, Any]) -> str:
             section("待确认问题", payload.get("pending_questions", [])),
             section("潜在方向", payload.get("potential_directions", [])),
             section("风险点", payload.get("risk_points", [])),
+            section("知识补证", payload.get("knowledge_hints", [])),
             section("语义复核提醒", payload.get("semantic_warnings", [])),
         ]
     ).strip()
 
 
-def create_stage_summary(*, session: CustomerDemandSession, trigger_type: str, created_by) -> tuple[CustomerDemandAnalysisTask, CustomerDemandStageSummary]:
+def create_stage_summary(
+    *,
+    session: CustomerDemandSession,
+    trigger_type: str,
+    created_by,
+    knowledge_enabled: bool | None = None,
+) -> tuple[CustomerDemandAnalysisTask, CustomerDemandStageSummary]:
+    effective_knowledge_enabled = session.knowledge_enabled if knowledge_enabled is None else knowledge_enabled
     task = CustomerDemandAnalysisTask.objects.create(
         session=session,
         task_type="stage_summary",
@@ -418,12 +483,12 @@ def create_stage_summary(*, session: CustomerDemandSession, trigger_type: str, c
         current_step="build_stage_summary",
         current_step_label="生成阶段整理",
         progress=15,
-        request_payload={"trigger_type": trigger_type},
+        request_payload={"trigger_type": trigger_type, "knowledge_enabled": effective_knowledge_enabled},
         started_by=created_by,
         started_at=timezone.now(),
     )
 
-    payload = build_stage_summary_payload(session)
+    payload = build_stage_summary_payload(session, knowledge_enabled=effective_knowledge_enabled)
     markdown = build_stage_summary_markdown(payload)
     version = session.latest_stage_version + 1
     segments = session.segments.order_by("sequence_no")
@@ -476,7 +541,10 @@ def _run_stage_summary_task(task_id: str):
             current_step_label="抽取结构化阶段要点",
             progress=28,
         )
-        payload = build_stage_summary_payload(session)
+        payload = build_stage_summary_payload(
+            session,
+            knowledge_enabled=bool(task.request_payload.get("knowledge_enabled", session.knowledge_enabled)),
+        )
         _update_task(
             task,
             current_step="render_stage_summary_markdown",
@@ -527,6 +595,7 @@ def _run_stage_summary_task(task_id: str):
 
 
 def enqueue_stage_summary(*, session: CustomerDemandSession, trigger_type: str, created_by) -> CustomerDemandAnalysisTask:
+    effective_knowledge_enabled = session.knowledge_enabled
     task = CustomerDemandAnalysisTask.objects.create(
         session=session,
         task_type="stage_summary",
@@ -534,7 +603,7 @@ def enqueue_stage_summary(*, session: CustomerDemandSession, trigger_type: str, 
         current_step="queue_stage_summary",
         current_step_label="阶段整理排队中",
         progress=5,
-        request_payload={"trigger_type": trigger_type},
+        request_payload={"trigger_type": trigger_type, "knowledge_enabled": effective_knowledge_enabled},
         started_by=created_by,
         started_at=timezone.now(),
     )
@@ -576,10 +645,21 @@ def maybe_enqueue_auto_stage_summary(*, session: CustomerDemandSession, created_
     return enqueue_stage_summary(session=session, trigger_type="auto_segment_threshold", created_by=created_by)
 
 
-def build_final_report_payload(session: CustomerDemandSession) -> dict[str, Any]:
+def build_final_report_payload(
+    session: CustomerDemandSession,
+    *,
+    knowledge_enabled: bool | None = None,
+) -> dict[str, Any]:
     accepted_records = _accepted_segment_records(session)
     review_records = _review_segment_records(session)
     latest_summary = session.stage_summaries.order_by("-summary_version", "-created_at").first()
+    effective_knowledge_enabled = session.knowledge_enabled if knowledge_enabled is None else knowledge_enabled
+    knowledge_context = retrieve_customer_demand_knowledge(
+        session,
+        accepted_records,
+        enabled=effective_knowledge_enabled,
+        lightweight=False,
+    )
     if accepted_records:
         try:
             parsed, model = _call_qwen_json(
@@ -588,6 +668,7 @@ def build_final_report_payload(session: CustomerDemandSession) -> dict[str, Any]
                     "请根据通过语义校验的沟通分段和阶段整理，生成结构化需求分析结果。"
                     "你的输出必须是分析结论，不要大段照抄客户原始口语。"
                     "如果原始信息不完整，也要明确指出待确认项，而不是用原文填充。"
+                    "如果输入中包含知识补证，请把它作为辅助背景，用来增强结论可信度，不要照抄知识原文。"
                 ),
                 {
                     "session_context": {
@@ -601,12 +682,15 @@ def build_final_report_payload(session: CustomerDemandSession) -> dict[str, Any]
                     "accepted_segments": accepted_records[:8],
                     "review_segments": review_records,
                     "latest_stage_summary": latest_summary.summary_payload if latest_summary else {},
+                    "knowledge_enabled": effective_knowledge_enabled,
+                    "knowledge_context": knowledge_context.get("context_lines", []),
                     "output_schema": {
                         "summary": "1-2句整体判断",
                         "current_problem": ["客户当前问题概述，2-4条"],
                         "explicit_requirements": ["已明确需求，4-8条"],
                         "implicit_requirements": ["隐性诉求，2-4条"],
                         "constraints_and_risks": ["约束与风险，2-5条"],
+                        "knowledge_support": ["知识补证摘要，0-4条"],
                         "pending_questions": ["待确认问题，3-6条"],
                         "next_actions": ["建议下一步动作，3-5条"],
                         "digging_directions": ["需求挖掘方向，3-5条"],
@@ -621,12 +705,17 @@ def build_final_report_payload(session: CustomerDemandSession) -> dict[str, Any]
                 "explicit_requirements": _safe_list(parsed, "explicit_requirements"),
                 "implicit_requirements": _safe_list(parsed, "implicit_requirements"),
                 "constraints_and_risks": _safe_list(parsed, "constraints_and_risks"),
+                "knowledge_support": _safe_list(parsed, "knowledge_support"),
                 "pending_questions": _safe_list(parsed, "pending_questions"),
                 "next_actions": _safe_list(parsed, "next_actions"),
                 "digging_directions": _safe_list(parsed, "digging_directions"),
                 "recommended_questions": _safe_list(parsed, "recommended_questions"),
                 "semantic_warnings": _safe_list(parsed, "semantic_warnings"),
                 "_llm_model": model,
+                "_knowledge_enabled": effective_knowledge_enabled,
+                "_knowledge_query": knowledge_context.get("query", ""),
+                "_knowledge_sources": _knowledge_sources_payload(knowledge_context),
+                "_knowledge_error": knowledge_context.get("error", ""),
             }
         except Exception as exc:
             llm_error = str(exc)
@@ -651,6 +740,7 @@ def build_final_report_payload(session: CustomerDemandSession) -> dict[str, Any]
         "客户除了关注当前问题解决外，也在意后续合作模式、投入压力和项目落地确定性。",
     ]
     constraints_and_risks = inferred["risk_points"][:]
+    knowledge_support = _knowledge_hint_items(knowledge_context, limit=4)
     pending_questions = inferred["pending_questions"][:]
     next_actions = [
         "基于本次沟通内容形成内部复盘纪要，并明确需要补问的关键问题。",
@@ -679,6 +769,7 @@ def build_final_report_payload(session: CustomerDemandSession) -> dict[str, Any]
         "explicit_requirements": explicit_requirements,
         "implicit_requirements": implicit_requirements,
         "constraints_and_risks": constraints_and_risks,
+        "knowledge_support": knowledge_support,
         "pending_questions": pending_questions,
         "next_actions": next_actions,
         "digging_directions": digging_directions,
@@ -686,6 +777,10 @@ def build_final_report_payload(session: CustomerDemandSession) -> dict[str, Any]
         "semantic_warnings": semantic_warnings,
         "_llm_model": "rule_based_mvp",
         "_llm_error": llm_error,
+        "_knowledge_enabled": effective_knowledge_enabled,
+        "_knowledge_query": knowledge_context.get("query", ""),
+        "_knowledge_sources": _knowledge_sources_payload(knowledge_context),
+        "_knowledge_error": knowledge_context.get("error", ""),
     }
 
 
@@ -694,6 +789,11 @@ def build_final_report_markdown(session: CustomerDemandSession, payload: dict[st
     generated_at_display = f"{generated_at.year}年{generated_at.month}月{generated_at.day}日 {generated_at:%H:%M}"
     agent_version = getattr(settings, "CUSTOMER_DEMAND_AGENT_VERSION", "0.1.0-mvp")
     analysis_subject = f"客户需求分析智能体（{agent_version}）"
+    knowledge_section = ""
+    if payload.get("knowledge_support"):
+        knowledge_section = "\n\n" + "\n".join(
+            ["## 知识补证摘要", *(f"- {item}" for item in payload.get("knowledge_support", []))]
+        ).strip()
 
     if payload.get("_llm_model") and payload.get("_llm_model") != "rule_based_mvp":
         try:
@@ -735,7 +835,7 @@ def build_final_report_markdown(session: CustomerDemandSession, payload: dict[st
             questions = "\n".join(
                 ["## 建议补问问题", *(f"- {item}" for item in payload.get("recommended_questions", []))]
             ).strip()
-            return report_markdown.strip(), digging, questions
+            return f"{report_markdown.strip()}{knowledge_section}".strip(), digging, questions
         except Exception:
             pass
 
@@ -782,7 +882,7 @@ def build_final_report_markdown(session: CustomerDemandSession, payload: dict[st
     questions = "\n".join(
         ["## 建议补问问题", *(f"- {item}" for item in payload.get("recommended_questions", []))]
     ).strip()
-    return report, digging, questions
+    return f"{report}{knowledge_section}".strip(), digging, questions
 
 
 def create_final_report(*, session: CustomerDemandSession, created_by, knowledge_enabled: bool) -> tuple[CustomerDemandAnalysisTask, CustomerDemandReport]:
@@ -798,7 +898,7 @@ def create_final_report(*, session: CustomerDemandSession, created_by, knowledge
         started_at=timezone.now(),
     )
 
-    payload = build_final_report_payload(session)
+    payload = build_final_report_payload(session, knowledge_enabled=knowledge_enabled)
     report_markdown, digging_markdown, questions_markdown = build_final_report_markdown(session, payload)
     version = (session.reports.order_by("-report_version").first().report_version + 1) if session.reports.exists() else 1
     report = CustomerDemandReport.objects.create(
@@ -811,7 +911,7 @@ def create_final_report(*, session: CustomerDemandSession, created_by, knowledge
         digging_suggestions_payload={"items": payload.get("digging_directions", [])},
         recommended_questions_markdown=questions_markdown,
         knowledge_enabled=knowledge_enabled,
-        used_knowledge_sources=[],
+        used_knowledge_sources=payload.get("_knowledge_sources", []),
         llm_model=payload.get("_llm_model", "rule_based_mvp"),
         status="completed",
         created_by=created_by,
@@ -858,7 +958,8 @@ def _run_final_report_task(task_id: str):
             current_step_label="分析客户需求与风险约束",
             progress=32,
         )
-        payload = build_final_report_payload(session)
+        knowledge_enabled = bool(task.request_payload.get("knowledge_enabled", False))
+        payload = build_final_report_payload(session, knowledge_enabled=knowledge_enabled)
         _update_task(
             task,
             current_step="render_final_report_markdown",
@@ -876,8 +977,8 @@ def _run_final_report_task(task_id: str):
             digging_suggestions_markdown=digging_markdown,
             digging_suggestions_payload={"items": payload.get("digging_directions", [])},
             recommended_questions_markdown=questions_markdown,
-            knowledge_enabled=bool(task.request_payload.get("knowledge_enabled", False)),
-            used_knowledge_sources=[],
+            knowledge_enabled=knowledge_enabled,
+            used_knowledge_sources=payload.get("_knowledge_sources", []),
             llm_model=payload.get("_llm_model", "rule_based_mvp"),
             status="completed",
             created_by=task.started_by,

@@ -9,7 +9,11 @@ import { DEFAULT_PARAMS, SCENARIO_PRESET_MAP, type ComposerParams } from '@/conf
 import { useCustomerDemandStore } from '@/stores/customerDemand'
 import { useMetaStore } from '@/stores/meta'
 import type { OptionItem } from '@/types/meta'
-import type { CustomerDemandReportItem, CustomerDemandSessionItem } from '@/types/customerDemand'
+import type {
+  CustomerDemandKnowledgeSource,
+  CustomerDemandReportItem,
+  CustomerDemandSessionItem,
+} from '@/types/customerDemand'
 import { saveSolutionHandoffDraft } from '@/utils/solutionHandoff'
 import { renderMarkdown } from '@/utils/markdown'
 import { formatDateTime } from '@/utils/time'
@@ -73,6 +77,46 @@ const handoffSummary = computed(() => {
       : null,
   ].filter(Boolean) as Array<{ label: string; value: string }>
 })
+
+const knowledgeSources = computed<CustomerDemandKnowledgeSource[]>(() => {
+  const raw = report.value?.used_knowledge_sources || []
+  if (!Array.isArray(raw)) return []
+  return raw
+    .map((item) => {
+      if (!item || typeof item !== 'object') return null
+      const source = item as Record<string, unknown>
+      return {
+        source_type: String(source.source_type || ''),
+        source_label: String(source.source_label || '知识来源'),
+        title: String(source.title || '未命名资料'),
+        snippet: String(source.snippet || ''),
+        score: Number(source.score || 0),
+        metadata: (source.metadata as Record<string, unknown>) || {},
+      }
+    })
+    .filter(Boolean) as CustomerDemandKnowledgeSource[]
+})
+
+function knowledgeScoreLabel(value: number) {
+  if (!Number.isFinite(value) || value <= 0) return ''
+  return value >= 1 ? value.toFixed(2) : value.toFixed(3)
+}
+
+function knowledgeMetaSummary(item: CustomerDemandKnowledgeSource) {
+  const metadata = item.metadata || {}
+  const positions = metadata.positions
+  if (Array.isArray(positions) && positions.length) {
+    const first = positions[0]
+    if (Array.isArray(first) && typeof first[0] === 'number') {
+      return `命中页码：第 ${first[0]} 页`
+    }
+  }
+  const datasetId = metadata.dataset_id
+  if (datasetId) {
+    return `数据集：${String(datasetId).slice(0, 8)}...`
+  }
+  return ''
+}
 
 async function loadReportContext() {
   if (!sessionId.value) return
@@ -353,6 +397,33 @@ watch(sessionId, async () => {
               </li>
             </ul>
           </section>
+
+          <section class="panel-card report-side__card">
+            <div class="report-side__head">
+              <div>
+                <h3>知识来源</h3>
+                <p>这里展示本次需求分析实际参考到的知识资料，方便快速确认知识库是否真正生效。</p>
+              </div>
+              <el-tag effect="plain" type="info">{{ knowledgeSources.length }} 条</el-tag>
+            </div>
+            <div v-if="!report.knowledge_enabled" class="report-source-empty">
+              当前报告生成时未开启知识库辅助。
+            </div>
+            <div v-else-if="!knowledgeSources.length" class="report-source-empty">
+              本次未命中合适的知识资料，因此报告仅基于沟通内容分析。
+            </div>
+            <div v-else class="report-source-list">
+              <article v-for="(item, index) in knowledgeSources" :key="`${item.source_type}-${item.title}-${index}`" class="report-source-item">
+                <div class="report-source-item__head">
+                  <el-tag size="small" effect="light" type="success">{{ item.source_label || '知识来源' }}</el-tag>
+                  <span v-if="knowledgeScoreLabel(item.score)" class="report-source-item__score">相关度 {{ knowledgeScoreLabel(item.score) }}</span>
+                </div>
+                <strong class="report-source-item__title">{{ item.title }}</strong>
+                <p class="report-source-item__snippet">{{ item.snippet || '暂无摘要' }}</p>
+                <p v-if="knowledgeMetaSummary(item)" class="report-source-item__meta">{{ knowledgeMetaSummary(item) }}</p>
+              </article>
+            </div>
+          </section>
         </aside>
       </section>
     </template>
@@ -628,6 +699,20 @@ watch(sessionId, async () => {
   line-height: 1.6;
 }
 
+.report-side__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.report-side__head p {
+  margin: 6px 0 0;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
 .report-side {
   display: flex;
   flex-direction: column;
@@ -718,6 +803,52 @@ watch(sessionId, async () => {
 
 .report-meta-list strong {
   color: var(--text);
+}
+
+.report-source-empty {
+  color: var(--muted);
+  line-height: 1.7;
+}
+
+.report-source-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.report-source-item {
+  padding: 14px 14px 12px;
+  border-radius: 16px;
+  border: 1px solid rgba(15, 93, 140, 0.12);
+  background: rgba(248, 252, 255, 0.9);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.report-source-item__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.report-source-item__score {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.report-source-item__title {
+  color: var(--text);
+  line-height: 1.5;
+}
+
+.report-source-item__snippet,
+.report-source-item__meta {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.7;
+  font-size: 13px;
 }
 
 .markdown-view {

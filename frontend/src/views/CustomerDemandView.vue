@@ -821,6 +821,15 @@ watch(
   },
 )
 
+watch(
+  () => demandStore.draftForm.knowledge_enabled,
+  async (nextValue) => {
+    if (!demandStore.currentSession) return
+    if (Boolean(demandStore.currentSession.knowledge_enabled) === Boolean(nextValue)) return
+    await demandStore.updateCurrentKnowledgePreference(Boolean(nextValue))
+  },
+)
+
 onBeforeUnmount(() => {
   clearFinalizeTimer()
   mediaStream?.getTracks().forEach((track) => track.stop())
@@ -973,7 +982,7 @@ onBeforeUnmount(() => {
               <div class="customer-card__head">
                 <div>
                   <h3>会话信息</h3>
-                  <p>补齐客户、主题和知识库开关，后续会中提示与会后报告都会沿用这里的信息。</p>
+                  <p>补齐客户与主题等基础信息，后续会中提示与会后报告都会沿用这里的信息。</p>
                 </div>
                 <el-button :loading="demandStore.savingProfile" type="primary" plain @click="demandStore.saveCurrentSessionProfile()">
                   保存信息
@@ -987,11 +996,6 @@ onBeforeUnmount(() => {
                 <el-input v-model="demandStore.draftForm.region" placeholder="区域" />
                 <el-input v-model="demandStore.draftForm.topic" placeholder="主题，例如：智慧园区能源管理" />
                 <el-input v-model="demandStore.draftForm.customer_type" placeholder="客户类型，例如：供电公司 / 园区业主" />
-                <el-switch
-                  v-model="demandStore.draftForm.knowledge_enabled"
-                  active-text="允许分析时参考知识库"
-                  inactive-text="仅根据当前沟通内容分析"
-                />
                 <el-input
                   v-model="demandStore.draftForm.remarks"
                   type="textarea"
@@ -1169,6 +1173,17 @@ onBeforeUnmount(() => {
                   会后生成正式报告
                 </el-button>
               </div>
+              <div class="insight-knowledge-toggle">
+                <div>
+                  <strong>知识库辅助</strong>
+                  <p>开启后，阶段整理与需求分析报告会按当前会话主题自动补充相关资料；关闭时仅基于沟通内容分析。</p>
+                </div>
+                <el-switch
+                  v-model="demandStore.draftForm.knowledge_enabled"
+                  active-text="已开启"
+                  inactive-text="未开启"
+                />
+              </div>
               <div v-if="demandStore.operationState.visible" class="operation-status-card" :class="`is-${demandStore.operationState.status}`">
                 <div class="operation-status-card__head">
                   <div>
@@ -1337,11 +1352,6 @@ onBeforeUnmount(() => {
         <el-input v-model="createForm.region" placeholder="区域" />
         <el-input v-model="createForm.topic" placeholder="主题" />
         <el-input v-model="createForm.customer_type" placeholder="客户类型" />
-        <el-switch
-          v-model="createForm.knowledge_enabled"
-          active-text="允许分析时参考知识库"
-          inactive-text="仅根据当前沟通内容分析"
-        />
         <el-input v-model="createForm.remarks" type="textarea" :rows="3" placeholder="备注（可选）" />
       </div>
       <template #footer>
@@ -1631,6 +1641,29 @@ onBeforeUnmount(() => {
   flex-direction: column;
   gap: 14px;
   margin-top: 18px;
+}
+
+.insight-knowledge-toggle {
+  margin-top: 14px;
+  padding: 14px 16px;
+  border-radius: 16px;
+  border: 1px solid rgba(15, 93, 140, 0.12);
+  background: rgba(247, 251, 255, 0.9);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.insight-knowledge-toggle strong {
+  display: block;
+}
+
+.insight-knowledge-toggle p {
+  margin: 6px 0 0;
+  color: var(--muted);
+  line-height: 1.6;
+  font-size: 13px;
 }
 
 .live-status-strip {

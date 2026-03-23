@@ -64,6 +64,7 @@ export const useCustomerDemandStore = defineStore('customerDemand', () => {
   const loadingSessions = ref(false)
   const loadingDetail = ref(false)
   const savingProfile = ref(false)
+  const savingKnowledgePreference = ref(false)
   const actionLoading = ref(false)
   const uploadingAudio = ref(false)
   const exporting = ref(false)
@@ -222,7 +223,13 @@ export const useCustomerDemandStore = defineStore('customerDemand', () => {
     }
   }
 
-  function applySessionToDraft(session: CustomerDemandSessionItem | null) {
+  function applySessionToDraft(
+    session: CustomerDemandSessionItem | null,
+    options?: {
+      preserveKnowledgeToggle?: boolean
+    },
+  ) {
+    const preserveKnowledgeToggle = Boolean(options?.preserveKnowledgeToggle)
     draftForm.value = session
       ? {
           customer_name: session.customer_name,
@@ -231,7 +238,7 @@ export const useCustomerDemandStore = defineStore('customerDemand', () => {
           region: session.region || '',
           topic: session.topic || '',
           customer_type: session.customer_type || '',
-          knowledge_enabled: session.knowledge_enabled,
+          knowledge_enabled: preserveKnowledgeToggle ? Boolean(draftForm.value.knowledge_enabled) : session.knowledge_enabled,
           knowledge_scope: session.knowledge_scope || {},
           remarks: session.remarks || '',
         }
@@ -254,6 +261,7 @@ export const useCustomerDemandStore = defineStore('customerDemand', () => {
   async function loadSessionDetail(sessionId: string) {
     loadingDetail.value = true
     try {
+      const preserveKnowledgeToggle = currentSessionId.value === sessionId && !!currentSession.value
       const [detail, segmentData, summaryData, reportData] = await Promise.all([
         fetchCustomerDemandSessionDetail(sessionId),
         fetchCustomerDemandSegments(sessionId),
@@ -262,7 +270,7 @@ export const useCustomerDemandStore = defineStore('customerDemand', () => {
       ])
       currentSessionId.value = sessionId
       syncCurrentSession(detail)
-      applySessionToDraft(detail)
+      applySessionToDraft(detail, { preserveKnowledgeToggle })
       segments.value = segmentData.items
       stageSummaries.value = summaryData.items
       currentReport.value = reportData
@@ -330,6 +338,22 @@ export const useCustomerDemandStore = defineStore('customerDemand', () => {
     }
   }
 
+  async function updateCurrentKnowledgePreference(enabled: boolean) {
+    if (!currentSession.value) return
+    if (savingKnowledgePreference.value) return
+    if (Boolean(currentSession.value.knowledge_enabled) === Boolean(enabled)) return
+    savingKnowledgePreference.value = true
+    try {
+      const updated = await updateCustomerDemandSession(currentSession.value.id, {
+        knowledge_enabled: enabled,
+      })
+      syncCurrentSession(updated)
+      applySessionToDraft(updated, { preserveKnowledgeToggle: true })
+    } finally {
+      savingKnowledgePreference.value = false
+    }
+  }
+
   async function startRecording() {
     if (!currentSession.value) return
     actionLoading.value = true
@@ -337,7 +361,7 @@ export const useCustomerDemandStore = defineStore('customerDemand', () => {
       await startCustomerDemandSession(currentSession.value.id)
       const detail = await fetchCustomerDemandSessionDetail(currentSession.value.id)
       syncCurrentSession(detail)
-      applySessionToDraft(detail)
+      applySessionToDraft(detail, { preserveKnowledgeToggle: true })
       ElMessage.success('已开始记录沟通内容')
     } finally {
       actionLoading.value = false
@@ -351,7 +375,7 @@ export const useCustomerDemandStore = defineStore('customerDemand', () => {
       await pauseCustomerDemandSession(currentSession.value.id)
       const detail = await fetchCustomerDemandSessionDetail(currentSession.value.id)
       syncCurrentSession(detail)
-      applySessionToDraft(detail)
+      applySessionToDraft(detail, { preserveKnowledgeToggle: true })
       ElMessage.success('已暂停记录')
     } finally {
       actionLoading.value = false
@@ -365,7 +389,7 @@ export const useCustomerDemandStore = defineStore('customerDemand', () => {
       await stopCustomerDemandSession(currentSession.value.id)
       const detail = await fetchCustomerDemandSessionDetail(currentSession.value.id)
       syncCurrentSession(detail)
-      applySessionToDraft(detail)
+      applySessionToDraft(detail, { preserveKnowledgeToggle: true })
       ElMessage.success('已结束本轮沟通记录')
     } finally {
       actionLoading.value = false
@@ -476,7 +500,11 @@ export const useCustomerDemandStore = defineStore('customerDemand', () => {
       initialMessage: '正在提交阶段整理任务',
     })
     try {
-      const data = await triggerCustomerDemandStageSummary(currentSession.value.id, 'manual')
+      const data = await triggerCustomerDemandStageSummary(
+        currentSession.value.id,
+        'manual',
+        draftForm.value.knowledge_enabled ?? false,
+      )
       currentTask.value = data.task
       syncOperationWithTask(data.task)
       await waitForTask(data.task.id, 'stage_summary')
@@ -546,6 +574,7 @@ export const useCustomerDemandStore = defineStore('customerDemand', () => {
     loadingSessions,
     loadingDetail,
     savingProfile,
+    savingKnowledgePreference,
     actionLoading,
     uploadingAudio,
     reviewingSegment,
@@ -559,6 +588,7 @@ export const useCustomerDemandStore = defineStore('customerDemand', () => {
     createSession,
     deleteSession,
     saveCurrentSessionProfile,
+    updateCurrentKnowledgePreference,
     startRecording,
     pauseRecording,
     stopRecording,

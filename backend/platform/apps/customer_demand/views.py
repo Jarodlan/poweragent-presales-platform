@@ -337,6 +337,10 @@ class CustomerDemandStageSummaryTriggerView(APIView):
 
     def post(self, request, session_id):
         session = get_object_or_404(resolve_visible_customer_demand_sessions(request.user), id=session_id)
+        knowledge_enabled = bool(request.data.get("knowledge_enabled", session.knowledge_enabled))
+        if session.knowledge_enabled != knowledge_enabled:
+            session.knowledge_enabled = knowledge_enabled
+            session.save(update_fields=["knowledge_enabled", "updated_at"])
         trigger_type = request.data.get("trigger_type", "manual")
         task = enqueue_stage_summary(session=session, trigger_type=trigger_type, created_by=request.user)
         return Response(
@@ -357,6 +361,9 @@ class CustomerDemandAnalyzeView(APIView):
     def post(self, request, session_id):
         session = get_object_or_404(resolve_visible_customer_demand_sessions(request.user), id=session_id)
         knowledge_enabled = bool(request.data.get("knowledge_enabled", session.knowledge_enabled))
+        if session.knowledge_enabled != knowledge_enabled:
+            session.knowledge_enabled = knowledge_enabled
+            session.save(update_fields=["knowledge_enabled", "updated_at"])
         task = enqueue_final_report(session=session, created_by=request.user, knowledge_enabled=knowledge_enabled)
         return Response(
             {
