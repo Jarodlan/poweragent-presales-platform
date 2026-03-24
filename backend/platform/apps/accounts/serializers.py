@@ -19,6 +19,9 @@ class DepartmentSerializer(serializers.ModelSerializer):
             "status",
             "parent_id",
             "parent_name",
+            "feishu_department_id",
+            "sync_source",
+            "last_synced_at",
             "sort_order",
             "created_at",
             "updated_at",
@@ -302,3 +305,11 @@ class ResetPasswordSerializer(serializers.Serializer):
 class LoginSerializer(serializers.Serializer):
     username = serializers.CharField(max_length=150)
     password = serializers.CharField(max_length=128, trim_whitespace=False)
+
+
+class UserMergeFeishuSerializer(serializers.Serializer):
+    source_user_id = serializers.PrimaryKeyRelatedField(source="source_user", queryset=User.objects.all())
+
+
+class DepartmentMergeFeishuSerializer(serializers.Serializer):
+    source_department_id = serializers.PrimaryKeyRelatedField(source="source_department", queryset=Department.objects.all())

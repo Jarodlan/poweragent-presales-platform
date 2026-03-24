@@ -157,3 +157,18 @@ class FeishuClient:
             "/contact/v3/users/find_by_department",
             params=params,
         )
+
+    def list_chats(
+        self,
+        *,
+        page_size: int = 50,
+        page_token: str | None = None,
+    ) -> dict[str, Any]:
+        params: dict[str, Any] = {"page_size": page_size}
+        if page_token:
+            params["page_token"] = page_token
+        return self._request(
+            "GET",
+            "/im/v1/chats",
+            params=params,
+        )

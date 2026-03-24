@@ -117,17 +117,24 @@ export interface FeishuRecipientDepartmentItem {
   id: number
   name: string
   code: string
+  parent_id: number | null
   feishu_department_id: string | null
 }
 
 export interface FeishuRecipientUserItem {
-  id: number
+  id: string
+  platform_user_id: number | null
   display_name: string
   username: string
   department_id: number | null
   feishu_open_id: string | null
   feishu_user_id: string | null
   sync_status: string
+}
+
+export interface FeishuRecipientGroupItem {
+  chat_id: string
+  name: string
 }
 
 export interface PresalesTaskPayload {
@@ -147,6 +154,32 @@ export interface PresalesTaskPayload {
   priority?: string
   due_at?: string | null
   next_follow_up_at?: string | null
+  payload_json?: Record<string, unknown>
+}
+
+export interface PresalesTaskFromDemandReportPayload {
+  report_id: string
+  task_title: string
+  task_description?: string
+  assignee_user_id?: number | null
+  priority?: string
+  due_at?: string | null
+  next_follow_up_at?: string | null
+  collaborator_user_ids?: number[]
+  payload_json?: Record<string, unknown>
+}
+
+export interface PresalesTaskFromSolutionPayload {
+  source_id: string
+  source_title: string
+  customer_name?: string
+  task_title: string
+  task_description?: string
+  assignee_user_id?: number | null
+  priority?: string
+  due_at?: string | null
+  next_follow_up_at?: string | null
+  collaborator_user_ids?: number[]
   payload_json?: Record<string, unknown>
 }
 

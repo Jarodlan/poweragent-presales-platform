@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, nextTick, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { ArrowLeft, ChatDotRound, CirclePlus, Document, FolderOpened, Promotion, Refresh, Upload } from '@element-plus/icons-vue'
 import { useRouter } from 'vue-router'
@@ -21,6 +21,7 @@ import { useAuthStore } from '@/stores/auth'
 import type {
   FeishuDeliveryRecordItem,
   FeishuRecipientDepartmentItem,
+  FeishuRecipientGroupItem,
   FeishuRecipientUserItem,
   FeishuSyncJobItem,
   PresalesArchiveRecordItem,
@@ -49,6 +50,7 @@ const deliveries = ref<FeishuDeliveryRecordItem[]>([])
 const syncJobs = ref<FeishuSyncJobItem[]>([])
 const feishuDepartments = ref<FeishuRecipientDepartmentItem[]>([])
 const feishuUsers = ref<FeishuRecipientUserItem[]>([])
+const feishuGroups = ref<FeishuRecipientGroupItem[]>([])
 
 const taskFilters = reactive({
   keyword: '',
@@ -70,6 +72,7 @@ const taskDrawerVisible = ref(false)
 const taskDialogVisible = ref(false)
 const sendDialogVisible = ref(false)
 const deliveryDrawerVisible = ref(false)
+const memberTreeRef = ref()
 const editingMode = ref<'create' | 'edit'>('create')
 const selectedTask = ref<PresalesTaskItem | null>(null)
 const selectedDelivery = ref<FeishuDeliveryRecordItem | null>(null)
@@ -88,11 +91,8 @@ const taskForm = reactive<PresalesTaskPayload>({
 
 const sendFormRef = ref()
 const sendForm = reactive({
-  target_type: 'user' as 'user' | 'group',
-  department_id: null as number | null,
-  member_id: null as number | null,
-  target_id: '',
-  target_name: '',
+  member_keys: [] as string[],
+  group_chat_ids: [] as string[],
   message_text: '',
 })
 
@@ -101,9 +101,6 @@ const taskRules = {
 }
 
 const sendRules = computed(() => ({
-  department_id: sendForm.target_type === 'user' ? [{ required: true, message: '请选择部门', trigger: 'change' }] : [],
-  member_id: sendForm.target_type === 'user' ? [{ required: true, message: '请选择成员', trigger: 'change' }] : [],
-  target_id: sendForm.target_type === 'group' ? [{ required: true, message: '请输入群 chat_id', trigger: 'blur' }] : [],
   message_text: [{ required: true, message: '请输入消息内容', trigger: 'blur' }],
 }))
 
@@ -151,9 +148,49 @@ const canManagePresales = computed(() => authStore.hasPermission('presales_task.
 const canManageArchive = computed(() => authStore.hasPermission('presales_archive.manage') || authStore.user?.is_superuser)
 const canManageFeishuSync = computed(() => authStore.hasPermission('feishu_sync.manage') || authStore.user?.is_superuser)
 const canManageFeishuDelivery = computed(() => authStore.hasPermission('feishu_delivery.manage') || authStore.hasPermission('presales_task.manage') || authStore.user?.is_superuser)
-const availableFeishuUsers = computed(() => {
-  if (!sendForm.department_id) return []
-  return feishuUsers.value.filter((item) => item.department_id === sendForm.department_id)
+const selectedFeishuGroups = computed(() => feishuGroups.value.filter((item) => sendForm.group_chat_ids.includes(item.chat_id)))
+const feishuMemberTree = computed(() => {
+  const nodeMap = new Map<string, { key: string; label: string; disabled: boolean; children: any[] }>()
+  feishuDepartments.value.forEach((department) => {
+    nodeMap.set(`dept-${department.id}`, {
+      key: `dept-${department.id}`,
+      label: department.name,
+      disabled: true,
+      children: [],
+    })
+  })
+
+  const roots: Array<{ key: string; label: string; disabled: boolean; children: any[] }> = []
+  feishuDepartments.value.forEach((department) => {
+    const current = nodeMap.get(`dept-${department.id}`)
+    if (!current) return
+    if (department.parent_id && nodeMap.has(`dept-${department.parent_id}`)) {
+      nodeMap.get(`dept-${department.parent_id}`)?.children.push(current)
+    } else {
+      roots.push(current)
+    }
+  })
+
+  feishuUsers.value.forEach((user) => {
+    const userNode = {
+      key: `user-${user.id}`,
+      label: user.display_name || user.username,
+      disabled: !(user.feishu_open_id || user.feishu_user_id),
+      isLeaf: true,
+    }
+    if (user.department_id && nodeMap.has(`dept-${user.department_id}`)) {
+      nodeMap.get(`dept-${user.department_id}`)?.children.push(userNode)
+    } else {
+      roots.push({
+        key: `orphan-${user.id}`,
+        label: '未归属部门',
+        disabled: true,
+        children: [userNode],
+      })
+    }
+  })
+
+  return roots
 })
 
 function formatJson(value: Record<string, unknown> | null | undefined) {
@@ -246,6 +283,7 @@ function resolvePriorityLabel(value: string) {
 
 function resolveDeliveryStatusLabel(value: string) {
   const map: Record<string, string> = {
+    not_sent: '未发送',
     queued: '排队中',
     sent: '发送成功',
     partial: '部分成功',
@@ -351,6 +389,7 @@ async function loadFeishuRecipients() {
     const data = await fetchFeishuRecipients()
     feishuDepartments.value = data.departments
     feishuUsers.value = data.users
+    feishuGroups.value = data.groups
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '飞书成员列表加载失败')
   }
@@ -466,29 +505,19 @@ function buildDefaultFeishuText(task: PresalesTaskItem) {
 }
 
 function resetSendForm() {
-  sendForm.target_type = 'user'
-  sendForm.department_id = null
-  sendForm.member_id = null
-  sendForm.target_id = ''
-  sendForm.target_name = ''
+  sendForm.member_keys = []
+  sendForm.group_chat_ids = []
   sendForm.message_text = ''
 }
 
-function applySelectedFeishuMember(memberId: number | null) {
-  const member = feishuUsers.value.find((item) => item.id === memberId) || null
-  sendForm.member_id = member?.id || null
-  sendForm.target_id = member?.feishu_open_id || member?.feishu_user_id || ''
-  sendForm.target_name = member?.display_name || member?.username || ''
+function syncCheckedMemberKeys() {
+  const checkedKeys = (memberTreeRef.value?.getCheckedKeys?.(false) || []) as string[]
+  sendForm.member_keys = checkedKeys
+    .filter((key) => typeof key === 'string' && key.startsWith('user-'))
+    .map((key) => String(key).replace('user-', ''))
 }
 
-function handleSendDepartmentChange(departmentId: number | null) {
-  sendForm.department_id = departmentId
-  sendForm.member_id = null
-  sendForm.target_id = ''
-  sendForm.target_name = ''
-}
-
-function openSendDialog(task: PresalesTaskItem) {
+async function openSendDialog(task: PresalesTaskItem) {
   selectedTask.value = task
   const preferredUser = task.assignee_user?.feishu_open_id
     ? task.assignee_user
@@ -498,33 +527,89 @@ function openSendDialog(task: PresalesTaskItem) {
         ? authStore.user
         : null
   resetSendForm()
-  if (preferredUser?.department?.id) {
-    sendForm.department_id = preferredUser.department.id
-  }
-  if (preferredUser?.id) {
-    applySelectedFeishuMember(preferredUser.id)
+  if (preferredUser) {
+    const preferredRecipient = feishuUsers.value.find(
+      (item) =>
+        (preferredUser.feishu_open_id && item.feishu_open_id === preferredUser.feishu_open_id) ||
+        (preferredUser.feishu_user_id && item.feishu_user_id === preferredUser.feishu_user_id) ||
+        (item.platform_user_id && item.platform_user_id === preferredUser.id),
+    )
+    if (preferredRecipient) {
+      sendForm.member_keys = [preferredRecipient.id]
+    }
   }
   sendForm.message_text = buildDefaultFeishuText(task)
   sendDialogVisible.value = true
+  await nextTick()
+  memberTreeRef.value?.setCheckedKeys?.(sendForm.member_keys.map((id) => `user-${id}`), false)
 }
 
 async function submitSendDialog() {
   if (!selectedTask.value) return
   await sendFormRef.value?.validate()
+  if (!sendForm.member_keys.length && !sendForm.group_chat_ids.length) {
+    ElMessage.warning('请至少选择一位成员或一个群聊')
+    return
+  }
   loading.sending = true
   try {
-    await sendPresalesTaskToFeishu(selectedTask.value.id, {
-      target_type: sendForm.target_type,
-      target_id: sendForm.target_id,
-      target_name: sendForm.target_name,
-      message_type: 'text',
+    const payloadBase = {
+      message_type: 'text' as const,
       message_payload: {
         text: sendForm.message_text,
         title: selectedTask.value.task_title,
         summary: selectedTask.value.customer_name,
       },
-    })
-    ElMessage.success('飞书消息已发送')
+    }
+
+    let successCount = 0
+    const failedTargets: string[] = []
+
+    const selectedMembers = feishuUsers.value.filter((item) => sendForm.member_keys.includes(item.id))
+    for (const member of selectedMembers) {
+      const targetId = member.feishu_open_id || member.feishu_user_id || ''
+      const targetName = member.display_name || member.username || '未命名成员'
+      if (!targetId) {
+        failedTargets.push(targetName)
+        continue
+      }
+      try {
+        await sendPresalesTaskToFeishu(selectedTask.value.id, {
+          target_type: 'user',
+          target_id: targetId,
+          target_name: targetName,
+          ...payloadBase,
+        })
+        successCount += 1
+      } catch (error) {
+        failedTargets.push(targetName)
+        console.error(error)
+      }
+    }
+
+    for (const group of selectedFeishuGroups.value) {
+      try {
+        await sendPresalesTaskToFeishu(selectedTask.value.id, {
+          target_type: 'group',
+          target_id: group.chat_id,
+          target_name: group.name || '',
+          ...payloadBase,
+        })
+        successCount += 1
+      } catch (error) {
+        failedTargets.push(group.name || group.chat_id)
+        console.error(error)
+      }
+    }
+
+    if (!successCount) {
+      throw new Error(`飞书发送失败：${failedTargets.join('、') || '没有有效的发送对象'}`)
+    }
+    if (failedTargets.length) {
+      ElMessage.warning(`已成功发送 ${successCount} 条，以下对象发送失败：${failedTargets.join('、')}`)
+    } else {
+      ElMessage.success(`已成功发送 ${successCount} 条飞书消息`)
+    }
     sendDialogVisible.value = false
     await Promise.all([loadTasks(), loadDeliveries()])
     if (selectedTask.value) {
@@ -642,7 +727,7 @@ onMounted(loadAll)
                 </div>
               </template>
             </el-table-column>
-            <el-table-column label="负责人" min-width="140">
+            <el-table-column label="负责人" min-width="180">
               <template #default="{ row }">{{ resolveUserLabel(row.assignee_user || row.owner_user) }}</template>
             </el-table-column>
             <el-table-column label="状态" width="110">
@@ -868,52 +953,44 @@ onMounted(loadAll)
 
     <el-dialog v-model="sendDialogVisible" title="发送到飞书" width="620px">
         <el-form ref="sendFormRef" :model="sendForm" :rules="sendRules" label-width="98px">
-          <el-form-item label="发送对象">
-            <el-radio-group v-model="sendForm.target_type">
-              <el-radio-button label="user">成员</el-radio-button>
-              <el-radio-button label="group">群聊</el-radio-button>
-            </el-radio-group>
+          <el-alert
+            title="成员和群聊可以同时选择，系统会分别发送并记录结果。"
+            type="info"
+            :closable="false"
+            show-icon
+            class="send-dialog-tip"
+          />
+          <el-form-item label="选择成员">
+            <div class="member-tree-picker">
+              <el-tree
+                ref="memberTreeRef"
+                :data="feishuMemberTree"
+                node-key="key"
+                show-checkbox
+                check-on-click-node
+                default-expand-all
+                :props="{ label: 'label', children: 'children', disabled: 'disabled' }"
+                @check="syncCheckedMemberKeys"
+              />
+            </div>
           </el-form-item>
-          <template v-if="sendForm.target_type === 'user'">
-            <el-form-item label="选择部门" prop="department_id">
-              <el-select
-                v-model="sendForm.department_id"
-                placeholder="请选择部门"
-                filterable
-                clearable
-                @change="handleSendDepartmentChange"
-              >
-                <el-option
-                  v-for="item in feishuDepartments"
-                  :key="item.id"
-                  :label="item.name"
-                  :value="item.id"
-                />
-              </el-select>
-            </el-form-item>
-            <el-form-item label="选择成员" prop="member_id">
-              <el-select
-                v-model="sendForm.member_id"
-                placeholder="请选择成员"
-                filterable
-                clearable
-                :disabled="!sendForm.department_id"
-                @change="applySelectedFeishuMember"
-              >
-                <el-option
-                  v-for="item in availableFeishuUsers"
-                  :key="item.id"
-                  :label="item.display_name || item.username"
-                  :value="item.id"
-                />
-              </el-select>
-            </el-form-item>
-          </template>
-          <el-form-item v-else label="群 chat_id" prop="target_id">
-            <el-input v-model="sendForm.target_id" placeholder="请输入飞书群 chat_id" />
-          </el-form-item>
-          <el-form-item label="目标名称">
-            <el-input v-model="sendForm.target_name" placeholder="便于留痕识别，可选" />
+          <el-form-item label="选择群聊">
+            <el-select
+              v-model="sendForm.group_chat_ids"
+              placeholder="可多选群聊"
+              filterable
+              clearable
+              multiple
+              collapse-tags
+              collapse-tags-tooltip
+            >
+              <el-option
+                v-for="item in feishuGroups"
+                :key="item.chat_id"
+                :label="item.name"
+                :value="item.chat_id"
+              />
+            </el-select>
           </el-form-item>
           <el-form-item label="消息正文" prop="message_text">
             <el-input v-model="sendForm.message_text" type="textarea" :rows="8" placeholder="将发送到飞书的文本消息内容。" />
@@ -1133,6 +1210,20 @@ onMounted(loadAll)
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
+}
+
+.member-tree-picker {
+  width: 100%;
+  max-height: 320px;
+  overflow: auto;
+  padding: 10px 12px;
+  border-radius: 16px;
+  border: 1px solid rgba(24, 50, 71, 0.12);
+  background: rgba(255, 255, 255, 0.82);
+}
+
+.send-dialog-tip {
+  margin-bottom: 18px;
 }
 
 .sync-actions {

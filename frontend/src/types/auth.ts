@@ -4,6 +4,9 @@ export interface DepartmentSummary {
   code: string
   status: string
   parent_id: number | null
+  feishu_department_id?: string | null
+  sync_source?: string
+  last_synced_at?: string | null
 }
 
 export interface UserRoleAssignment {

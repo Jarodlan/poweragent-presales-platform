@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
-import { ArrowLeft, Download, Refresh, Right } from '@element-plus/icons-vue'
+import { ArrowLeft, Briefcase, Download, Refresh, Right } from '@element-plus/icons-vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 
@@ -9,6 +9,7 @@ import { DEFAULT_PARAMS, SCENARIO_PRESET_MAP, type ComposerParams } from '@/conf
 import { useAuthStore } from '@/stores/auth'
 import { useCustomerDemandStore } from '@/stores/customerDemand'
 import { useMetaStore } from '@/stores/meta'
+import { createPresalesTaskFromDemandReport } from '@/api/presales'
 import type { OptionItem } from '@/types/meta'
 import type {
   CustomerDemandKnowledgeSource,
@@ -28,8 +29,17 @@ const authStore = useAuthStore()
 const sessionId = computed(() => String(route.params.sessionId || ''))
 const report = computed(() => demandStore.currentReport)
 const handoffDialogVisible = ref(false)
+const presalesDialogVisible = ref(false)
 const handoffQuery = ref('')
 const handoffParams = ref<ComposerParams>({ ...DEFAULT_PARAMS })
+const creatingPresalesTask = ref(false)
+const presalesForm = reactive({
+  task_title: '',
+  task_description: '',
+  priority: 'medium',
+  due_at: '',
+  next_follow_up_at: '',
+})
 
 const scenarioFlags = computed(() => {
   const value = handoffParams.value.scenario
@@ -81,6 +91,7 @@ const handoffSummary = computed(() => {
 })
 
 const canAccessSolutionWorkspace = computed(() => authStore.canAccessSolutionWorkspace)
+const canCreatePresalesTask = computed(() => authStore.hasPermission('presales_task.manage') || authStore.user?.is_superuser)
 
 const knowledgeSources = computed<CustomerDemandKnowledgeSource[]>(() => {
   const raw = report.value?.used_knowledge_sources || []
@@ -286,6 +297,58 @@ function openHandoffDialog() {
   handoffDialogVisible.value = true
 }
 
+function openPresalesDialog() {
+  if (!canCreatePresalesTask.value) {
+    ElMessage.warning('当前账户没有创建售前任务的权限。')
+    return
+  }
+  if (!report.value) {
+    ElMessage.warning('当前没有可转化的需求分析报告。')
+    return
+  }
+  presalesForm.task_title = `${demandStore.currentSession?.customer_name || '客户'}需求跟进与方案推进`
+  presalesForm.task_description = [
+    report.value.report_title ? `来源报告：${report.value.report_title}` : '',
+    demandStore.currentSession?.topic ? `沟通主题：${demandStore.currentSession.topic}` : '',
+    '请基于本次需求分析结果，推进后续客户跟进、方案评审或演示安排。',
+  ]
+    .filter(Boolean)
+    .join('\n')
+  presalesForm.priority = 'medium'
+  presalesForm.due_at = ''
+  presalesForm.next_follow_up_at = ''
+  presalesDialogVisible.value = true
+}
+
+async function submitPresalesTaskFromReport() {
+  if (!report.value) {
+    ElMessage.warning('当前没有可转化的需求分析报告。')
+    return
+  }
+  if (!presalesForm.task_title.trim()) {
+    ElMessage.warning('请先填写任务标题。')
+    return
+  }
+  creatingPresalesTask.value = true
+  try {
+    await createPresalesTaskFromDemandReport({
+      report_id: report.value.id,
+      task_title: presalesForm.task_title.trim(),
+      task_description: presalesForm.task_description.trim(),
+      priority: presalesForm.priority,
+      due_at: presalesForm.due_at || null,
+      next_follow_up_at: presalesForm.next_follow_up_at || null,
+    })
+    presalesDialogVisible.value = false
+    ElMessage.success('已创建售前任务，接下来可以去售前闭环中心继续推进。')
+    await router.push('/presales')
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '创建售前任务失败')
+  } finally {
+    creatingPresalesTask.value = false
+  }
+}
+
 function handleScenarioChange(value: string) {
   handoffParams.value = {
     ...handoffParams.value,
@@ -344,6 +407,10 @@ watch(sessionId, async () => {
         </div>
       </div>
       <div class="customer-demand-report-header__actions">
+        <el-button v-if="canCreatePresalesTask" type="warning" plain :disabled="!report" @click="openPresalesDialog">
+          <el-icon><Briefcase /></el-icon>
+          转为售前任务
+        </el-button>
         <el-button v-if="canAccessSolutionWorkspace" type="success" :disabled="!report" @click="openHandoffDialog">
           <el-icon><Right /></el-icon>
           转入方案生成
@@ -640,6 +707,53 @@ watch(sessionId, async () => {
           <el-button @click="handoffDialogVisible = false">取消</el-button>
           <el-button type="primary" @click="confirmHandoff">带入方案工作台</el-button>
         </div>
+      </template>
+    </el-dialog>
+
+    <el-dialog
+      v-model="presalesDialogVisible"
+      title="从需求分析报告创建售前任务"
+      width="720px"
+      destroy-on-close
+    >
+      <div class="handoff-dialog">
+        <section class="panel-card handoff-dialog__section">
+          <div class="handoff-dialog__head">
+            <div>
+              <h3>任务确认</h3>
+              <p>系统已根据当前需求分析报告生成一份售前跟进任务草稿，你可以先人工确认再创建。</p>
+            </div>
+          </div>
+
+          <el-form label-width="96px">
+            <el-form-item label="任务标题">
+              <el-input v-model="presalesForm.task_title" placeholder="请输入售前任务标题" />
+            </el-form-item>
+            <el-form-item label="优先级">
+              <el-select v-model="presalesForm.priority">
+                <el-option label="低" value="low" />
+                <el-option label="中" value="medium" />
+                <el-option label="高" value="high" />
+                <el-option label="紧急" value="urgent" />
+              </el-select>
+            </el-form-item>
+            <el-form-item label="到期时间">
+              <el-date-picker v-model="presalesForm.due_at" type="datetime" placeholder="可选" value-format="YYYY-MM-DDTHH:mm:ssZ" />
+            </el-form-item>
+            <el-form-item label="回访时间">
+              <el-date-picker v-model="presalesForm.next_follow_up_at" type="datetime" placeholder="可选" value-format="YYYY-MM-DDTHH:mm:ssZ" />
+            </el-form-item>
+            <el-form-item label="任务说明">
+              <el-input v-model="presalesForm.task_description" type="textarea" :rows="7" resize="vertical" placeholder="补充任务背景、预期动作和交付目标" />
+            </el-form-item>
+          </el-form>
+        </section>
+      </div>
+      <template #footer>
+        <el-button @click="presalesDialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="creatingPresalesTask" @click="submitPresalesTaskFromReport">
+          创建售前任务
+        </el-button>
       </template>
     </el-dialog>
   </div>

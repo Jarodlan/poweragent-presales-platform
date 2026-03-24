@@ -1,16 +1,38 @@
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
+import { Briefcase } from '@element-plus/icons-vue'
+import { ElMessage } from 'element-plus'
 
 import ConversationSidebar from '@/components/sidebar/ConversationSidebar.vue'
 import MessageComposer from '@/components/composer/MessageComposer.vue'
 import MessageStream from '@/components/chat/MessageStream.vue'
 import EvidenceDrawer from '@/components/evidence/EvidenceDrawer.vue'
+import { createPresalesTaskFromSolution } from '@/api/presales'
+import { useAuthStore } from '@/stores/auth'
 import { useMetaStore } from '@/stores/meta'
 import { useWorkspaceStore } from '@/stores/workspace'
 import { consumeSolutionHandoffDraft } from '@/utils/solutionHandoff'
 
 const metaStore = useMetaStore()
 const workspace = useWorkspaceStore()
+const authStore = useAuthStore()
+const presalesDialogVisible = ref(false)
+const creatingPresalesTask = ref(false)
+const presalesForm = reactive({
+  task_title: '',
+  task_description: '',
+  customer_name: '',
+  priority: 'medium',
+  due_at: '',
+  next_follow_up_at: '',
+})
+
+const canCreatePresalesTask = computed(() => authStore.hasPermission('presales_task.manage') || authStore.user?.is_superuser)
+const latestCompletedAssistantMessage = computed(() =>
+  [...workspace.currentMessages]
+    .reverse()
+    .find((item) => item.role === 'assistant' && item.status === 'completed' && (item.content || item.summary)),
+)
 
 onMounted(async () => {
   await metaStore.loadOptions()
@@ -27,6 +49,63 @@ onMounted(async () => {
 function useExamplePrompt(text: string) {
   workspace.setComposerText(text)
 }
+
+function openPresalesDialog() {
+  if (!canCreatePresalesTask.value) {
+    ElMessage.warning('当前账户没有创建售前任务的权限。')
+    return
+  }
+  if (!workspace.currentConversationId || !latestCompletedAssistantMessage.value) {
+    ElMessage.warning('请先完成一轮解决方案生成，再创建售前任务。')
+    return
+  }
+  presalesForm.task_title = `${workspace.currentConversation?.title || '解决方案'}后续推进`
+  presalesForm.customer_name = ''
+  presalesForm.priority = 'medium'
+  presalesForm.due_at = ''
+  presalesForm.next_follow_up_at = ''
+  presalesForm.task_description = [
+    `来源会话：${workspace.currentConversation?.title || '未命名方案会话'}`,
+    latestCompletedAssistantMessage.value.summary ? `方案摘要：${latestCompletedAssistantMessage.value.summary}` : '',
+    '请基于当前解决方案结果，推进客户沟通、内部评审或演示安排。',
+  ]
+    .filter(Boolean)
+    .join('\n')
+  presalesDialogVisible.value = true
+}
+
+async function submitPresalesTaskFromSolution() {
+  if (!workspace.currentConversationId || !latestCompletedAssistantMessage.value) {
+    ElMessage.warning('当前没有可转化的解决方案结果。')
+    return
+  }
+  if (!presalesForm.task_title.trim()) {
+    ElMessage.warning('请先填写任务标题。')
+    return
+  }
+  creatingPresalesTask.value = true
+  try {
+    await createPresalesTaskFromSolution({
+      source_id: workspace.currentConversationId,
+      source_title: workspace.currentConversation?.title || '解决方案结果',
+      customer_name: presalesForm.customer_name.trim(),
+      task_title: presalesForm.task_title.trim(),
+      task_description: presalesForm.task_description.trim(),
+      priority: presalesForm.priority,
+      due_at: presalesForm.due_at || null,
+      next_follow_up_at: presalesForm.next_follow_up_at || null,
+      payload_json: {
+        message_id: latestCompletedAssistantMessage.value.message_id,
+      },
+    })
+    presalesDialogVisible.value = false
+    ElMessage.success('已创建售前任务，接下来可以去售前闭环中心继续推进。')
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '创建售前任务失败')
+  } finally {
+    creatingPresalesTask.value = false
+  }
+}
 </script>
 
 <template>
@@ -40,6 +119,16 @@ function useExamplePrompt(text: string) {
           <h2>{{ workspace.currentConversation?.title || '新的解决方案会话' }}</h2>
         </div>
         <div class="workspace-main__meta">
+          <el-button
+            v-if="canCreatePresalesTask"
+            type="warning"
+            plain
+            :disabled="!latestCompletedAssistantMessage"
+            @click="openPresalesDialog"
+          >
+            <el-icon><Briefcase /></el-icon>
+            创建售前任务
+          </el-button>
           <span>{{ workspace.currentConversation?.status || 'idle' }}</span>
           <span>{{ workspace.currentMessages.length }} 条消息</span>
         </div>
@@ -78,6 +167,45 @@ function useExamplePrompt(text: string) {
       v-model="workspace.evidenceDrawerVisible"
       :items="workspace.activeEvidenceCards"
     />
+
+    <el-dialog
+      v-model="presalesDialogVisible"
+      title="从解决方案结果创建售前任务"
+      width="720px"
+      destroy-on-close
+    >
+      <el-form label-width="96px">
+        <el-form-item label="任务标题">
+          <el-input v-model="presalesForm.task_title" placeholder="请输入售前任务标题" />
+        </el-form-item>
+        <el-form-item label="客户名称">
+          <el-input v-model="presalesForm.customer_name" placeholder="可选，便于后续在售前闭环中心筛选" />
+        </el-form-item>
+        <el-form-item label="优先级">
+          <el-select v-model="presalesForm.priority">
+            <el-option label="低" value="low" />
+            <el-option label="中" value="medium" />
+            <el-option label="高" value="high" />
+            <el-option label="紧急" value="urgent" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="到期时间">
+          <el-date-picker v-model="presalesForm.due_at" type="datetime" placeholder="可选" value-format="YYYY-MM-DDTHH:mm:ssZ" />
+        </el-form-item>
+        <el-form-item label="回访时间">
+          <el-date-picker v-model="presalesForm.next_follow_up_at" type="datetime" placeholder="可选" value-format="YYYY-MM-DDTHH:mm:ssZ" />
+        </el-form-item>
+        <el-form-item label="任务说明">
+          <el-input v-model="presalesForm.task_description" type="textarea" :rows="7" resize="vertical" placeholder="补充下一步跟进动作、方案评审或客户沟通计划" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="presalesDialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="creatingPresalesTask" @click="submitPresalesTaskFromSolution">
+          创建售前任务
+        </el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 

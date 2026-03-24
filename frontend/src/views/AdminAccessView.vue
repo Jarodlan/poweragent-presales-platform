@@ -16,6 +16,8 @@ import {
   fetchPermissions,
   fetchRoles,
   fetchUsers,
+  mergeFeishuDepartment,
+  mergeFeishuUser,
   resetUserPassword,
   restoreUser,
   updateDepartment,
@@ -72,6 +74,12 @@ const editingUserId = ref<number | null>(null)
 const editingRoleId = ref<number | null>(null)
 const editingDepartmentId = ref<number | null>(null)
 const selectedUser = ref<UserItem | null>(null)
+const mergeDialogVisible = ref(false)
+const mergingFeishuUser = ref<UserItem | null>(null)
+const mergeTargetUserId = ref<number | null>(null)
+const departmentMergeDialogVisible = ref(false)
+const mergingFeishuDepartment = ref<DepartmentItem | null>(null)
+const mergeTargetDepartmentId = ref<number | null>(null)
 
 const userFormRef = ref()
 const roleFormRef = ref()
@@ -186,6 +194,18 @@ const filteredUsers = computed(() => {
 const activeUsers = computed(() => filteredUsers.value.filter((item) => item.account_status !== 'archived'))
 const recycledUsers = computed(() => filteredUsers.value.filter((item) => item.account_status === 'archived'))
 const displayedUsers = computed(() => (userViewMode.value === 'active' ? activeUsers.value : recycledUsers.value))
+const mergeTargetCandidates = computed(() =>
+  activeUsers.value.filter((item) => item.sync_source !== 'feishu' && item.account_status !== 'archived' && item.id !== mergingFeishuUser.value?.id),
+)
+const mergeDepartmentTargetCandidates = computed(() =>
+  departments.value.filter(
+    (item) =>
+      item.sync_source !== 'feishu' &&
+      item.status !== 'inactive' &&
+      item.id !== mergingFeishuDepartment.value?.id &&
+      item.name.trim() === (mergingFeishuDepartment.value?.name || '').trim(),
+  ),
+)
 
 const filteredRoles = computed(() => {
   const keyword = searchKeyword.value.trim().toLowerCase()
@@ -455,6 +475,56 @@ async function handleRestoreUser(user: UserItem) {
   await loadUsers()
 }
 
+function canMergeFeishuUser(user: UserItem) {
+  return user.sync_source === 'feishu' && user.account_status !== 'archived'
+}
+
+function canMergeFeishuDepartment(department: DepartmentItem) {
+  return department.sync_source === 'feishu' && department.status !== 'inactive'
+}
+
+function openMergeDialog(user: UserItem) {
+  mergingFeishuUser.value = user
+  mergeTargetUserId.value = null
+  mergeDialogVisible.value = true
+}
+
+async function submitMergeFeishuUser() {
+  if (!mergingFeishuUser.value || !mergeTargetUserId.value) {
+    ElMessage.warning('请先选择要合并到的平台账号')
+    return
+  }
+  await mergeFeishuUser(mergeTargetUserId.value, mergingFeishuUser.value.id)
+  ElMessage.success('飞书账号已合并到平台账号')
+  mergeDialogVisible.value = false
+  if (selectedUser.value?.id === mergingFeishuUser.value.id) {
+    userDetailVisible.value = false
+    selectedUser.value = null
+  }
+  await loadUsers()
+}
+
+function openMergeDepartmentDialog(department: DepartmentItem) {
+  mergingFeishuDepartment.value = department
+  if (!mergeDepartmentTargetCandidates.value.length) {
+    ElMessage.warning('没有找到可合并的平台部门，请先确认已存在同名平台部门')
+    return
+  }
+  mergeTargetDepartmentId.value = mergeDepartmentTargetCandidates.value[0]?.id ?? null
+  departmentMergeDialogVisible.value = true
+}
+
+async function submitMergeFeishuDepartment() {
+  if (!mergingFeishuDepartment.value || !mergeTargetDepartmentId.value) {
+    ElMessage.warning('请先选择要合并到的平台部门')
+    return
+  }
+  await mergeFeishuDepartment(mergeTargetDepartmentId.value, mergingFeishuDepartment.value.id)
+  ElMessage.success('飞书同步部门已合并到平台部门')
+  departmentMergeDialogVisible.value = false
+  await Promise.all([loadDepartments(), loadUsers()])
+}
+
 function resetRoleForm() {
   Object.assign(roleForm, {
     code: '',
@@ -676,6 +746,7 @@ onMounted(loadAdminData)
                 </el-button>
                 <template v-if="row.account_status !== 'archived'">
                   <el-button text @click="openEditUser(row)">编辑</el-button>
+                  <el-button v-if="canMergeFeishuUser(row)" text type="warning" @click="openMergeDialog(row)">合并飞书账号</el-button>
                   <el-button text type="primary" @click="handleResetPassword(row)">
                     <el-icon><Key /></el-icon>
                     重置密码
@@ -777,6 +848,7 @@ onMounted(loadAdminData)
             </el-table-column>
             <el-table-column label="操作" width="160" fixed="right">
               <template #default="{ row }">
+                <el-button v-if="canMergeFeishuDepartment(row)" text type="warning" @click="openMergeDepartmentDialog(row)">合并飞书部门</el-button>
                 <el-button text @click="openEditDepartment(row)">编辑</el-button>
                 <el-button text type="danger" @click="handleDeleteDepartment(row)">删除</el-button>
               </template>
@@ -860,6 +932,64 @@ onMounted(loadAdminData)
       </template>
     </el-dialog>
 
+    <el-dialog v-model="mergeDialogVisible" title="合并飞书账号" width="620px">
+      <div class="merge-dialog">
+        <p v-if="mergingFeishuUser">
+          当前将把飞书同步账号
+          <strong>{{ mergingFeishuUser.display_name || mergingFeishuUser.username }}</strong>
+          合并到一个已有平台账号，并把飞书身份映射迁移过去。
+        </p>
+        <p class="muted">
+          当前仅支持合并“尚未沉淀业务数据”的飞书同步账号。合并后，来源飞书账号会进入回收站，平台账号会保留并显示飞书名。
+        </p>
+        <el-form label-width="112px">
+          <el-form-item label="目标平台账号">
+            <el-select v-model="mergeTargetUserId" filterable clearable placeholder="请选择要合并到的平台账号">
+              <el-option
+                v-for="item in mergeTargetCandidates"
+                :key="item.id"
+                :label="`${item.display_name || item.username}（${item.username}）`"
+                :value="item.id"
+              />
+            </el-select>
+          </el-form-item>
+        </el-form>
+      </div>
+      <template #footer>
+        <el-button @click="mergeDialogVisible = false">取消</el-button>
+        <el-button type="primary" :disabled="!mergeTargetUserId" @click="submitMergeFeishuUser">确认合并</el-button>
+      </template>
+    </el-dialog>
+
+    <el-dialog v-model="departmentMergeDialogVisible" title="合并飞书部门" width="620px">
+      <div class="merge-dialog">
+        <p v-if="mergingFeishuDepartment">
+          当前将把飞书同步部门
+          <strong>{{ mergingFeishuDepartment.name }}</strong>
+          合并到一个已有平台部门，并把飞书部门映射迁移过去。
+        </p>
+        <p class="muted">
+          合并后，来源飞书同步部门会从列表中移除，相关成员和业务归属会迁移到目标平台部门。
+        </p>
+        <el-form label-width="112px">
+          <el-form-item label="目标平台部门">
+            <el-select v-model="mergeTargetDepartmentId" filterable clearable placeholder="请选择要合并到的平台部门">
+              <el-option
+                v-for="item in mergeDepartmentTargetCandidates"
+                :key="item.id"
+                :label="`${item.name}（${item.code}）`"
+                :value="item.id"
+              />
+            </el-select>
+          </el-form-item>
+        </el-form>
+      </div>
+      <template #footer>
+        <el-button @click="departmentMergeDialogVisible = false">取消</el-button>
+        <el-button type="primary" :disabled="!mergeTargetDepartmentId" @click="submitMergeFeishuDepartment">确认合并</el-button>
+      </template>
+    </el-dialog>
+
     <el-drawer v-model="userDetailVisible" size="760px" title="用户详情">
       <template v-if="selectedUser">
         <section class="detail-panel">
@@ -889,6 +1019,9 @@ onMounted(loadAdminData)
                     <dt>最近登录IP</dt><dd>{{ selectedUser.last_login_ip || '无记录' }}</dd>
                     <dt>归档时间</dt><dd>{{ selectedUser.archived_at ? formatDateTime(selectedUser.archived_at) : '未归档' }}</dd>
                   </dl>
+                  <div v-if="canMergeFeishuUser(selectedUser)" class="detail-card__actions">
+                    <el-button type="warning" plain @click="openMergeDialog(selectedUser)">合并到平台账号</el-button>
+                  </div>
                 </div>
 
                 <div class="panel-card detail-card">
@@ -1153,6 +1286,15 @@ onMounted(loadAdminData)
   justify-content: space-between;
   gap: 12px;
   margin-bottom: 14px;
+}
+
+.detail-card__actions {
+  margin-top: 16px;
+}
+
+.merge-dialog p {
+  margin: 0 0 12px;
+  line-height: 1.7;
 }
 
 .detail-card dl {

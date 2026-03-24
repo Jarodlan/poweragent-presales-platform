@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 import os
 
@@ -157,3 +158,19 @@ FEISHU_SYNC_DEPARTMENT_ALLOWLIST = [
     for item in os.getenv("FEISHU_SYNC_DEPARTMENT_ALLOWLIST", "").split(",")
     if item.strip()
 ]
+
+
+def _load_json_list_env(name: str) -> list[dict]:
+    raw = os.getenv(name, "").strip()
+    if not raw:
+        return []
+    try:
+        value = json.loads(raw)
+    except json.JSONDecodeError:
+        return []
+    if not isinstance(value, list):
+        return []
+    return [item for item in value if isinstance(item, dict)]
+
+
+FEISHU_DELIVERY_GROUP_OPTIONS = _load_json_list_env("FEISHU_DELIVERY_GROUP_OPTIONS")

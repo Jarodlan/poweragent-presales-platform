@@ -2,12 +2,15 @@ import { apiRequest } from '@/api/http'
 import type {
   FeishuDeliveryRecordItem,
   FeishuRecipientDepartmentItem,
+  FeishuRecipientGroupItem,
   FeishuRecipientUserItem,
   FeishuSendPayload,
   FeishuSyncJobItem,
   PresalesArchivePayload,
   PresalesArchiveRecordItem,
   PresalesTaskItem,
+  PresalesTaskFromDemandReportPayload,
+  PresalesTaskFromSolutionPayload,
   PresalesTaskPayload,
 } from '@/types/presales'
 
@@ -32,6 +35,20 @@ export function fetchPresalesTask(taskId: string) {
 
 export function createPresalesTask(payload: PresalesTaskPayload) {
   return apiRequest<{ task: PresalesTaskItem }>('/api/v1/presales/tasks', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function createPresalesTaskFromDemandReport(payload: PresalesTaskFromDemandReportPayload) {
+  return apiRequest<{ task: PresalesTaskItem }>('/api/v1/presales/tasks/from-demand-report', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function createPresalesTaskFromSolution(payload: PresalesTaskFromSolutionPayload) {
+  return apiRequest<{ task: PresalesTaskItem }>('/api/v1/presales/tasks/from-solution', {
     method: 'POST',
     body: JSON.stringify(payload),
   })
@@ -74,7 +91,7 @@ export function fetchFeishuDeliveries(params?: Record<string, string | number | 
 }
 
 export function fetchFeishuRecipients() {
-  return apiRequest<{ departments: FeishuRecipientDepartmentItem[]; users: FeishuRecipientUserItem[] }>(
+  return apiRequest<{ departments: FeishuRecipientDepartmentItem[]; users: FeishuRecipientUserItem[]; groups: FeishuRecipientGroupItem[] }>(
     '/api/v1/presales/feishu/recipients',
   )
 }

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from django.db.models import Q
 from django.shortcuts import get_object_or_404
+from django.conf import settings
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -34,6 +35,7 @@ from .services import (
     run_feishu_sync_job,
     update_presales_task,
 )
+from .feishu import FeishuClient
 
 
 def _has_any_permission(user, codes: list[str]) -> bool:
@@ -348,38 +350,128 @@ class FeishuRecipientListView(APIView):
             return denied
 
         departments = (
-            Department.objects.filter(sync_source="feishu", status="active")
+            Department.objects.filter(status="active")
             .exclude(feishu_department_id__isnull=True)
             .order_by("sort_order", "name")
         )
-        users = (
-            User.objects.select_related("department")
-            .filter(sync_source="feishu", is_active=True)
-            .exclude(Q(feishu_open_id__isnull=True) & Q(feishu_user_id__isnull=True))
-            .order_by("department__sort_order", "department__name", "display_name", "username")
-        )
-
-        user_items = [
-            {
-                "id": item.id,
-                "display_name": item.display_name or item.username,
-                "username": item.username,
-                "department_id": item.department_id,
-                "feishu_open_id": item.feishu_open_id,
-                "feishu_user_id": item.feishu_user_id,
-                "sync_status": item.sync_status,
-            }
-            for item in users
-        ]
         department_items = [
             {
                 "id": item.id,
                 "name": item.name,
                 "code": item.code,
+                "parent_id": item.parent_id,
                 "feishu_department_id": item.feishu_department_id,
             }
             for item in departments
         ]
+        local_users = User.objects.filter(is_active=True).exclude(Q(feishu_open_id__isnull=True) & Q(feishu_user_id__isnull=True))
+        local_by_open_id = {item.feishu_open_id: item for item in local_users if item.feishu_open_id}
+        local_by_user_id = {item.feishu_user_id: item for item in local_users if item.feishu_user_id}
+        user_items: list[dict] = []
+        user_keys: set[str] = set()
+        try:
+            client = FeishuClient()
+            if client.is_configured():
+                for department in departments:
+                    page_token = None
+                    while True:
+                        payload = client.list_department_users(department_id=department.feishu_department_id, page_token=page_token)
+                        data = payload.get("data") or {}
+                        items = data.get("items") or []
+                        for item in items:
+                            feishu_user_id = str(item.get("user_id") or "").strip()
+                            feishu_open_id = str(item.get("open_id") or "").strip()
+                            recipient_key = f"{department.id}:{feishu_open_id or feishu_user_id}"
+                            if not (feishu_open_id or feishu_user_id) or recipient_key in user_keys:
+                                continue
+                            user_keys.add(recipient_key)
+                            local_user = local_by_open_id.get(feishu_open_id) or local_by_user_id.get(feishu_user_id)
+                            user_items.append(
+                                {
+                                    "id": recipient_key,
+                                    "platform_user_id": local_user.id if local_user else None,
+                                    "display_name": str(item.get("name") or (local_user.display_name if local_user else "") or item.get("email") or item.get("mobile") or feishu_open_id or feishu_user_id).strip(),
+                                    "username": str(item.get("email") or item.get("mobile") or (local_user.username if local_user else "") or feishu_user_id or feishu_open_id).strip(),
+                                    "department_id": department.id,
+                                    "feishu_open_id": feishu_open_id or None,
+                                    "feishu_user_id": feishu_user_id or None,
+                                    "sync_status": local_user.sync_status if local_user else "external_only",
+                                }
+                            )
+                        if not data.get("has_more"):
+                            break
+                        page_token = data.get("page_token")
+        except Exception:
+            user_items = []
+
+        if not user_items:
+            users = (
+                User.objects.select_related("department")
+                .filter(is_active=True)
+                .exclude(Q(feishu_open_id__isnull=True) & Q(feishu_user_id__isnull=True))
+                .order_by("department__sort_order", "department__name", "display_name", "username")
+            )
+            user_items = [
+                {
+                    "id": f"local:{item.id}",
+                    "platform_user_id": item.id,
+                    "display_name": item.display_name or item.username,
+                    "username": item.username,
+                    "department_id": item.department_id,
+                    "feishu_open_id": item.feishu_open_id,
+                    "feishu_user_id": item.feishu_user_id,
+                    "sync_status": item.sync_status,
+                }
+                for item in users
+            ]
+
+        group_items = [
+            {
+                "chat_id": str(item.get("chat_id") or "").strip(),
+                "name": str(item.get("name") or item.get("chat_id") or "").strip(),
+            }
+            for item in settings.FEISHU_DELIVERY_GROUP_OPTIONS
+            if str(item.get("chat_id") or "").strip()
+        ]
+        existing_group_map = {item["chat_id"]: item for item in group_items}
+        try:
+            client = FeishuClient()
+            if client.is_configured():
+                page_token = None
+                while True:
+                    payload = client.list_chats(page_token=page_token)
+                    data = payload.get("data") or {}
+                    items = data.get("items") or []
+                    for item in items:
+                        chat_id = str(item.get("chat_id") or "").strip()
+                        if not chat_id:
+                            continue
+                        existing_group_map.setdefault(
+                            chat_id,
+                            {
+                                "chat_id": chat_id,
+                                "name": str(item.get("name") or chat_id).strip(),
+                            },
+                        )
+                    if not data.get("has_more"):
+                        break
+                    page_token = data.get("page_token")
+        except Exception:
+            pass
+        for record in (
+            FeishuDeliveryRecord.objects.filter(target_type="group")
+            .exclude(target_id="")
+            .order_by("target_name", "target_id")
+            .values("target_id", "target_name")
+            .distinct()
+        ):
+            chat_id = str(record.get("target_id") or "").strip()
+            if not chat_id or chat_id in existing_group_map:
+                continue
+            existing_group_map[chat_id] = {
+                "chat_id": chat_id,
+                "name": str(record.get("target_name") or chat_id).strip(),
+            }
         return Response(
             {
                 "code": 0,
@@ -387,6 +479,7 @@ class FeishuRecipientListView(APIView):
                 "data": {
                     "departments": department_items,
                     "users": user_items,
+                    "groups": list(existing_group_map.values()),
                 },
             }
         )

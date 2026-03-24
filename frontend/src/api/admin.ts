@@ -43,6 +43,13 @@ export function restoreUser(userId: number) {
   })
 }
 
+export function mergeFeishuUser(targetUserId: number, sourceUserId: number) {
+  return apiRequest<UserItem>(`/api/v1/users/${targetUserId}/merge-feishu`, {
+    method: 'POST',
+    body: JSON.stringify({ source_user_id: sourceUserId }),
+  })
+}
+
 export function fetchUserActivity(userId: number) {
   return apiRequest<{
     login_items: AuditLogItem[]
@@ -102,6 +109,13 @@ export function updateDepartment(departmentId: number, payload: Partial<Departme
   return apiRequest<DepartmentItem>(`/api/v1/departments/${departmentId}`, {
     method: 'PATCH',
     body: JSON.stringify(payload),
+  })
+}
+
+export function mergeFeishuDepartment(targetDepartmentId: number, sourceDepartmentId: number) {
+  return apiRequest<DepartmentItem>(`/api/v1/departments/${targetDepartmentId}/merge-feishu`, {
+    method: 'POST',
+    body: JSON.stringify({ source_department_id: sourceDepartmentId }),
   })
 }
 

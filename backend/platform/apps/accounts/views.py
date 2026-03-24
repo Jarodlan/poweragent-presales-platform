@@ -25,12 +25,14 @@ from .models import Department, Permission, Role, User
 from .permissions import CanManageDepartments, CanManageRoles, CanManageUsers
 from .serializers import (
     DepartmentSerializer,
+    DepartmentMergeFeishuSerializer,
     DepartmentWriteSerializer,
     LoginSerializer,
     PermissionSerializer,
     ResetPasswordSerializer,
     RoleSerializer,
     RoleWriteSerializer,
+    UserMergeFeishuSerializer,
     UserSerializer,
     UserWriteSerializer,
 )
@@ -367,6 +369,214 @@ class UserRestoreView(APIView):
             detail_json={"username": user.username, "restored_status": restored_status},
         )
         return Response({"code": 0, "message": "ok", "data": UserSerializer(user).data})
+
+
+class UserMergeFeishuView(APIView):
+    authentication_classes = [ExpiringTokenAuthentication]
+    permission_classes = [CanManageUsers]
+
+    @transaction.atomic
+    def post(self, request, user_id: int):
+        target_user = get_object_or_404(User, pk=user_id)
+        serializer = UserMergeFeishuSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        source_user: User = serializer.validated_data["source_user"]
+
+        if source_user.id == target_user.id:
+            return Response({"code": 40041, "message": "不能将账号与自身合并", "data": None}, status=status.HTTP_400_BAD_REQUEST)
+        if not (source_user.feishu_user_id or source_user.feishu_open_id):
+            return Response({"code": 40042, "message": "来源账号未绑定飞书身份", "data": None}, status=status.HTTP_400_BAD_REQUEST)
+        if source_user.sync_source != "feishu":
+            return Response({"code": 40043, "message": "当前仅支持合并飞书同步账号", "data": None}, status=status.HTTP_400_BAD_REQUEST)
+        if source_user.is_superuser:
+            return Response({"code": 40044, "message": "不允许合并超级管理员账号", "data": None}, status=status.HTTP_400_BAD_REQUEST)
+        if target_user.is_archived or source_user.is_archived:
+            return Response({"code": 40045, "message": "归档账号不支持执行合并", "data": None}, status=status.HTTP_400_BAD_REQUEST)
+        if target_user.feishu_user_id and target_user.feishu_user_id != source_user.feishu_user_id:
+            return Response({"code": 40046, "message": "目标账号已绑定其他飞书用户", "data": None}, status=status.HTTP_400_BAD_REQUEST)
+        if target_user.feishu_open_id and target_user.feishu_open_id != source_user.feishu_open_id:
+            return Response({"code": 40047, "message": "目标账号已绑定其他飞书 open_id", "data": None}, status=status.HTTP_400_BAD_REQUEST)
+
+        blocking_counts = {
+            "conversations": source_user.conversations.count(),
+            "customer_demand_sessions": source_user.customer_demand_sessions.count(),
+            "owned_presales_tasks": source_user.owned_presales_tasks.count(),
+            "assigned_presales_tasks": source_user.assigned_presales_tasks.count(),
+            "created_presales_tasks": source_user.created_presales_tasks.count(),
+            "user_roles": source_user.user_roles.count(),
+        }
+        if any(blocking_counts.values()):
+            return Response(
+                {
+                    "code": 40048,
+                    "message": "来源飞书账号已有业务数据，当前仅支持合并未沉淀业务数据的飞书同步账号",
+                    "data": {"blocking_counts": blocking_counts},
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        feishu_name = source_user.display_name or source_user.username
+        target_base_name = target_user.display_name or target_user.username
+        source_feishu_user_id = source_user.feishu_user_id
+        source_feishu_open_id = source_user.feishu_open_id
+        source_feishu_union_id = source_user.feishu_union_id
+        source_last_external_status = source_user.last_external_status
+
+        source_user.feishu_user_id = None
+        source_user.feishu_open_id = None
+        source_user.feishu_union_id = ""
+        source_user.sync_status = "disabled"
+        source_user.last_external_status = "merged"
+        source_user.last_synced_at = timezone.now()
+        source_user.save(
+            update_fields=[
+                "feishu_user_id",
+                "feishu_open_id",
+                "feishu_union_id",
+                "sync_status",
+                "last_external_status",
+                "last_synced_at",
+            ]
+        )
+
+        if feishu_name and feishu_name != target_base_name and f"飞书名：{feishu_name}" not in target_base_name:
+            target_user.display_name = f"{target_base_name}（飞书名：{feishu_name}）"
+
+        target_user.feishu_user_id = source_feishu_user_id or target_user.feishu_user_id
+        target_user.feishu_open_id = source_feishu_open_id or target_user.feishu_open_id
+        target_user.feishu_union_id = source_feishu_union_id or target_user.feishu_union_id
+        target_user.sync_status = "synced"
+        target_user.last_synced_at = timezone.now()
+        target_user.last_external_status = source_last_external_status or target_user.last_external_status
+        if not target_user.department and source_user.department:
+            target_user.department = source_user.department
+        if not target_user.phone_number and source_user.phone_number:
+            target_user.phone_number = source_user.phone_number
+        if not target_user.email and source_user.email:
+            target_user.email = source_user.email
+        if source_user.employee_no and not target_user.employee_no:
+            target_user.employee_no = source_user.employee_no
+        target_user.save()
+
+        source_user.status_before_archive = source_user.account_status if source_user.account_status != "archived" else source_user.status_before_archive
+        source_user.account_status = "archived"
+        source_user.is_active = False
+        source_user.archived_at = timezone.now()
+        source_user.archived_by = request.user
+        source_user.remarks = "\n".join(filter(None, [source_user.remarks, f"已合并到平台账号：{target_user.username}"]))
+        source_user.save(
+            update_fields=[
+                "status_before_archive",
+                "account_status",
+                "is_active",
+                "archived_at",
+                "archived_by",
+                "remarks",
+            ]
+        )
+
+        AuditLog.objects.create(
+            user=request.user,
+            action="user.merge_feishu",
+            resource_type="user",
+            resource_id=str(target_user.id),
+            detail_json={
+                "target_username": target_user.username,
+                "source_username": source_user.username,
+                "source_user_id": source_user.id,
+                "feishu_user_id": target_user.feishu_user_id,
+            },
+        )
+        return Response({"code": 0, "message": "ok", "data": UserSerializer(target_user).data})
+
+
+class DepartmentMergeFeishuView(APIView):
+    authentication_classes = [ExpiringTokenAuthentication]
+    permission_classes = [CanManageDepartments]
+
+    @transaction.atomic
+    def post(self, request, department_id: int):
+        from apps.customer_demand.models import CustomerDemandSession
+        from apps.presales_center.models import PresalesTask
+
+        target_department = get_object_or_404(Department, pk=department_id)
+        serializer = DepartmentMergeFeishuSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        source_department: Department = serializer.validated_data["source_department"]
+
+        if source_department.id == target_department.id:
+            return Response({"code": 40061, "message": "不能将部门与自身合并", "data": None}, status=status.HTTP_400_BAD_REQUEST)
+        if not source_department.feishu_department_id:
+            return Response({"code": 40062, "message": "来源部门未绑定飞书部门", "data": None}, status=status.HTTP_400_BAD_REQUEST)
+        if source_department.sync_source != "feishu":
+            return Response({"code": 40063, "message": "当前仅支持合并飞书同步部门", "data": None}, status=status.HTTP_400_BAD_REQUEST)
+        if target_department.feishu_department_id and target_department.feishu_department_id != source_department.feishu_department_id:
+            return Response({"code": 40064, "message": "目标部门已绑定其他飞书部门", "data": None}, status=status.HTTP_400_BAD_REQUEST)
+
+        source_ancestor_ids: set[int] = set()
+        current = source_department.parent
+        while current:
+            source_ancestor_ids.add(current.id)
+            current = current.parent
+
+        target_ancestor_ids: set[int] = set()
+        current = target_department.parent
+        while current:
+            target_ancestor_ids.add(current.id)
+            current = current.parent
+
+        if source_department.id in target_ancestor_ids or target_department.id in source_ancestor_ids:
+            return Response(
+                {"code": 40065, "message": "暂不支持合并存在父子层级关系的部门，请选择平级部门执行合并", "data": None},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        source_feishu_department_id = source_department.feishu_department_id
+        source_department.feishu_department_id = None
+        source_department.last_synced_at = timezone.now()
+        source_department.save(update_fields=["feishu_department_id", "last_synced_at", "updated_at"])
+
+        target_department.feishu_department_id = source_feishu_department_id
+        target_department.last_synced_at = timezone.now()
+        if not target_department.description and source_department.description:
+            target_department.description = source_department.description
+        target_department.save(update_fields=["feishu_department_id", "last_synced_at", "description", "updated_at"])
+
+        User.objects.filter(department=source_department).update(department=target_department)
+        CustomerDemandSession.objects.filter(department=source_department).update(department=target_department)
+        PresalesTask.objects.filter(owner_department=source_department).update(owner_department=target_department)
+        Department.objects.filter(parent=source_department).exclude(pk=target_department.pk).update(parent=target_department)
+
+        user_roles = target_department.user_roles.model.objects.filter(department=source_department).select_related("user", "role")
+        for item in user_roles:
+            duplicate_exists = item.__class__.objects.filter(
+                user=item.user,
+                role=item.role,
+                department=target_department,
+            ).exclude(pk=item.pk).exists()
+            if duplicate_exists:
+                item.delete()
+            else:
+                item.department = target_department
+                item.save(update_fields=["department"])
+
+        source_name = source_department.name
+        source_code = source_department.code
+        source_department.delete()
+
+        AuditLog.objects.create(
+            user=request.user,
+            action="department.merge_feishu",
+            resource_type="department",
+            resource_id=str(target_department.id),
+            detail_json={
+                "target_department": target_department.name,
+                "source_department": source_name,
+                "source_department_code": source_code,
+                "feishu_department_id": source_feishu_department_id,
+            },
+        )
+        return Response({"code": 0, "message": "ok", "data": DepartmentSerializer(target_department).data})
 
 
 class UserActivityView(APIView):

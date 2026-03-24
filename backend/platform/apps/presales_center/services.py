@@ -386,7 +386,7 @@ def _sync_users(job, *, operator_user=None) -> tuple[int, int]:
     seen_user_ids: set[str] = set()
     synced_users: set[str] = set()
     disabled_count = 0
-    departments = list(Department.objects.filter(sync_source="feishu").exclude(feishu_department_id__isnull=True))
+    departments = list(Department.objects.exclude(feishu_department_id__isnull=True))
 
     for department in departments:
         page_token: str | None = None
