@@ -7,6 +7,8 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.accounts.models import Department, User
+
 from .models import FeishuDeliveryRecord, FeishuSyncJob, PresalesArchiveRecord, PresalesTask
 from .serializers import (
     FeishuDeliveryRecordSerializer,
@@ -335,6 +337,59 @@ class FeishuDeliveryDetailView(APIView):
             return denied
         delivery = get_object_or_404(FeishuDeliveryRecord.objects.select_related("operator_user"), id=delivery_id)
         return Response({"code": 0, "message": "ok", "data": {"delivery": FeishuDeliveryRecordSerializer(delivery).data}})
+
+
+class FeishuRecipientListView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        denied = _ensure_presales_access(request.user) or _ensure_delivery_manage(request.user)
+        if denied:
+            return denied
+
+        departments = (
+            Department.objects.filter(sync_source="feishu", status="active")
+            .exclude(feishu_department_id__isnull=True)
+            .order_by("sort_order", "name")
+        )
+        users = (
+            User.objects.select_related("department")
+            .filter(sync_source="feishu", is_active=True)
+            .exclude(Q(feishu_open_id__isnull=True) & Q(feishu_user_id__isnull=True))
+            .order_by("department__sort_order", "department__name", "display_name", "username")
+        )
+
+        user_items = [
+            {
+                "id": item.id,
+                "display_name": item.display_name or item.username,
+                "username": item.username,
+                "department_id": item.department_id,
+                "feishu_open_id": item.feishu_open_id,
+                "feishu_user_id": item.feishu_user_id,
+                "sync_status": item.sync_status,
+            }
+            for item in users
+        ]
+        department_items = [
+            {
+                "id": item.id,
+                "name": item.name,
+                "code": item.code,
+                "feishu_department_id": item.feishu_department_id,
+            }
+            for item in departments
+        ]
+        return Response(
+            {
+                "code": 0,
+                "message": "ok",
+                "data": {
+                    "departments": department_items,
+                    "users": user_items,
+                },
+            }
+        )
 
 
 class FeishuSyncJobListCreateView(APIView):

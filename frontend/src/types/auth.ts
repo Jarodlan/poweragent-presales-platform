@@ -40,6 +40,10 @@ export interface CurrentUser {
   account_status: string
   data_scope: string
   data_scope_resolved: string
+  feishu_user_id: string | null
+  feishu_open_id: string | null
+  sync_source: string
+  sync_status: string
   force_password_change: boolean
   is_active: boolean
   is_staff: boolean
@@ -87,3 +91,4 @@ export const CUSTOMER_DEMAND_PERMISSION_CODES = [
 export const KNOWLEDGE_BASE_PERMISSION_CODES = ['knowledge.access', 'knowledge.manage']
 export const ACCESS_ADMIN_PERMISSION_CODES = ['access_admin.access', 'platform.manage']
 export const AUDIT_CENTER_PERMISSION_CODES = ['audit.access', 'audit.view']
+export const PRESALES_CENTER_PERMISSION_CODES = ['presales_center.access', 'presales_task.view', 'presales_task.manage']

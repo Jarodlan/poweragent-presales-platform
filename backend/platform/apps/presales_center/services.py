@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Iterable
 
+from django.conf import settings
 from django.db.models import Q
 from django.db import transaction
 from django.utils import timezone
@@ -62,6 +64,27 @@ def _normalize_collaborators(values: Iterable[int] | None) -> list[int]:
     if not values:
         return []
     return sorted({int(item) for item in values})
+
+
+def _normalize_activity_payload(values: dict | None) -> dict:
+    if not values:
+        return {}
+    normalized: dict = {}
+    for key, value in values.items():
+        if isinstance(value, User):
+            normalized[key] = value.id
+        elif isinstance(value, Department):
+            normalized[key] = value.id
+        elif isinstance(value, datetime):
+            normalized[key] = value.isoformat()
+        elif isinstance(value, list):
+            normalized[key] = [
+                item.id if isinstance(item, (User, Department)) else item.isoformat() if isinstance(item, datetime) else item
+                for item in value
+            ]
+        else:
+            normalized[key] = value
+    return normalized
 
 
 @transaction.atomic
@@ -166,7 +189,7 @@ def update_presales_task(task: PresalesTask, *, operator_user, validated_updates
         summary=f"更新任务：{task.task_title}",
         from_status=old_status,
         to_status=task.status,
-        payload_json=validated_updates,
+        payload_json=_normalize_activity_payload(validated_updates),
     )
     _log_audit(operator_user, "presales_task.update", "presales_task", str(task.id), {"fields": sorted(validated_updates.keys())})
     return task
@@ -301,6 +324,13 @@ def _build_department_tree(client: FeishuClient) -> list[dict]:
 def _sync_departments(job, *, operator_user=None) -> int:
     client = FeishuClient()
     items = _build_department_tree(client)
+    allowlist = set(settings.FEISHU_SYNC_DEPARTMENT_ALLOWLIST or [])
+    if allowlist:
+        items = [
+            item
+            for item in items
+            if (item.get("open_department_id") or item.get("department_id")) in allowlist
+        ]
     now = timezone.now()
     existing_by_feishu = {item.feishu_department_id: item for item in Department.objects.exclude(feishu_department_id__isnull=True)}
     created_or_updated = 0
@@ -354,7 +384,7 @@ def _sync_users(job, *, operator_user=None) -> tuple[int, int]:
     client = FeishuClient()
     now = timezone.now()
     seen_user_ids: set[str] = set()
-    synced_count = 0
+    synced_users: set[str] = set()
     disabled_count = 0
     departments = list(Department.objects.filter(sync_source="feishu").exclude(feishu_department_id__isnull=True))
 
@@ -370,6 +400,7 @@ def _sync_users(job, *, operator_user=None) -> tuple[int, int]:
                 if not feishu_user_id:
                     continue
                 seen_user_ids.add(feishu_user_id)
+                synced_users.add(feishu_user_id)
                 username = item.get("email") or item.get("mobile") or f"feishu_{feishu_user_id}"
                 user = User.objects.filter(feishu_user_id=feishu_user_id).first()
                 if not user and feishu_open_id:
@@ -423,7 +454,6 @@ def _sync_users(job, *, operator_user=None) -> tuple[int, int]:
                             "last_external_status",
                         ]
                     )
-                synced_count += 1
             if not data.get("has_more"):
                 break
             page_token = data.get("page_token")
@@ -440,9 +470,9 @@ def _sync_users(job, *, operator_user=None) -> tuple[int, int]:
         Token.objects.filter(user=user).delete()
         disabled_count += 1
 
-    job.synced_user_count = synced_count
+    job.synced_user_count = len(synced_users)
     job.disabled_user_count = disabled_count
-    return synced_count, disabled_count
+    return len(synced_users), disabled_count
 
 
 @transaction.atomic

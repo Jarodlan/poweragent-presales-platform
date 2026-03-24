@@ -152,3 +152,8 @@ FEISHU_APP_ID = os.getenv("FEISHU_APP_ID", "")
 FEISHU_APP_SECRET = os.getenv("FEISHU_APP_SECRET", "")
 FEISHU_BASE_URL = os.getenv("FEISHU_BASE_URL", "https://open.feishu.cn")
 FEISHU_SYNC_ENABLED = os.getenv("FEISHU_SYNC_ENABLED", "false").lower() == "true"
+FEISHU_SYNC_DEPARTMENT_ALLOWLIST = [
+    item.strip()
+    for item in os.getenv("FEISHU_SYNC_DEPARTMENT_ALLOWLIST", "").split(",")
+    if item.strip()
+]

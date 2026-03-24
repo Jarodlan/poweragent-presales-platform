@@ -8,6 +8,7 @@ import {
   AUDIT_CENTER_PERMISSION_CODES,
   CUSTOMER_DEMAND_PERMISSION_CODES,
   KNOWLEDGE_BASE_PERMISSION_CODES,
+  PRESALES_CENTER_PERMISSION_CODES,
   SOLUTION_WORKSPACE_PERMISSION_CODES,
   type CurrentUser,
 } from '@/types/auth'
@@ -35,6 +36,9 @@ export const useAuthStore = defineStore('auth', () => {
   )
   const canAccessKnowledgeBase = computed(
     () => Boolean(user.value?.is_superuser || KNOWLEDGE_BASE_PERMISSION_CODES.some((code) => permissionCodes.value.has(code))),
+  )
+  const canAccessPresalesCenter = computed(
+    () => Boolean(user.value?.is_superuser || PRESALES_CENTER_PERMISSION_CODES.some((code) => permissionCodes.value.has(code))),
   )
 
   async function bootstrap() {
@@ -112,6 +116,7 @@ export const useAuthStore = defineStore('auth', () => {
     canViewCustomerDemand,
     canAccessSolutionWorkspace,
     canAccessKnowledgeBase,
+    canAccessPresalesCenter,
     lastUsername,
     bootstrap,
     login,

@@ -6,6 +6,7 @@ import CustomerDemandView from '@/views/CustomerDemandView.vue'
 import CustomerDemandReportView from '@/views/CustomerDemandReportView.vue'
 import LoginView from '@/views/LoginView.vue'
 import PlatformModulesView from '@/views/PlatformModulesView.vue'
+import PresalesCenterView from '@/views/PresalesCenterView.vue'
 import WorkspaceView from '@/views/WorkspaceView.vue'
 import { useAuthStore } from '@/stores/auth'
 import { pinia } from '@/stores'
@@ -13,6 +14,7 @@ import {
   ACCESS_ADMIN_PERMISSION_CODES,
   AUDIT_CENTER_PERMISSION_CODES,
   CUSTOMER_DEMAND_PERMISSION_CODES,
+  PRESALES_CENTER_PERMISSION_CODES,
   SOLUTION_WORKSPACE_PERMISSION_CODES,
 } from '@/types/auth'
 
@@ -52,6 +54,14 @@ const router = createRouter({
       component: CustomerDemandReportView,
       meta: {
         requiredAnyPermission: CUSTOMER_DEMAND_PERMISSION_CODES,
+      },
+    },
+    {
+      path: '/presales',
+      name: 'presales-center',
+      component: PresalesCenterView,
+      meta: {
+        requiredAnyPermission: PRESALES_CENTER_PERMISSION_CODES,
       },
     },
     {

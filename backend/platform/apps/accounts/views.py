@@ -55,6 +55,12 @@ CUSTOMER_DEMAND_MODULE_PERMISSION_CODES = [
     "customer_demand.export",
 ]
 
+PRESALES_CENTER_PERMISSION_CODES = [
+    "presales_center.access",
+    "presales_task.view",
+    "presales_task.manage",
+]
+
 
 def _user_has_any_permission(user: User, codes: list[str]) -> bool:
     return bool(user.is_superuser or any(code in user.get_permission_codes() for code in codes))
@@ -85,6 +91,19 @@ def _build_platform_modules_for_user(user: User) -> list[dict]:
                 "icon": "ChatDotRound",
                 "route_type": "internal",
                 "route_target": "/customer-demand",
+                "open_mode": "same_tab",
+            }
+        )
+
+    if _user_has_any_permission(user, PRESALES_CENTER_PERMISSION_CODES):
+        modules.append(
+            {
+                "module_id": "presales_center",
+                "name": "售前闭环中心",
+                "description": "承接售前任务、飞书发送、资料归档与身份同步，打通内部协同闭环。",
+                "icon": "Document",
+                "route_type": "internal",
+                "route_target": "/presales",
                 "open_mode": "same_tab",
             }
         )
