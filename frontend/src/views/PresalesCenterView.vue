@@ -2,7 +2,7 @@
 import { computed, nextTick, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { ArrowLeft, ChatDotRound, CirclePlus, Document, FolderOpened, Promotion, Refresh, Upload } from '@element-plus/icons-vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 
 import {
   completePresalesTask,
@@ -10,6 +10,8 @@ import {
   createPresalesTask,
   fetchFeishuDeliveries,
   fetchFeishuRecipients,
+  fetchFeishuTaskAuthorizeUrl,
+  fetchFeishuTaskAuthStatus,
   fetchFeishuSyncJobs,
   fetchPresalesArchives,
   fetchPresalesTask,
@@ -24,6 +26,7 @@ import type {
   FeishuRecipientGroupItem,
   FeishuRecipientUserItem,
   FeishuSyncJobItem,
+  FeishuTaskAuthStatus,
   PresalesArchiveRecordItem,
   PresalesTaskItem,
   PresalesTaskPayload,
@@ -31,6 +34,7 @@ import type {
 import { formatDateTime, formatRelativeTime } from '@/utils/time'
 
 const router = useRouter()
+const route = useRoute()
 const authStore = useAuthStore()
 
 const activeTab = ref<'tasks' | 'archive' | 'deliveries' | 'sync'>('tasks')
@@ -51,6 +55,7 @@ const syncJobs = ref<FeishuSyncJobItem[]>([])
 const feishuDepartments = ref<FeishuRecipientDepartmentItem[]>([])
 const feishuUsers = ref<FeishuRecipientUserItem[]>([])
 const feishuGroups = ref<FeishuRecipientGroupItem[]>([])
+const feishuTaskAuth = ref<FeishuTaskAuthStatus | null>(null)
 
 const taskFilters = reactive({
   keyword: '',
@@ -395,8 +400,16 @@ async function loadFeishuRecipients() {
   }
 }
 
+async function loadFeishuTaskAuthStatus() {
+  try {
+    feishuTaskAuth.value = await fetchFeishuTaskAuthStatus()
+  } catch {
+    feishuTaskAuth.value = null
+  }
+}
+
 async function loadAll() {
-  await Promise.all([loadTasks(), loadArchives(), loadDeliveries(), loadSyncJobs(), loadFeishuRecipients()])
+  await Promise.all([loadTasks(), loadArchives(), loadDeliveries(), loadSyncJobs(), loadFeishuRecipients(), loadFeishuTaskAuthStatus()])
 }
 
 async function openTaskDrawer(taskId: string) {
@@ -635,12 +648,31 @@ async function runSync(jobType: FeishuSyncJobItem['job_type']) {
   }
 }
 
+async function startFeishuTaskAuth() {
+  try {
+    const data = await fetchFeishuTaskAuthorizeUrl('/presales')
+    window.location.href = data.authorize_url
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '飞书个人任务授权链接获取失败')
+  }
+}
+
 function openDeliveryDrawer(item: FeishuDeliveryRecordItem) {
   selectedDelivery.value = item
   deliveryDrawerVisible.value = true
 }
 
-onMounted(loadAll)
+onMounted(async () => {
+  await loadAll()
+  const authStatus = String(route.query.feishu_task_auth || '').trim()
+  const authMessage = String(route.query.message || '').trim()
+  if (authStatus === 'success') {
+    ElMessage.success(authMessage || '飞书个人任务授权成功')
+    await loadFeishuTaskAuthStatus()
+  } else if (authStatus === 'failed') {
+    ElMessage.error(authMessage || '飞书个人任务授权失败')
+  }
+})
 </script>
 
 <template>
@@ -666,6 +698,24 @@ onMounted(loadAll)
         </el-button>
       </div>
     </header>
+
+    <el-alert
+      v-if="authStore.user?.feishu_open_id || authStore.user?.feishu_user_id"
+      :title="feishuTaskAuth?.authorized ? '飞书个人任务授权已生效，售前任务卡片可直接转为你的飞书任务。' : '当前账号尚未完成飞书个人任务授权，飞书卡片点击后将无法创建真正的个人飞书任务。'"
+      :type="feishuTaskAuth?.authorized ? 'success' : 'warning'"
+      :closable="false"
+      show-icon
+      class="panel-card presales-auth-banner"
+    >
+      <template #default>
+        <div class="presales-auth-banner__content">
+          <span v-if="feishuTaskAuth?.authorized && feishuTaskAuth?.authorized_at">
+            最近授权时间：{{ formatZhDateTime(feishuTaskAuth.authorized_at) }}
+          </span>
+          <el-button v-else type="primary" link @click="startFeishuTaskAuth">立即完成飞书个人任务授权</el-button>
+        </div>
+      </template>
+    </el-alert>
 
     <section class="presales-summary">
       <article class="summary-card panel-card">
@@ -1152,6 +1202,18 @@ onMounted(loadAll)
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 16px;
+}
+
+.presales-auth-banner {
+  padding: 14px 18px;
+}
+
+.presales-auth-banner__content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 
 .summary-card {

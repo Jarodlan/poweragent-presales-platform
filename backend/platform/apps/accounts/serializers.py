@@ -160,6 +160,8 @@ class UserSerializer(serializers.ModelSerializer):
             "data_scope_resolved",
             "feishu_user_id",
             "feishu_open_id",
+            "feishu_personal_task_auth_status",
+            "feishu_personal_task_authorized_at",
             "sync_source",
             "sync_status",
             "force_password_change",

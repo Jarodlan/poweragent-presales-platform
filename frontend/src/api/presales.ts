@@ -6,6 +6,7 @@ import type {
   FeishuRecipientUserItem,
   FeishuSendPayload,
   FeishuSyncJobItem,
+  FeishuTaskAuthStatus,
   PresalesArchivePayload,
   PresalesArchiveRecordItem,
   PresalesTaskItem,
@@ -94,6 +95,14 @@ export function fetchFeishuRecipients() {
   return apiRequest<{ departments: FeishuRecipientDepartmentItem[]; users: FeishuRecipientUserItem[]; groups: FeishuRecipientGroupItem[] }>(
     '/api/v1/presales/feishu/recipients',
   )
+}
+
+export function fetchFeishuTaskAuthStatus() {
+  return apiRequest<FeishuTaskAuthStatus>('/api/v1/presales/feishu/user-auth/status')
+}
+
+export function fetchFeishuTaskAuthorizeUrl(nextPath = '/presales') {
+  return apiRequest<{ authorize_url: string }>(`/api/v1/presales/feishu/user-auth/start${buildQuery({ next: nextPath })}`)
 }
 
 export function fetchFeishuSyncJobs() {

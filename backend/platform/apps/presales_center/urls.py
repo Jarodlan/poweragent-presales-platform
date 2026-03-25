@@ -1,9 +1,13 @@
 from django.urls import path
 
 from .views import (
+    FeishuCardCallbackView,
     FeishuDeliveryDetailView,
     FeishuDeliveryListView,
     FeishuRecipientListView,
+    FeishuUserTaskAuthCallbackView,
+    FeishuUserTaskAuthStartView,
+    FeishuUserTaskAuthStatusView,
     FeishuSyncJobListCreateView,
     PresalesArchiveListCreateView,
     PresalesTaskCompleteView,
@@ -25,5 +29,9 @@ urlpatterns = [
     path("presales/feishu/deliveries", FeishuDeliveryListView.as_view(), name="presales-feishu-delivery-list"),
     path("presales/feishu/deliveries/<uuid:delivery_id>", FeishuDeliveryDetailView.as_view(), name="presales-feishu-delivery-detail"),
     path("presales/feishu/recipients", FeishuRecipientListView.as_view(), name="presales-feishu-recipient-list"),
+    path("presales/feishu/user-auth/status", FeishuUserTaskAuthStatusView.as_view(), name="presales-feishu-user-auth-status"),
+    path("presales/feishu/user-auth/start", FeishuUserTaskAuthStartView.as_view(), name="presales-feishu-user-auth-start"),
+    path("presales/feishu/user-auth/callback", FeishuUserTaskAuthCallbackView.as_view(), name="presales-feishu-user-auth-callback"),
+    path("presales/feishu/card-callback", FeishuCardCallbackView.as_view(), name="presales-feishu-card-callback"),
     path("presales/feishu/sync-jobs", FeishuSyncJobListCreateView.as_view(), name="presales-feishu-sync-jobs"),
 ]

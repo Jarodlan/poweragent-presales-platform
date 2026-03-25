@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import FeishuDeliveryRecord, FeishuSyncJob, PresalesArchiveRecord, PresalesFollowupReminder, PresalesTask, PresalesTaskActivity
+from .models import FeishuDeliveryRecord, FeishuSyncJob, FeishuTaskRecord, PresalesArchiveRecord, PresalesFollowupReminder, PresalesTask, PresalesTaskActivity
 
 
 @admin.register(PresalesTask)
@@ -38,3 +38,9 @@ class FeishuDeliveryRecordAdmin(admin.ModelAdmin):
 class FeishuSyncJobAdmin(admin.ModelAdmin):
     list_display = ("job_type", "trigger_type", "status", "created_at", "finished_at")
     list_filter = ("job_type", "trigger_type", "status")
+
+
+@admin.register(FeishuTaskRecord)
+class FeishuTaskRecordAdmin(admin.ModelAdmin):
+    list_display = ("presales_task", "operator_name", "operator_identity_key", "feishu_task_id", "status", "created_at")
+    list_filter = ("status",)

@@ -137,6 +137,14 @@ export interface FeishuRecipientGroupItem {
   name: string
 }
 
+export interface FeishuTaskAuthStatus {
+  authorized: boolean
+  auth_status: string
+  authorized_at: string | null
+  feishu_open_id: string | null
+  feishu_user_id: string | null
+}
+
 export interface PresalesTaskPayload {
   task_title: string
   task_type?: string

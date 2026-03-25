@@ -11,6 +11,8 @@ USE_SQLITE = os.getenv("DJANGO_USE_SQLITE", "false").lower() == "true"
 SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "dev-secret-key")
 DEBUG = os.getenv("DJANGO_DEBUG", "true").lower() == "true"
 ALLOWED_HOSTS = [h for h in os.getenv("DJANGO_ALLOWED_HOSTS", "127.0.0.1,localhost").split(",") if h]
+if DEBUG and ".trycloudflare.com" not in ALLOWED_HOSTS:
+    ALLOWED_HOSTS.append(".trycloudflare.com")
 
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -153,6 +155,11 @@ CUSTOMER_DEMAND_AUTO_STAGE_SUMMARY_MIN_INTERVAL_SECONDS = int(
 FEISHU_APP_ID = os.getenv("FEISHU_APP_ID", "")
 FEISHU_APP_SECRET = os.getenv("FEISHU_APP_SECRET", "")
 FEISHU_BASE_URL = os.getenv("FEISHU_BASE_URL", "https://open.feishu.cn")
+FEISHU_USER_AUTH_BASE_URL = os.getenv("FEISHU_USER_AUTH_BASE_URL", "https://open.feishu.cn")
+FEISHU_USER_AUTH_REDIRECT_URI = os.getenv(
+    "FEISHU_USER_AUTH_REDIRECT_URI",
+    f"{PLATFORM_BASE_URL.rstrip('/')}/api/v1/presales/feishu/user-auth/callback",
+)
 FEISHU_SYNC_ENABLED = os.getenv("FEISHU_SYNC_ENABLED", "false").lower() == "true"
 FEISHU_SYNC_DEPARTMENT_ALLOWLIST = [
     item.strip()

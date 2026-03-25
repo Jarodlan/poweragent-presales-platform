@@ -45,6 +45,8 @@ export interface CurrentUser {
   data_scope_resolved: string
   feishu_user_id: string | null
   feishu_open_id: string | null
+  feishu_personal_task_auth_status: string
+  feishu_personal_task_authorized_at: string | null
   sync_source: string
   sync_status: string
   force_password_change: boolean

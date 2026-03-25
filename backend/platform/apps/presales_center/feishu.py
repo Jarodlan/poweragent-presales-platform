@@ -18,6 +18,8 @@ class FeishuApiError(RuntimeError):
 class FeishuClient:
     TOKEN_CACHE_KEY = "presales_center:feishu_tenant_access_token"
     TOKEN_EXPIRE_KEY = "presales_center:feishu_tenant_access_token_expire"
+    APP_TOKEN_CACHE_KEY = "presales_center:feishu_app_access_token"
+    APP_TOKEN_EXPIRE_KEY = "presales_center:feishu_app_access_token_expire"
 
     def __init__(self, *, base_url: str | None = None, app_id: str | None = None, app_secret: str | None = None):
         self.base_url = (base_url or settings.FEISHU_BASE_URL).rstrip("/")
@@ -57,6 +59,36 @@ class FeishuClient:
         cache.set(self.TOKEN_EXPIRE_KEY, expire_seconds, max(expire_seconds - 120, 60))
         return token
 
+    def get_app_access_token(self, *, force_refresh: bool = False) -> str:
+        if not self.is_configured():
+            raise FeishuApiError("飞书应用未配置，请补齐 FEISHU_APP_ID / FEISHU_APP_SECRET。")
+
+        if not force_refresh:
+            cached = cache.get(self.APP_TOKEN_CACHE_KEY)
+            if cached:
+                return cached
+
+        response = requests.post(
+            f"{self.base_url}/open-apis/auth/v3/app_access_token/internal",
+            json={"app_id": self.app_id, "app_secret": self.app_secret},
+            headers={"Content-Type": "application/json; charset=utf-8"},
+            timeout=20,
+        )
+        response.raise_for_status()
+        payload = response.json()
+        if payload.get("code") != 0 or not payload.get("app_access_token"):
+            raise FeishuApiError(
+                payload.get("msg") or "获取飞书 app_access_token 失败",
+                code=payload.get("code"),
+                response_payload=payload,
+            )
+
+        token = payload["app_access_token"]
+        expire_seconds = int(payload.get("expire") or 7200)
+        cache.set(self.APP_TOKEN_CACHE_KEY, token, max(expire_seconds - 120, 60))
+        cache.set(self.APP_TOKEN_EXPIRE_KEY, expire_seconds, max(expire_seconds - 120, 60))
+        return token
+
     def _request(
         self,
         method: str,
@@ -65,9 +97,12 @@ class FeishuClient:
         params: dict[str, Any] | None = None,
         json_body: dict[str, Any] | None = None,
         use_auth: bool = True,
+        access_token: str | None = None,
     ) -> dict[str, Any]:
         headers = {"Content-Type": "application/json; charset=utf-8"}
-        if use_auth:
+        if access_token:
+            headers["Authorization"] = f"Bearer {access_token}"
+        elif use_auth:
             headers["Authorization"] = f"Bearer {self.get_tenant_access_token()}"
 
         response = requests.request(
@@ -83,6 +118,52 @@ class FeishuClient:
         if payload.get("code") != 0:
             raise FeishuApiError(
                 payload.get("msg") or "飞书接口调用失败",
+                code=payload.get("code"),
+                response_payload=payload,
+            )
+        return payload
+
+    def build_user_authorize_url(self, *, state: str, redirect_uri: str) -> str:
+        return (
+            f"{settings.FEISHU_USER_AUTH_BASE_URL.rstrip('/')}/open-apis/authen/v1/index"
+            f"?app_id={self.app_id}&redirect_uri={requests.utils.quote(redirect_uri, safe='')}&state={requests.utils.quote(state, safe='')}"
+        )
+
+    def exchange_user_access_token(self, *, code: str) -> dict[str, Any]:
+        response = requests.post(
+            f"{self.base_url}/open-apis/authen/v1/access_token",
+            json={"grant_type": "authorization_code", "code": code},
+            headers={
+                "Content-Type": "application/json; charset=utf-8",
+                "Authorization": f"Bearer {self.get_app_access_token()}",
+            },
+            timeout=25,
+        )
+        response.raise_for_status()
+        payload = response.json()
+        if payload.get("code") != 0:
+            raise FeishuApiError(
+                payload.get("msg") or "获取飞书用户访问凭证失败",
+                code=payload.get("code"),
+                response_payload=payload,
+            )
+        return payload
+
+    def refresh_user_access_token(self, *, refresh_token: str) -> dict[str, Any]:
+        response = requests.post(
+            f"{self.base_url}/open-apis/authen/v1/refresh_access_token",
+            json={"grant_type": "refresh_token", "refresh_token": refresh_token},
+            headers={
+                "Content-Type": "application/json; charset=utf-8",
+                "Authorization": f"Bearer {self.get_app_access_token()}",
+            },
+            timeout=25,
+        )
+        response.raise_for_status()
+        payload = response.json()
+        if payload.get("code") != 0:
+            raise FeishuApiError(
+                payload.get("msg") or "刷新飞书用户访问凭证失败",
                 code=payload.get("code"),
                 response_payload=payload,
             )
@@ -172,4 +253,92 @@ class FeishuClient:
             "GET",
             "/im/v1/chats",
             params=params,
+        )
+
+    def create_task(
+        self,
+        *,
+        user_id_type: str,
+        title: str,
+        description: str,
+        due_timestamp: int | None = None,
+        collaborator_ids: list[str] | None = None,
+        follower_ids: list[str] | None = None,
+        href_url: str | None = None,
+        access_token: str | None = None,
+    ) -> dict[str, Any]:
+        body: dict[str, Any] = {
+            "summary": title,
+            "description": description,
+        }
+        if due_timestamp:
+            body["due"] = {"timestamp": str(due_timestamp)}
+        if collaborator_ids:
+            body["collaborator_ids"] = collaborator_ids
+        if follower_ids:
+            body["follower_ids"] = follower_ids
+        if href_url:
+            body["origin"] = {
+                "platform_i18n_name": {
+                    "zh_cn": "PowerAgent 售前闭环中心",
+                    "en_us": "PowerAgent Presales Center",
+                },
+                "href": {
+                    "url": href_url,
+                },
+            }
+
+        return self._request(
+            "POST",
+            "/task/v2/tasks",
+            params={"user_id_type": user_id_type},
+            json_body=body,
+            access_token=access_token,
+        )
+
+    def create_task_collaborator(
+        self,
+        *,
+        task_id: str,
+        user_id_type: str,
+        collaborator_id: str,
+    ) -> dict[str, Any]:
+        return self._request(
+            "POST",
+            f"/task/v1/tasks/{task_id}/collaborators",
+            params={"user_id_type": user_id_type},
+            json_body={"id": collaborator_id},
+        )
+
+    def create_task_follower(
+        self,
+        *,
+        task_id: str,
+        user_id_type: str,
+        follower_id: str,
+    ) -> dict[str, Any]:
+        return self._request(
+            "POST",
+            f"/task/v1/tasks/{task_id}/followers",
+            params={"user_id_type": user_id_type},
+            json_body={"id": follower_id},
+        )
+
+    def update_card_by_token(
+        self,
+        *,
+        token: str,
+        card: dict[str, Any],
+        open_ids: list[str] | None = None,
+    ) -> dict[str, Any]:
+        body: dict[str, Any] = {
+            "token": token,
+            "card": card,
+        }
+        if open_ids:
+            body["card"]["open_ids"] = open_ids
+        return self._request(
+            "POST",
+            "/interactive/v1/card/update",
+            json_body=body,
         )

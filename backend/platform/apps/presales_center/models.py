@@ -127,6 +127,7 @@ class PresalesTaskActivity(models.Model):
         ("followup_completed", "FollowupCompleted"),
         ("feishu_sent", "FeishuSent"),
         ("feishu_failed", "FeishuFailed"),
+        ("feishu_task_created", "FeishuTaskCreated"),
         ("archive_created", "ArchiveCreated"),
         ("reassigned", "Reassigned"),
         ("closed", "Closed"),
@@ -301,6 +302,50 @@ class FeishuDeliveryRecord(models.Model):
             models.Index(fields=["target_type", "target_id"]),
             models.Index(fields=["delivery_status", "created_at"]),
             models.Index(fields=["operator_user", "created_at"]),
+        ]
+
+
+class FeishuTaskRecord(models.Model):
+    STATUS_CHOICES = [
+        ("pending", "Pending"),
+        ("created", "Created"),
+        ("failed", "Failed"),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    presales_task = models.ForeignKey(PresalesTask, on_delete=models.CASCADE, related_name="feishu_task_records")
+    source_delivery = models.ForeignKey(
+        FeishuDeliveryRecord,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="created_feishu_tasks",
+    )
+    operator_identity_key = models.CharField(max_length=128)
+    operator_open_id = models.CharField(max_length=128, blank=True)
+    operator_user_id = models.CharField(max_length=128, blank=True)
+    operator_name = models.CharField(max_length=255, blank=True)
+    feishu_task_id = models.CharField(max_length=128, blank=True)
+    status = models.CharField(max_length=32, choices=STATUS_CHOICES, default="created")
+    request_payload = models.JSONField(default=dict, blank=True)
+    response_payload = models.JSONField(default=dict, blank=True)
+    error_code = models.CharField(max_length=64, blank=True)
+    error_message = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["presales_task", "created_at"]),
+            models.Index(fields=["operator_identity_key", "created_at"]),
+            models.Index(fields=["status", "created_at"]),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["presales_task", "operator_identity_key"],
+                name="presales_feishu_task_unique_operator",
+            )
         ]
 
 

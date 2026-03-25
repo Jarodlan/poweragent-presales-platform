@@ -1,8 +1,14 @@
 from __future__ import annotations
 
+import threading
+from urllib.parse import urlencode
+
 from django.db.models import Q
+from django.core import signing
+from django.db import close_old_connections
 from django.shortcuts import get_object_or_404
 from django.conf import settings
+from django.http import HttpResponseRedirect
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -10,7 +16,7 @@ from rest_framework.views import APIView
 
 from apps.accounts.models import Department, User
 
-from .models import FeishuDeliveryRecord, FeishuSyncJob, PresalesArchiveRecord, PresalesTask
+from .models import FeishuDeliveryRecord, FeishuSyncJob, FeishuTaskRecord, PresalesArchiveRecord, PresalesTask
 from .serializers import (
     FeishuDeliveryRecordSerializer,
     FeishuSendSerializer,
@@ -24,9 +30,12 @@ from .serializers import (
     PresalesTaskWriteSerializer,
 )
 from .services import (
+    build_presales_task_created_card_payload,
     build_presales_task_card_payload,
     build_presales_task_text,
+    bind_feishu_user_authorization,
     complete_presales_task,
+    create_personal_feishu_task_for_presales,
     create_presales_task,
     create_task_from_demand_report,
     create_task_from_solution_result,
@@ -384,10 +393,10 @@ class FeishuRecipientListView(APIView):
         local_by_user_id = {item.feishu_user_id: item for item in local_users if item.feishu_user_id}
         user_items: list[dict] = []
         user_keys: set[str] = set()
-        try:
-            client = FeishuClient()
-            if client.is_configured():
-                for department in departments:
+        client = FeishuClient()
+        if client.is_configured():
+            for department in departments:
+                try:
                     page_token = None
                     while True:
                         payload = client.list_department_users(department_id=department.feishu_department_id, page_token=page_token)
@@ -401,11 +410,19 @@ class FeishuRecipientListView(APIView):
                                 continue
                             user_keys.add(recipient_key)
                             local_user = local_by_open_id.get(feishu_open_id) or local_by_user_id.get(feishu_user_id)
+                            display_name = str(
+                                (local_user.display_name if local_user else "")
+                                or item.get("name")
+                                or item.get("email")
+                                or item.get("mobile")
+                                or feishu_open_id
+                                or feishu_user_id
+                            ).strip()
                             user_items.append(
                                 {
                                     "id": recipient_key,
                                     "platform_user_id": local_user.id if local_user else None,
-                                    "display_name": str(item.get("name") or (local_user.display_name if local_user else "") or item.get("email") or item.get("mobile") or feishu_open_id or feishu_user_id).strip(),
+                                    "display_name": display_name,
                                     "username": str(item.get("email") or item.get("mobile") or (local_user.username if local_user else "") or feishu_user_id or feishu_open_id).strip(),
                                     "department_id": department.id,
                                     "feishu_open_id": feishu_open_id or None,
@@ -416,8 +433,8 @@ class FeishuRecipientListView(APIView):
                         if not data.get("has_more"):
                             break
                         page_token = data.get("page_token")
-        except Exception:
-            user_items = []
+                except Exception:
+                    continue
 
         if not user_items:
             users = (
@@ -500,6 +517,77 @@ class FeishuRecipientListView(APIView):
         )
 
 
+class FeishuUserTaskAuthStatusView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        denied = _ensure_presales_access(request.user)
+        if denied:
+            return denied
+        user = request.user
+        return Response(
+            {
+                "code": 0,
+                "message": "ok",
+                "data": {
+                    "authorized": user.feishu_personal_task_auth_status == "authorized",
+                    "auth_status": user.feishu_personal_task_auth_status,
+                    "authorized_at": user.feishu_personal_task_authorized_at,
+                    "feishu_open_id": user.feishu_open_id,
+                    "feishu_user_id": user.feishu_user_id,
+                },
+            }
+        )
+
+
+class FeishuUserTaskAuthStartView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        denied = _ensure_presales_access(request.user)
+        if denied:
+            return denied
+        if not (request.user.feishu_open_id or request.user.feishu_user_id):
+            return Response(
+                {"code": 40051, "message": "当前账号尚未关联飞书身份，请先完成账号合并。", "data": None},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        next_path = (request.query_params.get("next") or "/presales").strip() or "/presales"
+        state = signing.dumps(
+            {"user_id": request.user.id, "next": next_path},
+            salt="presales-feishu-user-auth",
+        )
+        url = FeishuClient().build_user_authorize_url(
+            state=state,
+            redirect_uri=settings.FEISHU_USER_AUTH_REDIRECT_URI,
+        )
+        return Response({"code": 0, "message": "ok", "data": {"authorize_url": url}})
+
+
+class FeishuUserTaskAuthCallbackView(APIView):
+    authentication_classes = []
+    permission_classes = []
+
+    def get(self, request):
+        code = str(request.query_params.get("code") or "").strip()
+        state = str(request.query_params.get("state") or "").strip()
+        status_text = "failed"
+        message = "飞书个人任务授权失败"
+        next_path = "/presales"
+        try:
+            state_payload = signing.loads(state, salt="presales-feishu-user-auth", max_age=1800)
+            user = get_object_or_404(User, id=state_payload.get("user_id"))
+            next_path = str(state_payload.get("next") or "/presales").strip() or "/presales"
+            bind_feishu_user_authorization(user=user, code=code)
+            status_text = "success"
+            message = "飞书个人任务授权成功"
+        except Exception as exc:  # noqa: BLE001
+            message = str(exc) or message
+        separator = "&" if "?" in next_path else "?"
+        redirect_url = f"{settings.PLATFORM_WEB_BASE_URL.rstrip('/')}{next_path}{separator}{urlencode({'feishu_task_auth': status_text, 'message': message})}"
+        return HttpResponseRedirect(redirect_url)
+
+
 class FeishuSyncJobListCreateView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -529,3 +617,176 @@ class FeishuSyncJobListCreateView(APIView):
                 status=status.HTTP_502_BAD_GATEWAY,
             )
         return Response({"code": 0, "message": "ok", "data": {"job": FeishuSyncJobSerializer(job).data}}, status=status.HTTP_201_CREATED)
+
+
+class FeishuCardCallbackView(APIView):
+    authentication_classes = []
+    permission_classes = []
+
+    def _extract_payload(self, request) -> dict:
+        if isinstance(request.data, dict):
+            return request.data
+        return {}
+
+    def _extract_action_value(self, payload: dict) -> dict:
+        event = payload.get("event") or {}
+        action = event.get("action") or payload.get("action") or {}
+        return action.get("value") or {}
+
+    def _extract_operator(self, payload: dict) -> tuple[str, str, str]:
+        event = payload.get("event") or {}
+        operator = event.get("operator") or payload.get("operator") or {}
+        operator_id = operator.get("operator_id") or {}
+        open_id = str(operator.get("open_id") or operator_id.get("open_id") or "").strip()
+        user_id = str(operator.get("user_id") or operator_id.get("user_id") or "").strip()
+        name = str(operator.get("name") or operator.get("operator_name") or "").strip()
+        return open_id, user_id, name
+
+    def _extract_callback_token(self, payload: dict) -> str:
+        event = payload.get("event") or {}
+        context = event.get("context") or payload.get("context") or {}
+        return str(context.get("token") or event.get("token") or payload.get("token") or "").strip()
+
+    def _identity_key(self, *, operator_open_id: str, operator_user_id: str) -> str:
+        if operator_open_id:
+            return f"open_id:{operator_open_id}"
+        if operator_user_id:
+            return f"user_id:{operator_user_id}"
+        return ""
+
+    def _build_callback_response(self, *, type_: str, content: str) -> Response:
+        return Response({"toast": {"type": type_, "content": content}})
+
+    def _build_success_card_response(self, *, presales_task, record, operator_name: str, created: bool) -> Response:
+        feishu_task_url = str(((record.response_payload or {}).get("data") or {}).get("task", {}).get("url") or "").strip()
+        content = "已成功转为你的飞书任务。"
+        if not created:
+            content = "你已创建过该飞书任务，无需重复操作。"
+        return Response(
+            {
+                "toast": {
+                    "type": "success" if created else "info",
+                    "content": content,
+                },
+                "card": {
+                    "type": "raw",
+                    "data": build_presales_task_created_card_payload(
+                        presales_task,
+                        feishu_task_url=feishu_task_url,
+                        operator_name=operator_name,
+                    ),
+                },
+            }
+        )
+
+    def _async_create_personal_task(
+        self,
+        *,
+        presales_task: PresalesTask,
+        operator_open_id: str,
+        operator_user_id: str,
+        operator_name: str,
+        source_message_id: str,
+        callback_token: str,
+    ) -> None:
+        close_old_connections()
+        try:
+            record, _created = create_personal_feishu_task_for_presales(
+                presales_task=presales_task,
+                operator_open_id=operator_open_id,
+                operator_user_id=operator_user_id,
+                operator_name=operator_name,
+                source_message_id=source_message_id,
+            )
+            if callback_token:
+                feishu_task_url = str(((record.response_payload or {}).get("data") or {}).get("task", {}).get("url") or "").strip()
+                FeishuClient().update_card_by_token(
+                    token=callback_token,
+                    card=build_presales_task_created_card_payload(
+                        presales_task,
+                        feishu_task_url=feishu_task_url,
+                        operator_name=operator_name,
+                    ),
+                    open_ids=[operator_open_id] if operator_open_id else None,
+                )
+        except Exception as exc:  # noqa: BLE001
+            if callback_token:
+                try:
+                    failure_card = build_presales_task_card_payload(
+                        presales_task,
+                        extra_note=f"转为飞书任务失败：{exc}",
+                    )
+                    FeishuClient().update_card_by_token(
+                        token=callback_token,
+                        card=failure_card,
+                        open_ids=[operator_open_id] if operator_open_id else None,
+                    )
+                except Exception:
+                    pass
+        finally:
+            close_old_connections()
+
+    def post(self, request):
+        payload = self._extract_payload(request)
+        challenge = payload.get("challenge")
+        if challenge:
+            return Response({"challenge": challenge})
+
+        value = self._extract_action_value(payload)
+        action_name = str(value.get("action") or "").strip()
+        if action_name != "create_personal_feishu_task":
+            return self._build_callback_response(type_="info", content="未识别的卡片动作。")
+
+        task_id = str(value.get("presales_task_id") or "").strip()
+        if not task_id:
+            return self._build_callback_response(type_="danger", content="缺少售前任务标识，无法创建飞书任务。")
+
+        presales_task = get_object_or_404(PresalesTask, id=task_id)
+        operator_open_id, operator_user_id, operator_name = self._extract_operator(payload)
+        callback_token = self._extract_callback_token(payload)
+        source_message_id = str(payload.get("open_message_id") or payload.get("message_id") or "").strip()
+        identity_key = self._identity_key(operator_open_id=operator_open_id, operator_user_id=operator_user_id)
+        existing = None
+        if identity_key:
+            existing = FeishuTaskRecord.objects.filter(
+                presales_task=presales_task,
+                operator_identity_key=identity_key,
+            ).order_by("-created_at").first()
+
+        if existing and existing.feishu_task_id:
+            return self._build_success_card_response(
+                presales_task=presales_task,
+                record=existing,
+                operator_name=operator_name,
+                created=False,
+            )
+        if existing and existing.status == "pending":
+            return self._build_callback_response(type_="info", content="正在为你创建飞书任务，请稍候。")
+
+        if identity_key:
+            pending_record = existing or FeishuTaskRecord(
+                presales_task=presales_task,
+                operator_identity_key=identity_key,
+                operator_open_id=operator_open_id,
+                operator_user_id=operator_user_id,
+                operator_name=operator_name,
+                status="pending",
+            )
+            pending_record.status = "pending"
+            pending_record.error_code = ""
+            pending_record.error_message = ""
+            pending_record.save()
+
+        threading.Thread(
+            target=self._async_create_personal_task,
+            kwargs={
+                "presales_task": presales_task,
+                "operator_open_id": operator_open_id,
+                "operator_user_id": operator_user_id,
+                "operator_name": operator_name,
+                "source_message_id": source_message_id,
+                "callback_token": callback_token,
+            },
+            daemon=True,
+        ).start()
+        return self._build_callback_response(type_="info", content="正在为你创建飞书任务，请稍候。")

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from urllib.parse import quote
 from typing import Iterable
 
@@ -15,7 +15,7 @@ from apps.audit.models import AuditLog
 from apps.customer_demand.models import CustomerDemandReport
 
 from .feishu import FeishuApiError, FeishuClient
-from .models import FeishuDeliveryRecord, PresalesArchiveRecord, PresalesTask, PresalesTaskActivity
+from .models import FeishuDeliveryRecord, FeishuTaskRecord, PresalesArchiveRecord, PresalesTask, PresalesTaskActivity
 
 
 def resolve_visible_presales_tasks(user: User):
@@ -218,8 +218,17 @@ def build_presales_task_card_payload(task: PresalesTask, *, extra_note: str = ""
                 "actions": [
                     {
                         "tag": "button",
-                        "text": {"tag": "plain_text", "content": "打开售前闭环中心"},
+                        "text": {"tag": "plain_text", "content": "转为我的飞书任务"},
                         "type": "primary",
+                        "value": {
+                            "action": "create_personal_feishu_task",
+                            "presales_task_id": str(task.id),
+                        },
+                    },
+                    {
+                        "tag": "button",
+                        "text": {"tag": "plain_text", "content": "打开售前闭环中心"},
+                        "type": "default",
                         "url": task_url,
                     }
                 ],
@@ -231,6 +240,54 @@ def build_presales_task_card_payload(task: PresalesTask, *, extra_note: str = ""
         "header": {
             "title": {"tag": "plain_text", "content": "售前任务提醒"},
             "template": "blue",
+        },
+        "elements": elements,
+    }
+
+
+def build_presales_task_created_card_payload(task: PresalesTask, *, feishu_task_url: str = "", operator_name: str = "") -> dict:
+    task_url = f"{settings.PLATFORM_WEB_BASE_URL.rstrip('/')}/presales?task={quote(str(task.id))}"
+    header_title = "已创建飞书任务"
+    if operator_name:
+        header_title = f"{operator_name} 已创建飞书任务"
+    elements: list[dict] = [
+        {
+            "tag": "div",
+            "text": {
+                "tag": "lark_md",
+                "content": f"**{task.task_title}**\n已成功转为飞书任务，请在飞书客户端的任务/待办中继续跟进。",
+            },
+        },
+        {
+            "tag": "note",
+            "elements": [
+                {"tag": "plain_text", "content": f"客户：{task.customer_name or '未填写'}"},
+                {"tag": "plain_text", "content": f"优先级：{_resolve_priority_label(task.priority)}"},
+                {"tag": "plain_text", "content": f"到期：{_format_dt(task.due_at)}"},
+            ],
+        },
+        {"tag": "hr"},
+    ]
+    actions = [
+        {
+            "tag": "button",
+            "text": {"tag": "plain_text", "content": "打开我的飞书任务"},
+            "type": "primary",
+            "url": feishu_task_url or task_url,
+        },
+        {
+            "tag": "button",
+            "text": {"tag": "plain_text", "content": "打开售前闭环中心"},
+            "type": "default",
+            "url": task_url,
+        },
+    ]
+    elements.append({"tag": "action", "actions": actions})
+    return {
+        "config": {"wide_screen_mode": True, "enable_forward": True},
+        "header": {
+            "title": {"tag": "plain_text", "content": header_title},
+            "template": "green",
         },
         "elements": elements,
     }
@@ -388,6 +445,100 @@ def _resolve_receive_id_type(target_type: str, target_id: str) -> str:
     raise FeishuApiError(f"暂不支持的飞书目标类型：{target_type}")
 
 
+def _resolve_identity_key(*, operator_open_id: str = "", operator_user_id: str = "") -> str:
+    if operator_open_id:
+        return f"open_id:{operator_open_id}"
+    if operator_user_id:
+        return f"user_id:{operator_user_id}"
+    raise FeishuApiError("飞书卡片回调缺少可识别的操作人身份。")
+
+
+def _resolve_task_due_timestamp(task: PresalesTask) -> int | None:
+    value = task.next_follow_up_at or task.due_at
+    if not value:
+        return None
+    local_value = timezone.localtime(value) if timezone.is_aware(value) else value
+    # Feishu task API expects a millisecond timestamp string. Using seconds
+    # produces a 1970-era due date in the client.
+    return int(local_value.timestamp() * 1000)
+
+
+def _store_feishu_user_auth(user: User, payload: dict) -> User:
+    data = payload.get("data") or {}
+    expires_in = int(data.get("expires_in") or 7200)
+    refresh_expires_in = int(data.get("refresh_expires_in") or 0)
+    user.feishu_user_access_token = str(data.get("access_token") or "").strip()
+    user.feishu_user_refresh_token = str(data.get("refresh_token") or "").strip()
+    user.feishu_user_token_expires_at = timezone.now() + timedelta(seconds=max(expires_in - 120, 60))
+    user.feishu_user_refresh_expires_at = (
+        timezone.now() + timedelta(seconds=refresh_expires_in)
+        if refresh_expires_in
+        else None
+    )
+    user.feishu_personal_task_auth_status = "authorized"
+    user.feishu_personal_task_authorized_at = timezone.now()
+    user.feishu_open_id = str(data.get("open_id") or user.feishu_open_id or "").strip() or None
+    user.feishu_user_id = str(data.get("user_id") or user.feishu_user_id or "").strip() or None
+    if data.get("union_id"):
+        user.feishu_union_id = str(data.get("union_id") or "").strip()
+    user.save(
+        update_fields=[
+            "feishu_user_access_token",
+            "feishu_user_refresh_token",
+            "feishu_user_token_expires_at",
+            "feishu_user_refresh_expires_at",
+            "feishu_personal_task_auth_status",
+            "feishu_personal_task_authorized_at",
+            "feishu_open_id",
+            "feishu_user_id",
+            "feishu_union_id",
+        ]
+    )
+    return user
+
+
+def bind_feishu_user_authorization(*, user: User, code: str) -> User:
+    client = FeishuClient()
+    payload = client.exchange_user_access_token(code=code)
+    data = payload.get("data") or {}
+    open_id = str(data.get("open_id") or "").strip()
+    user_id = str(data.get("user_id") or "").strip()
+    if user.feishu_open_id and open_id and user.feishu_open_id != open_id:
+        raise FeishuApiError("当前飞书授权账号与平台已绑定飞书账号不一致，请先核对账号合并关系。")
+    if user.feishu_user_id and user_id and user.feishu_user_id != user_id:
+        raise FeishuApiError("当前飞书授权账号与平台已绑定飞书用户不一致，请先核对账号合并关系。")
+    return _store_feishu_user_auth(user, payload)
+
+
+def get_valid_feishu_user_access_token(user: User) -> str:
+    if user.feishu_personal_task_auth_status != "authorized":
+        raise FeishuApiError("当前飞书账号尚未完成个人授权，请先在平台完成“飞书个人任务授权”。")
+    if user.feishu_user_access_token and user.feishu_user_token_expires_at and user.feishu_user_token_expires_at > timezone.now():
+        return user.feishu_user_access_token
+    if not user.feishu_user_refresh_token:
+        user.feishu_personal_task_auth_status = "expired"
+        user.save(update_fields=["feishu_personal_task_auth_status"])
+        raise FeishuApiError("飞书个人任务授权已过期，请重新完成飞书授权。")
+    client = FeishuClient()
+    payload = client.refresh_user_access_token(refresh_token=user.feishu_user_refresh_token)
+    _store_feishu_user_auth(user, payload)
+    return user.feishu_user_access_token
+
+
+def build_feishu_personal_task_payload(task: PresalesTask, *, operator_name: str = "") -> dict:
+    task_url = f"{settings.PLATFORM_WEB_BASE_URL.rstrip('/')}/presales?task={quote(str(task.id))}"
+    title = f"【售前跟进】{task.task_title}"
+    description = build_presales_task_text(task)
+    if operator_name:
+        description = f"{description}\n领取人：{operator_name}"
+    return {
+        "title": title,
+        "description": description,
+        "due_timestamp": _resolve_task_due_timestamp(task),
+        "href_url": task_url,
+    }
+
+
 @transaction.atomic
 def deliver_feishu_record(delivery: FeishuDeliveryRecord, *, operator_user=None) -> FeishuDeliveryRecord:
     client = FeishuClient()
@@ -443,6 +594,132 @@ def deliver_feishu_record(delivery: FeishuDeliveryRecord, *, operator_user=None)
             str(delivery.id),
             {"target_type": delivery.target_type, "target_id": delivery.target_id, "error": str(exc)},
         )
+        raise
+
+
+@transaction.atomic
+def create_personal_feishu_task_for_presales(
+    *,
+    presales_task: PresalesTask,
+    operator_open_id: str = "",
+    operator_user_id: str = "",
+    operator_name: str = "",
+    source_message_id: str = "",
+):
+    identity_key = _resolve_identity_key(operator_open_id=operator_open_id, operator_user_id=operator_user_id)
+    operator_local_user = None
+    if operator_open_id:
+        operator_local_user = User.objects.filter(feishu_open_id=operator_open_id).first()
+    if not operator_local_user and operator_user_id:
+        operator_local_user = User.objects.filter(feishu_user_id=operator_user_id).first()
+    existing = (
+        FeishuTaskRecord.objects.select_for_update()
+        .filter(presales_task=presales_task, operator_identity_key=identity_key)
+        .first()
+    )
+    if existing and existing.feishu_task_id:
+        return existing, False
+
+    client = FeishuClient()
+    user_id_type = "open_id" if operator_open_id else "user_id"
+    operator_id = operator_open_id or operator_user_id
+    if not operator_local_user:
+        raise FeishuApiError("当前飞书操作人尚未与平台账号建立关联，请先完成账号合并。")
+    user_access_token = get_valid_feishu_user_access_token(operator_local_user)
+    payload = build_feishu_personal_task_payload(presales_task, operator_name=operator_name)
+    source_delivery = None
+    if source_message_id:
+        source_delivery = (
+            FeishuDeliveryRecord.objects.filter(
+                business_type="presales_task_notification",
+                business_id=str(presales_task.id),
+                response_payload__data__message_id=source_message_id,
+            )
+            .order_by("-created_at")
+            .first()
+        )
+    request_payload = {
+        "summary": payload["title"],
+        "description": payload["description"],
+        "due_timestamp": payload["due_timestamp"],
+        "source_message_id": source_message_id,
+        "operator_open_id": operator_open_id,
+        "operator_user_id": operator_user_id,
+    }
+
+    record = existing or FeishuTaskRecord(
+        presales_task=presales_task,
+        source_delivery=source_delivery,
+        operator_identity_key=identity_key,
+        operator_open_id=operator_open_id,
+        operator_user_id=operator_user_id,
+        operator_name=operator_name,
+    )
+    if source_delivery and record.source_delivery_id != source_delivery.id:
+        record.source_delivery = source_delivery
+    record.request_payload = request_payload
+    record.error_code = ""
+    record.error_message = ""
+    try:
+        response_payload = client.create_task(
+            user_id_type=user_id_type,
+            title=payload["title"],
+            description=payload["description"],
+            due_timestamp=payload["due_timestamp"],
+            href_url=payload["href_url"],
+            access_token=user_access_token,
+        )
+        task_data = (response_payload.get("data") or {}).get("task") or {}
+        record.feishu_task_id = str(task_data.get("task_id") or task_data.get("guid") or task_data.get("id") or "")
+        raw_task_id = str(task_data.get("task_id") or task_data.get("guid") or task_data.get("id") or "").strip()
+        if raw_task_id and operator_id:
+            collaborator_added = False
+            follower_added = False
+            for target_task_id in [raw_task_id, record.feishu_task_id]:
+                if not target_task_id:
+                    continue
+                if not collaborator_added:
+                    try:
+                        client.create_task_collaborator(
+                            task_id=target_task_id,
+                            user_id_type=user_id_type,
+                            collaborator_id=operator_id,
+                        )
+                        collaborator_added = True
+                    except Exception:
+                        pass
+                if not follower_added:
+                    try:
+                        client.create_task_follower(
+                            task_id=target_task_id,
+                            user_id_type=user_id_type,
+                            follower_id=operator_id,
+                        )
+                        follower_added = True
+                    except Exception:
+                        pass
+        record.status = "created"
+        record.response_payload = response_payload
+        record.save()
+        _create_task_activity(
+            presales_task,
+            activity_type="feishu_task_created",
+            operator_user=operator_local_user or presales_task.owner_user,
+            summary=f"飞书用户 {operator_name or operator_id} 已创建个人任务",
+            payload_json={
+                "operator_open_id": operator_open_id,
+                "operator_user_id": operator_user_id,
+                "feishu_task_id": record.feishu_task_id,
+            },
+        )
+        return record, True
+    except Exception as exc:  # noqa: BLE001
+        response_payload = exc.response_payload if isinstance(exc, FeishuApiError) else {}
+        record.status = "failed"
+        record.response_payload = response_payload
+        record.error_code = str(exc.code) if isinstance(exc, FeishuApiError) and exc.code is not None else ""
+        record.error_message = str(exc)
+        record.save()
         raise
 
 
