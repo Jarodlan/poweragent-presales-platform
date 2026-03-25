@@ -202,10 +202,11 @@ export interface FeishuSendPayload {
   target_type: 'user' | 'group'
   target_id: string
   target_name?: string
-  message_type?: 'text'
+  message_type?: 'text' | 'post' | 'interactive_card'
   message_payload?: {
     text?: string
     title?: string
     summary?: string
+    [key: string]: unknown
   }
 }

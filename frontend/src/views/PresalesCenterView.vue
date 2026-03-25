@@ -554,7 +554,7 @@ async function submitSendDialog() {
   loading.sending = true
   try {
     const payloadBase = {
-      message_type: 'text' as const,
+      message_type: 'interactive_card' as const,
       message_payload: {
         text: sendForm.message_text,
         title: selectedTask.value.task_title,
@@ -992,8 +992,13 @@ onMounted(loadAll)
               />
             </el-select>
           </el-form-item>
-          <el-form-item label="消息正文" prop="message_text">
-            <el-input v-model="sendForm.message_text" type="textarea" :rows="8" placeholder="将发送到飞书的文本消息内容。" />
+          <el-form-item label="附加说明" prop="message_text">
+            <el-input
+              v-model="sendForm.message_text"
+              type="textarea"
+              :rows="8"
+              placeholder="这段内容会作为卡片里的补充说明展示给收件人。"
+            />
           </el-form-item>
       </el-form>
       <template #footer>

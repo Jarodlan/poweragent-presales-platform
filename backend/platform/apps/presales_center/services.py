@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from urllib.parse import quote
 from typing import Iterable
 
 from django.conf import settings
@@ -85,6 +86,154 @@ def _normalize_activity_payload(values: dict | None) -> dict:
         else:
             normalized[key] = value
     return normalized
+
+
+def _resolve_task_type_label(value: str) -> str:
+    return {
+        "follow_up": "跟进任务",
+        "proposal_review": "方案评审",
+        "customer_revisit": "客户回访",
+        "internal_alignment": "内部对齐",
+        "materials_prepare": "材料准备",
+        "manual": "手工任务",
+    }.get(value, value)
+
+
+def _resolve_priority_label(value: str) -> str:
+    return {
+        "low": "低优先级",
+        "medium": "中优先级",
+        "high": "高优先级",
+        "urgent": "紧急",
+    }.get(value, value)
+
+
+def _resolve_status_label(value: str) -> str:
+    return {
+        "pending": "待处理",
+        "in_progress": "进行中",
+        "completed": "已完成",
+        "cancelled": "已取消",
+        "archived": "已归档",
+    }.get(value, value)
+
+
+def _resolve_source_type_label(value: str) -> str:
+    return {
+        "manual": "手工创建",
+        "customer_demand_report": "需求分析报告",
+        "solution_result": "解决方案结果",
+    }.get(value, value)
+
+
+def _format_dt(value) -> str:
+    if not value:
+        return "未设置"
+    local_value = timezone.localtime(value) if timezone.is_aware(value) else value
+    return local_value.strftime("%Y-%m-%d %H:%M")
+
+
+def build_presales_task_text(task: PresalesTask, *, extra_note: str = "") -> str:
+    lines = [
+        f"售前任务：{task.task_title}",
+        f"任务类型：{_resolve_task_type_label(task.task_type)}",
+        f"当前状态：{_resolve_status_label(task.status)}",
+        f"优先级：{_resolve_priority_label(task.priority)}",
+        f"客户名称：{task.customer_name or '未填写'}",
+        f"负责人：{task.owner_user.display_name if task.owner_user else '未分配'}",
+        f"所属部门：{task.owner_department.name if task.owner_department else '未设置'}",
+        f"到期时间：{_format_dt(task.due_at)}",
+        f"回访时间：{_format_dt(task.next_follow_up_at)}",
+        f"来源：{_resolve_source_type_label(task.source_type)}",
+    ]
+    if task.task_description:
+        lines.append(f"任务说明：{task.task_description}")
+    if extra_note:
+        lines.append(f"附加说明：{extra_note}")
+    return "\n".join(lines)
+
+
+def build_presales_task_card_payload(task: PresalesTask, *, extra_note: str = "") -> dict:
+    task_url = f"{settings.PLATFORM_WEB_BASE_URL.rstrip('/')}/presales?task={quote(str(task.id))}"
+    fields = [
+        {
+            "is_short": True,
+            "text": {"tag": "lark_md", "content": f"**客户名称**\n{task.customer_name or '未填写'}"},
+        },
+        {
+            "is_short": True,
+            "text": {"tag": "lark_md", "content": f"**优先级**\n{_resolve_priority_label(task.priority)}"},
+        },
+        {
+            "is_short": True,
+            "text": {"tag": "lark_md", "content": f"**当前状态**\n{_resolve_status_label(task.status)}"},
+        },
+        {
+            "is_short": True,
+            "text": {"tag": "lark_md", "content": f"**任务类型**\n{_resolve_task_type_label(task.task_type)}"},
+        },
+        {
+            "is_short": True,
+            "text": {"tag": "lark_md", "content": f"**到期时间**\n{_format_dt(task.due_at)}"},
+        },
+        {
+            "is_short": True,
+            "text": {"tag": "lark_md", "content": f"**回访时间**\n{_format_dt(task.next_follow_up_at)}"},
+        },
+    ]
+    elements: list[dict] = [
+        {
+            "tag": "div",
+            "text": {"tag": "lark_md", "content": f"**{task.task_title}**"},
+        },
+        {"tag": "div", "fields": fields},
+    ]
+    if task.task_description:
+        elements.append(
+            {
+                "tag": "div",
+                "text": {"tag": "lark_md", "content": f"**任务说明**\n{task.task_description}"},
+            }
+        )
+    if extra_note:
+        elements.append(
+            {
+                "tag": "div",
+                "text": {"tag": "lark_md", "content": f"**附加说明**\n{extra_note}"},
+            }
+        )
+    elements.extend(
+        [
+            {"tag": "hr"},
+            {
+                "tag": "note",
+                "elements": [
+                    {"tag": "plain_text", "content": f"负责人：{task.owner_user.display_name if task.owner_user else '未分配'}"},
+                    {"tag": "plain_text", "content": f"所属部门：{task.owner_department.name if task.owner_department else '未设置'}"},
+                    {"tag": "plain_text", "content": f"来源：{_resolve_source_type_label(task.source_type)}"},
+                ],
+            },
+            {
+                "tag": "action",
+                "actions": [
+                    {
+                        "tag": "button",
+                        "text": {"tag": "plain_text", "content": "打开售前闭环中心"},
+                        "type": "primary",
+                        "url": task_url,
+                    }
+                ],
+            },
+        ]
+    )
+    return {
+        "config": {"wide_screen_mode": True, "enable_forward": True},
+        "header": {
+            "title": {"tag": "plain_text", "content": "售前任务提醒"},
+            "template": "blue",
+        },
+        "elements": elements,
+    }
 
 
 @transaction.atomic

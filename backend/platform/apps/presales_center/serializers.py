@@ -198,7 +198,7 @@ class FeishuSendSerializer(serializers.Serializer):
     target_type = serializers.ChoiceField(choices=FeishuDeliveryRecord.TARGET_TYPE_CHOICES)
     target_id = serializers.CharField(max_length=128)
     target_name = serializers.CharField(max_length=255, required=False, allow_blank=True)
-    message_type = serializers.ChoiceField(choices=FeishuDeliveryRecord.MESSAGE_TYPE_CHOICES, default="text")
+    message_type = serializers.ChoiceField(choices=FeishuDeliveryRecord.MESSAGE_TYPE_CHOICES, default="interactive_card")
     message_payload = serializers.JSONField(required=False)
 
 

@@ -24,6 +24,8 @@ from .serializers import (
     PresalesTaskWriteSerializer,
 )
 from .services import (
+    build_presales_task_card_payload,
+    build_presales_task_text,
     complete_presales_task,
     create_presales_task,
     create_task_from_demand_report,
@@ -241,15 +243,28 @@ class PresalesTaskSendFeishuView(APIView):
         task = get_object_or_404(resolve_visible_presales_tasks(request.user).distinct(), id=task_id)
         serializer = FeishuSendSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
+        validated = serializer.validated_data
+        raw_payload = validated.get("message_payload") or {}
+        extra_note = str(raw_payload.get("text") or "").strip()
+        message_type = validated.get("message_type") or "interactive_card"
+        request_payload = raw_payload
+        if message_type == "interactive_card":
+            request_payload = build_presales_task_card_payload(task, extra_note=extra_note)
+        elif message_type == "text":
+            request_payload = {
+                "text": build_presales_task_text(task, extra_note=extra_note),
+                "title": task.task_title,
+                "summary": task.customer_name or "",
+            }
         delivery = queue_feishu_delivery(
             operator_user=request.user,
             business_type="presales_task_notification",
             business_id=str(task.id),
-            target_type=serializer.validated_data["target_type"],
-            target_id=serializer.validated_data["target_id"],
-            target_name=serializer.validated_data.get("target_name", ""),
-            message_type=serializer.validated_data["message_type"],
-            request_payload=serializer.validated_data.get("message_payload") or {},
+            target_type=validated["target_type"],
+            target_id=validated["target_id"],
+            target_name=validated.get("target_name", ""),
+            message_type=message_type,
+            request_payload=request_payload,
         )
         try:
             delivery = deliver_feishu_record(delivery, operator_user=request.user)

@@ -96,6 +96,7 @@ class FeishuClient:
         message_type: str,
         message_payload: dict[str, Any],
     ) -> dict[str, Any]:
+        api_message_type = "interactive" if message_type == "interactive_card" else message_type
         if message_type == "text":
             text = (
                 message_payload.get("text")
@@ -112,7 +113,7 @@ class FeishuClient:
             params={"receive_id_type": receive_id_type},
             json_body={
                 "receive_id": receive_id,
-                "msg_type": message_type,
+                "msg_type": api_message_type,
                 "content": content,
             },
         )
