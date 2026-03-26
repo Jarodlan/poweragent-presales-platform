@@ -1,11 +1,9 @@
 from __future__ import annotations
 
-import threading
 from urllib.parse import urlencode
 
 from django.db.models import Q
 from django.core import signing
-from django.db import close_old_connections
 from django.shortcuts import get_object_or_404
 from django.conf import settings
 from django.http import HttpResponseRedirect
@@ -30,16 +28,15 @@ from .serializers import (
     PresalesTaskWriteSerializer,
 )
 from .services import (
-    build_presales_task_created_card_payload,
     build_presales_task_card_payload,
     build_presales_task_text,
     bind_feishu_user_authorization,
     complete_presales_task,
-    create_personal_feishu_task_for_presales,
     create_presales_task,
     create_task_from_demand_report,
     create_task_from_solution_result,
     deliver_feishu_record,
+    handle_feishu_personal_task_card_action,
     queue_feishu_delivery,
     resolve_visible_presales_archives,
     resolve_visible_presales_tasks,
@@ -647,85 +644,6 @@ class FeishuCardCallbackView(APIView):
         context = event.get("context") or payload.get("context") or {}
         return str(context.get("token") or event.get("token") or payload.get("token") or "").strip()
 
-    def _identity_key(self, *, operator_open_id: str, operator_user_id: str) -> str:
-        if operator_open_id:
-            return f"open_id:{operator_open_id}"
-        if operator_user_id:
-            return f"user_id:{operator_user_id}"
-        return ""
-
-    def _build_callback_response(self, *, type_: str, content: str) -> Response:
-        return Response({"toast": {"type": type_, "content": content}})
-
-    def _build_success_card_response(self, *, presales_task, record, operator_name: str, created: bool) -> Response:
-        feishu_task_url = str(((record.response_payload or {}).get("data") or {}).get("task", {}).get("url") or "").strip()
-        content = "已成功转为你的飞书任务。"
-        if not created:
-            content = "你已创建过该飞书任务，无需重复操作。"
-        return Response(
-            {
-                "toast": {
-                    "type": "success" if created else "info",
-                    "content": content,
-                },
-                "card": {
-                    "type": "raw",
-                    "data": build_presales_task_created_card_payload(
-                        presales_task,
-                        feishu_task_url=feishu_task_url,
-                        operator_name=operator_name,
-                    ),
-                },
-            }
-        )
-
-    def _async_create_personal_task(
-        self,
-        *,
-        presales_task: PresalesTask,
-        operator_open_id: str,
-        operator_user_id: str,
-        operator_name: str,
-        source_message_id: str,
-        callback_token: str,
-    ) -> None:
-        close_old_connections()
-        try:
-            record, _created = create_personal_feishu_task_for_presales(
-                presales_task=presales_task,
-                operator_open_id=operator_open_id,
-                operator_user_id=operator_user_id,
-                operator_name=operator_name,
-                source_message_id=source_message_id,
-            )
-            if callback_token:
-                feishu_task_url = str(((record.response_payload or {}).get("data") or {}).get("task", {}).get("url") or "").strip()
-                FeishuClient().update_card_by_token(
-                    token=callback_token,
-                    card=build_presales_task_created_card_payload(
-                        presales_task,
-                        feishu_task_url=feishu_task_url,
-                        operator_name=operator_name,
-                    ),
-                    open_ids=[operator_open_id] if operator_open_id else None,
-                )
-        except Exception as exc:  # noqa: BLE001
-            if callback_token:
-                try:
-                    failure_card = build_presales_task_card_payload(
-                        presales_task,
-                        extra_note=f"转为飞书任务失败：{exc}",
-                    )
-                    FeishuClient().update_card_by_token(
-                        token=callback_token,
-                        card=failure_card,
-                        open_ids=[operator_open_id] if operator_open_id else None,
-                    )
-                except Exception:
-                    pass
-        finally:
-            close_old_connections()
-
     def post(self, request):
         payload = self._extract_payload(request)
         challenge = payload.get("challenge")
@@ -735,58 +653,18 @@ class FeishuCardCallbackView(APIView):
         value = self._extract_action_value(payload)
         action_name = str(value.get("action") or "").strip()
         if action_name != "create_personal_feishu_task":
-            return self._build_callback_response(type_="info", content="未识别的卡片动作。")
+            return Response({"toast": {"type": "info", "content": "未识别的卡片动作。"}})
 
         task_id = str(value.get("presales_task_id") or "").strip()
-        if not task_id:
-            return self._build_callback_response(type_="danger", content="缺少售前任务标识，无法创建飞书任务。")
-
-        presales_task = get_object_or_404(PresalesTask, id=task_id)
         operator_open_id, operator_user_id, operator_name = self._extract_operator(payload)
         callback_token = self._extract_callback_token(payload)
         source_message_id = str(payload.get("open_message_id") or payload.get("message_id") or "").strip()
-        identity_key = self._identity_key(operator_open_id=operator_open_id, operator_user_id=operator_user_id)
-        existing = None
-        if identity_key:
-            existing = FeishuTaskRecord.objects.filter(
-                presales_task=presales_task,
-                operator_identity_key=identity_key,
-            ).order_by("-created_at").first()
-
-        if existing and existing.feishu_task_id:
-            return self._build_success_card_response(
-                presales_task=presales_task,
-                record=existing,
-                operator_name=operator_name,
-                created=False,
-            )
-        if existing and existing.status == "pending":
-            return self._build_callback_response(type_="info", content="正在为你创建飞书任务，请稍候。")
-
-        if identity_key:
-            pending_record = existing or FeishuTaskRecord(
-                presales_task=presales_task,
-                operator_identity_key=identity_key,
-                operator_open_id=operator_open_id,
-                operator_user_id=operator_user_id,
-                operator_name=operator_name,
-                status="pending",
-            )
-            pending_record.status = "pending"
-            pending_record.error_code = ""
-            pending_record.error_message = ""
-            pending_record.save()
-
-        threading.Thread(
-            target=self._async_create_personal_task,
-            kwargs={
-                "presales_task": presales_task,
-                "operator_open_id": operator_open_id,
-                "operator_user_id": operator_user_id,
-                "operator_name": operator_name,
-                "source_message_id": source_message_id,
-                "callback_token": callback_token,
-            },
-            daemon=True,
-        ).start()
-        return self._build_callback_response(type_="info", content="正在为你创建飞书任务，请稍候。")
+        response_payload = handle_feishu_personal_task_card_action(
+            task_id=task_id,
+            operator_open_id=operator_open_id,
+            operator_user_id=operator_user_id,
+            operator_name=operator_name,
+            callback_token=callback_token,
+            source_message_id=source_message_id,
+        )
+        return Response(response_payload)

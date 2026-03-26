@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import threading
 from datetime import datetime, timedelta
 from urllib.parse import quote
 from typing import Iterable
@@ -7,6 +8,8 @@ from typing import Iterable
 from django.conf import settings
 from django.db.models import Q
 from django.db import transaction
+from django.db import close_old_connections
+from django.http import Http404
 from django.utils import timezone
 from rest_framework.authtoken.models import Token
 
@@ -290,6 +293,31 @@ def build_presales_task_created_card_payload(task: PresalesTask, *, feishu_task_
             "template": "green",
         },
         "elements": elements,
+    }
+
+
+def build_feishu_card_toast_payload(*, type_: str, content: str) -> dict:
+    return {"toast": {"type": type_, "content": content}}
+
+
+def build_feishu_card_success_payload(*, presales_task: PresalesTask, record: FeishuTaskRecord, operator_name: str, created: bool) -> dict:
+    feishu_task_url = str(((record.response_payload or {}).get("data") or {}).get("task", {}).get("url") or "").strip()
+    content = "已成功转为你的飞书任务。"
+    if not created:
+        content = "你已创建过该飞书任务，无需重复操作。"
+    return {
+        "toast": {
+            "type": "success" if created else "info",
+            "content": content,
+        },
+        "card": {
+            "type": "raw",
+            "data": build_presales_task_created_card_payload(
+                presales_task,
+                feishu_task_url=feishu_task_url,
+                operator_name=operator_name,
+            ),
+        },
     }
 
 
@@ -721,6 +749,123 @@ def create_personal_feishu_task_for_presales(
         record.error_message = str(exc)
         record.save()
         raise
+
+
+def _async_create_personal_feishu_task_for_card_action(
+    *,
+    presales_task: PresalesTask,
+    operator_open_id: str,
+    operator_user_id: str,
+    operator_name: str,
+    source_message_id: str,
+    callback_token: str,
+) -> None:
+    close_old_connections()
+    try:
+        record, _created = create_personal_feishu_task_for_presales(
+            presales_task=presales_task,
+            operator_open_id=operator_open_id,
+            operator_user_id=operator_user_id,
+            operator_name=operator_name,
+            source_message_id=source_message_id,
+        )
+        if callback_token:
+            feishu_task_url = str(((record.response_payload or {}).get("data") or {}).get("task", {}).get("url") or "").strip()
+            FeishuClient().update_card_by_token(
+                token=callback_token,
+                card=build_presales_task_created_card_payload(
+                    presales_task,
+                    feishu_task_url=feishu_task_url,
+                    operator_name=operator_name,
+                ),
+                open_ids=[operator_open_id] if operator_open_id else None,
+            )
+    except Exception as exc:  # noqa: BLE001
+        if callback_token:
+            try:
+                failure_card = build_presales_task_card_payload(
+                    presales_task,
+                    extra_note=f"转为飞书任务失败：{exc}",
+                )
+                FeishuClient().update_card_by_token(
+                    token=callback_token,
+                    card=failure_card,
+                    open_ids=[operator_open_id] if operator_open_id else None,
+                )
+            except Exception:
+                pass
+    finally:
+        close_old_connections()
+
+
+def handle_feishu_personal_task_card_action(
+    *,
+    task_id: str,
+    operator_open_id: str = "",
+    operator_user_id: str = "",
+    operator_name: str = "",
+    callback_token: str = "",
+    source_message_id: str = "",
+) -> dict:
+    if not task_id:
+        return build_feishu_card_toast_payload(type_="danger", content="缺少售前任务标识，无法创建飞书任务。")
+
+    try:
+        presales_task = PresalesTask.objects.get(id=task_id)
+    except PresalesTask.DoesNotExist:
+        return build_feishu_card_toast_payload(type_="danger", content="售前任务不存在或已被删除。")
+
+    try:
+        identity_key = _resolve_identity_key(operator_open_id=operator_open_id, operator_user_id=operator_user_id)
+    except FeishuApiError as exc:
+        return build_feishu_card_toast_payload(type_="danger", content=str(exc))
+
+    existing = (
+        FeishuTaskRecord.objects.filter(
+            presales_task=presales_task,
+            operator_identity_key=identity_key,
+        )
+        .order_by("-created_at")
+        .first()
+    )
+
+    if existing and existing.feishu_task_id:
+        return build_feishu_card_success_payload(
+            presales_task=presales_task,
+            record=existing,
+            operator_name=operator_name,
+            created=False,
+        )
+
+    if existing and existing.status == "pending":
+        return build_feishu_card_toast_payload(type_="info", content="正在为你创建飞书任务，请稍候。")
+
+    pending_record = existing or FeishuTaskRecord(
+        presales_task=presales_task,
+        operator_identity_key=identity_key,
+        operator_open_id=operator_open_id,
+        operator_user_id=operator_user_id,
+        operator_name=operator_name,
+        status="pending",
+    )
+    pending_record.status = "pending"
+    pending_record.error_code = ""
+    pending_record.error_message = ""
+    pending_record.save()
+
+    threading.Thread(
+        target=_async_create_personal_feishu_task_for_card_action,
+        kwargs={
+            "presales_task": presales_task,
+            "operator_open_id": operator_open_id,
+            "operator_user_id": operator_user_id,
+            "operator_name": operator_name,
+            "source_message_id": source_message_id,
+            "callback_token": callback_token,
+        },
+        daemon=True,
+    ).start()
+    return build_feishu_card_toast_payload(type_="info", content="正在为你创建飞书任务，请稍候。")
 
 
 def _build_department_tree(client: FeishuClient) -> list[dict]:

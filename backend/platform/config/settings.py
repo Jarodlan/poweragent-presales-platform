@@ -26,7 +26,7 @@ INSTALLED_APPS = [
     "rest_framework.authtoken",
     "apps.accounts",
     "apps.customer_demand",
-    "apps.presales_center",
+    "apps.presales_center.apps.PresalesCenterConfig",
     "apps.conversations",
     "apps.tasks",
     "apps.audit",
@@ -160,6 +160,10 @@ FEISHU_USER_AUTH_REDIRECT_URI = os.getenv(
     "FEISHU_USER_AUTH_REDIRECT_URI",
     f"{PLATFORM_BASE_URL.rstrip('/')}/api/v1/presales/feishu/user-auth/callback",
 )
+FEISHU_EVENT_VERIFICATION_TOKEN = os.getenv("FEISHU_EVENT_VERIFICATION_TOKEN", "")
+FEISHU_EVENT_ENCRYPT_KEY = os.getenv("FEISHU_EVENT_ENCRYPT_KEY", "")
+FEISHU_LONG_CONNECTION_LOG_LEVEL = os.getenv("FEISHU_LONG_CONNECTION_LOG_LEVEL", "INFO")
+FEISHU_LONG_CONNECTION_AUTO_START = os.getenv("FEISHU_LONG_CONNECTION_AUTO_START", "false").lower() in {"1", "true", "yes", "on"}
 FEISHU_SYNC_ENABLED = os.getenv("FEISHU_SYNC_ENABLED", "false").lower() == "true"
 FEISHU_SYNC_DEPARTMENT_ALLOWLIST = [
     item.strip()
