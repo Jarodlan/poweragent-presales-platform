@@ -1,194 +1,123 @@
-# PowerAgent Docs and Demos
+# PowerAgent
 
-面向电力行业的双智能体项目仓库。当前我们已经不是只做一个“解决方案生成 Demo”，而是在建设一个可持续扩展的内部智能体平台，包含：
+> An internal AI workspace for power-industry presales, demand discovery, solution generation, and Feishu-based task collaboration.
 
-- `电力行业解决方案生成智能体（0.1.0-mvp）`
-- `客户需求分析智能体（0.1.0-mvp）`
+[中文](#中文) | [English](#english)
 
-当前仓库已经覆盖：
+![Version](https://img.shields.io/badge/version-0.1.0--mvp-2563eb)
+![Frontend](https://img.shields.io/badge/frontend-Vue%203%20%2B%20Vite-42b883)
+![Backend](https://img.shields.io/badge/backend-Django%20%2B%20FastAPI-0f766e)
+![Workflow](https://img.shields.io/badge/workflow-Feishu%20Tasks%20%2B%20CRM-0ea5e9)
+![Status](https://img.shields.io/badge/status-active%20development-f59e0b)
 
-- 多场景解决方案生成智能体的产品、技术、研发文档与前后端实现
-- 客户需求分析智能体的产品、技术、研发文档与后端/前端 MVP 实现
-- 售前闭环中心与飞书协同链路的产品、技术、研发文档与前后端实现
-- Django 平台层、Agent Service、Vue 前端、RAGFlow 脚手架
-- 权限体系、审计能力、管理中心
-- 真实测试结果、评审版 HTML/PDF、方案模板与参考资料
+![PowerAgent Banner](./assets/raw/product_banner.png)
 
-项目当前的核心目标不是做单点聊天机器人，而是形成一条可闭环的内部业务链：
+---
 
-1. 客户现场沟通
-2. 实时需求分析与会中辅助
-3. 会后需求分析报告生成
-4. 需求分析结果一键送入解决方案生成智能体
-5. 生成结构化、可评审的行业解决方案
-6. 在售前闭环中心继续进行任务流转、飞书协同与资料归档
+# 中文
 
-## 1. 当前技术路线
+## 项目简介
+
+`PowerAgent` 是一个面向电力行业内部业务场景的智能体平台，当前重点覆盖三条核心链路：
+
+- `客户需求分析智能体`
+- `解决方案智能体`
+- `售前闭环中心（含飞书任务与飞书 CRM 联动）`
+
+项目目标不是做一个单点聊天机器人，而是把售前过程中的核心动作串成闭环：
+
+1. 客户沟通与会中辅助
+2. 需求分析与正式报告生成
+3. 解决方案生成与参数化确认
+4. 售前任务流转、飞书协同、资料归档
+5. 飞书 CRM 客户/商机绑定与跟进写回
+
+## 当前能力
+
+### 1. 客户需求分析智能体
+
+- 实时录音、转写、会中辅助
+- 分段语义校验与人工复核
+- 自动阶段整理与人工触发整理
+- 独立需求分析报告页
+- 一键转入解决方案工作台
+- 支持飞书 CRM 客户/商机关联
+
+### 2. 解决方案智能体
+
+- 多场景解决方案生成
+- 参数化输入与冲突确认
+- 章节级工作流与校核
+- 知识库检索与证据卡展示
+- 支持从需求分析结果导入方案草稿
+- 支持绑定飞书 CRM 并写回跟进记录
+
+### 3. 售前闭环中心
+
+- 从需求分析报告 / 解决方案结果一键创建售前任务
+- 飞书卡片发送、多人/群聊同时分发
+- 飞书个人任务授权与一键转任务
+- 飞书账号/部门同步与合并
+- 飞书 CRM 客户/商机关联与跟进写回
+
+### 4. 平台基础能力
+
+- 统一模块入口页
+- 账户、角色、权限、部门体系
+- 审计日志中心
+- 用户停用/恢复/回收站
+- 平台级模块权限控制
+
+## 界面预览
+
+| 统一平台入口 | 典型业务场景 |
+| --- | --- |
+| ![Platform Banner](./assets/raw/product_banner.png) | ![Fault Scene](./assets/raw/prod_fault.png) |
+
+| 规划类方案场景 | 电网服务类场景 |
+| --- | --- |
+| ![Planning Scene](./assets/raw/prod_planning.png) | ![Grid Service](./assets/converted/service_grid.png) |
+
+## 技术架构
+
+```mermaid
+flowchart LR
+    A["Vue 3 + Vite Frontend"] --> B["Django Platform API"]
+    A --> C["FastAPI Agent Service"]
+    B --> D["PostgreSQL"]
+    C --> E["Qwen / MiniMax"]
+    C --> F["RAGFlow"]
+    B --> G["Feishu APIs"]
+    G --> H["Feishu Tasks / Cards / CRM(Bitable)"]
+```
+
+### 技术栈
 
 - 前端：`Vue 3` + `Vite` + `Pinia` + `Element Plus`
 - 平台层：`Django` + `Django REST Framework`
 - 智能体执行层：`FastAPI` + `LangGraph`
-- 知识库层：`RAGFlow`
-- 模型接口：`Qwen`、`MiniMax`
-- 平台数据库：`PostgreSQL`
-- RAGFlow 内部数据库：`MySQL`
+- 数据库：`PostgreSQL`
+- 知识库：`RAGFlow`
+- 模型服务：`Qwen`、`MiniMax`
+- 协同与 CRM：`飞书卡片`、`飞书任务`、`飞书多维表格 CRM`
 
-## 2. 当前已实现的核心能力
+## 仓库结构
 
-### 2.1 解决方案生成能力
+```text
+backend/
+  platform/         Django 平台层
+  agent_service/    Agent Service / 工作流执行层
+frontend/           Vue 前端
+ragflow/            本地 RAGFlow 部署脚手架
+项目文档/           产品/技术/开发计划/模板
+测试结果/           联调结果、评审材料
+参考图/             视觉素材
+本地调研材料/       调研与分析材料
+```
 
-- 多场景路由与模板匹配
-- 场景参数配置与前端冲突确认
-- 章节级工作流生成
-- 逐章节校核 + 程序化最终拼装
-- “其他场景”通用模板兜底
-- 互联网公开资料优先 / 知识库补充的方案验证能力
-- 客户需求分析结果一键导入方案工作台
-- 从需求分析结果自动加载相符的方案参数
-- 导入前支持人工确认与人工编辑
+## 快速启动
 
-### 2.2 知识库与检索
-
-- 项目内 `ragflow/` 本地部署脚手架
-- 已接通 `Agent Service -> RAGFlow` 真实检索链
-- 支持 evidence cards / 证据卡展示
-- 支持知识库测试结果归档
-
-### 2.3 平台与权限
-
-- Token 登录体系
-- 7 天有效期登录态
-- 超级管理员初始化脚本
-- 账户 / 角色 / 权限 / 部门模型
-- 用户、角色、部门管理页面
-- 审计日志中心
-- 用户回收站
-- 用户详情：登录历史 / 操作历史 / 会话历史 / 生成任务历史
-
-### 2.4 前端工作台
-
-- ChatGPT 风格工作台
-- 左侧历史会话列表
-- 多阶段状态条与阶段轨迹
-- 发送区紧凑模式
-- 参数面板 6 场景支持
-- 证据卡抽屉与详情查看
-- 失败 / 停止 / 重试态
-
-### 2.5 客户需求分析智能体设计
-
-### 2.5 客户需求分析智能体
-
-- 客户沟通会话建模
-- 会中辅助工作台 + 独立报告页双页面结构
-- 左侧会话栏支持收起/展开
-- 浏览器麦克风实时录音
-- Qwen ASR 接入
-- 语义校验、人工复核、分段保留/丢弃
-- 自动阶段整理 + 人工触发阶段整理
-- 正式需求分析报告异步生成
-- 会后正式报告一键转入解决方案生成工作台
-- 知识库开关与跨行业场景适配
-
-### 2.6 售前闭环与飞书协同
-
-- 售前闭环中心前后端实现
-- 从需求分析报告/解决方案结果一键创建售前任务
-- 飞书用户与部门同步
-- 平台账号/部门与飞书同步对象合并
-- 飞书交互卡片发送
-- 成员树按部门展开，多成员与群聊同时发送
-- 飞书个人任务授权
-- 飞书卡片一键转为接收人的飞书个人任务
-
-## 3. 仓库结构
-
-- `backend/platform/`
-  - Django 平台层
-  - 账户、权限、会话、任务、审计、配置管理
-- `backend/agent_service/`
-  - Agent Service
-  - LangGraph 工作流、多场景模板路由、模型调用、RAGFlow 检索
-- `frontend/`
-  - Vue 前端工程
-  - 登录页、统一模块入口、方案工作台、客户需求分析工作台、独立报告页、售前闭环中心、组织与权限中心、审计日志中心
-- `ragflow/`
-  - 项目内独立 RAGFlow 部署脚手架
-- `项目文档/`
-  - 产品、技术、开发计划、模板、演示材料总目录
-- `测试结果/`
-  - 真实运行结果、评审版 HTML/PDF、对比归档
-- `参考图/`
-  - 视觉参考素材
-
-## 4. 文档导航
-
-### 4.1 产品设计
-
-- [项目文档总览](./项目文档/README.md)
-- [电力行业解决方案生成Agent_PRD](./项目文档/01-产品设计/电力行业解决方案生成Agent_PRD.md)
-- [电力行业解决方案生成Agent_前端页面详细原型说明](./项目文档/01-产品设计/电力行业解决方案生成Agent_前端页面详细原型说明.md)
-- [电力解决方案生成Agent Demo实施方案](./项目文档/01-产品设计/电力解决方案生成Agent%20Demo实施方案.md)
-- [客户需求分析智能体_PRD](./项目文档/01-产品设计/客户需求分析智能体_PRD.md)
-- [客户需求分析智能体_前端页面原型说明](./项目文档/01-产品设计/客户需求分析智能体_前端页面原型说明.md)
-- [客户需求分析智能体_会中辅助模式产品方案](./项目文档/01-产品设计/客户需求分析智能体_会中辅助模式产品方案.md)
-- [售前闭环智能体平台_飞书接入PRD](./项目文档/01-产品设计/售前闭环智能体平台_飞书接入PRD.md)
-- [售前闭环智能体平台_前端页面原型说明](./项目文档/01-产品设计/售前闭环智能体平台_前端页面原型说明.md)
-
-### 4.2 技术设计
-
-- [电力行业解决方案生成Agent_技术架构设计说明书](./项目文档/02-技术设计/电力行业解决方案生成Agent_技术架构设计说明书.md)
-- [电力行业解决方案生成Agent_接口文档](./项目文档/02-技术设计/电力行业解决方案生成Agent_接口文档.md)
-- [Django平台层与AgentService分层设计稿](./项目文档/02-技术设计/Django平台层与AgentService分层设计稿.md)
-- [电力行业解决方案Agent_多场景技术设计稿](./项目文档/02-技术设计/电力行业解决方案Agent_多场景技术设计稿.md)
-- [电力行业解决方案Agent场景路由与模板管理方案](./项目文档/02-技术设计/电力行业解决方案Agent场景路由与模板管理方案.md)
-- [电力行业解决方案Agent_账户与权限体系设计文档](./项目文档/02-技术设计/电力行业解决方案Agent_账户与权限体系设计文档.md)
-- [电力行业解决方案Agent_账户与权限体系技术设计稿](./项目文档/02-技术设计/电力行业解决方案Agent_账户与权限体系技术设计稿.md)
-- [电力行业解决方案生成Agent_数据库表结构设计草案](./项目文档/02-技术设计/电力行业解决方案生成Agent_数据库表结构设计草案.md)
-- [电力行业解决方案生成Agent_LangGraph节点Prompt设计稿](./项目文档/02-技术设计/电力行业解决方案生成Agent_LangGraph节点Prompt设计稿.md)
-- [客户需求分析智能体_技术设计稿](./项目文档/02-技术设计/客户需求分析智能体_技术设计稿.md)
-- [客户需求分析智能体_数据库表结构设计草案](./项目文档/02-技术设计/客户需求分析智能体_数据库表结构设计草案.md)
-- [客户需求分析智能体_接口设计文档](./项目文档/02-技术设计/客户需求分析智能体_接口设计文档.md)
-- [飞书账户与部门同步方案分析](./项目文档/02-技术设计/飞书账户与部门同步方案分析.md)
-- [售前闭环智能体平台_技术设计稿](./项目文档/02-技术设计/售前闭环智能体平台_技术设计稿.md)
-- [售前闭环智能体平台_数据库表结构设计草案](./项目文档/02-技术设计/售前闭环智能体平台_数据库表结构设计草案.md)
-- [售前闭环智能体平台_接口设计文档](./项目文档/02-技术设计/售前闭环智能体平台_接口设计文档.md)
-- [飞书多维表格CRM接入方案分析](./项目文档/02-技术设计/飞书多维表格CRM接入方案分析.md)
-- [飞书CRM最小表结构设计](./项目文档/02-技术设计/飞书CRM最小表结构设计.md)
-- [平台对象与飞书CRM记录映射清单](./项目文档/02-技术设计/平台对象与飞书CRM记录映射清单.md)
-- [飞书CRM接口设计文档](./项目文档/02-技术设计/飞书CRM接口设计文档.md)
-- [飞书CRM前端交互原型说明](./项目文档/01-产品设计/飞书CRM前端交互原型说明.md)
-
-### 4.3 开发计划
-
-- [电力行业解决方案生成Agent_Vue前端开发任务拆解清单](./项目文档/03-开发计划/电力行业解决方案生成Agent_Vue前端开发任务拆解清单.md)
-- [电力行业解决方案生成Agent_后端开发任务拆解清单](./项目文档/03-开发计划/电力行业解决方案生成Agent_后端开发任务拆解清单.md)
-- [电力行业解决方案Agent_账户与权限体系开发任务拆解清单](./项目文档/03-开发计划/电力行业解决方案Agent_账户与权限体系开发任务拆解清单.md)
-- [PostgreSQL本地开发说明](./项目文档/03-开发计划/PostgreSQL本地开发说明.md)
-- [客户需求分析智能体_开发任务拆解清单](./项目文档/03-开发计划/客户需求分析智能体_开发任务拆解清单.md)
-- [售前闭环智能体平台_飞书接入最小功能清单与开发任务拆解](./项目文档/03-开发计划/售前闭环智能体平台_飞书接入最小功能清单与开发任务拆解.md)
-
-### 4.4 知识库与模板
-
-- [智能电网故障诊断解决方案模板](./项目文档/04-知识库与模板/智能电网故障诊断解决方案模板.md)
-- [分布式储能聚合运营智能体解决方案模板](./项目文档/04-知识库与模板/分布式储能聚合运营智能体解决方案模板.md)
-- [配网规划智能体解决方案模板](./项目文档/04-知识库与模板/配网规划智能体解决方案模板.md)
-- [新能源功率预测智能体解决方案模板](./项目文档/04-知识库与模板/新能源功率预测智能体解决方案模板.md)
-- [虚拟电厂源网荷储协同智能体解决方案模板](./项目文档/04-知识库与模板/虚拟电厂源网荷储协同智能体解决方案模板.md)
-- [通用电力智能体解决方案模板](./项目文档/04-知识库与模板/通用电力智能体解决方案模板.md)
-- [电力知识库元数据字典模板](./项目文档/04-知识库与模板/电力知识库元数据字典模板.md)
-- [电力知识库分类与元数据设计表](./项目文档/04-知识库与模板/电力知识库分类与元数据设计表.md)
-
-## 5. 本地服务默认端口
-
-- 前端：`http://127.0.0.1:5173`
-- Django 平台层：`http://127.0.0.1:8000`
-- Agent Service：`http://127.0.0.1:9100`
-- RAGFlow：`http://127.0.0.1:9381`
-
-## 6. 快速启动
-
-### 6.1 Django 平台层
+### 1. Django 平台层
 
 ```bash
 cd backend/platform
@@ -200,12 +129,7 @@ python manage.py migrate
 python manage.py runserver 127.0.0.1:8000 --noreload
 ```
 
-说明：
-
-- 默认开发数据库：`PostgreSQL`
-- `SQLite` 仅作为 PostgreSQL 临时不可用时的单机兜底，不作为默认开发、联调或验收数据库
-
-### 6.2 Agent Service
+### 2. Agent Service
 
 ```bash
 cd backend/agent_service
@@ -216,7 +140,7 @@ cp .env.example .env
 uvicorn app.main:app --host 127.0.0.1 --port 9100 --reload
 ```
 
-### 6.3 前端
+### 3. Frontend
 
 ```bash
 cd frontend
@@ -224,7 +148,7 @@ npm install
 npm run dev
 ```
 
-### 6.4 RAGFlow
+### 4. RAGFlow
 
 ```bash
 cd ragflow
@@ -232,26 +156,23 @@ cp .env.example .env
 docker compose -f docker-compose.yml up -d
 ```
 
-## 7. 数据库与存储约定
+## 本地服务端口
 
-- `Django 平台层`：默认 `PostgreSQL`
-- `RAGFlow`：使用其内部 `MySQL`
-- `SQLite`：仅本地临时兜底
+- Frontend: `http://127.0.0.1:5173`
+- Django: `http://127.0.0.1:8000`
+- Agent Service: `http://127.0.0.1:9100`
+- RAGFlow: `http://127.0.0.1:9381`
 
-详细说明见：
+## 初始化
 
-- [PostgreSQL本地开发说明](./项目文档/03-开发计划/PostgreSQL本地开发说明.md)
-
-## 8. 初始化账户与权限
-
-### 8.1 初始化 RBAC 种子
+### 初始化权限种子
 
 ```bash
 cd backend/platform
 ./.venv/bin/python manage.py bootstrap_rbac
 ```
 
-### 8.2 创建超级管理员
+### 创建超级管理员
 
 ```bash
 cd backend/platform
@@ -262,125 +183,246 @@ cd backend/platform
   --display-name '平台管理员'
 ```
 
-### 8.3 登录入口
+### 登录入口
 
 - 登录页：`http://127.0.0.1:5173/login`
 
-当前口径：
+## 主要页面
 
-- 项目主要服务公司内部员工
-- 暂不开放用户自注册
-- 通过管理员创建账户或脚本初始化超级管理员
-- access token 默认有效期：`7 天`
+- 统一模块入口：`/modules`
+- 解决方案智能体：`/`
+- 客户需求分析智能体：`/customer-demand`
+- 售前闭环中心：`/presales`
+- 组织与权限管理：`/admin/access`
+- 审计日志中心：`/admin/audit`
 
-## 9. 当前支持的解决方案场景
+## 文档入口
 
-### 9.1 预设场景
+### 核心总览
 
-- 智能电网故障诊断
-- 分布式储能聚合运营
-- 配网规划
-- 新能源功率预测
-- 虚拟电厂 / 源网荷储协同
+- [项目文档总览](./项目文档/README.md)
 
-### 9.2 兜底场景
+### 产品设计
 
-- 其他场景
+- [客户需求分析智能体 PRD](./项目文档/01-产品设计/客户需求分析智能体_PRD.md)
+- [客户需求分析智能体 前端页面原型说明](./项目文档/01-产品设计/客户需求分析智能体_前端页面原型说明.md)
+- [售前闭环智能体平台 飞书接入 PRD](./项目文档/01-产品设计/售前闭环智能体平台_飞书接入PRD.md)
+- [售前闭环智能体平台 前端页面原型说明](./项目文档/01-产品设计/售前闭环智能体平台_前端页面原型说明.md)
+- [飞书 CRM 绑定操作流程与注意事项](./项目文档/01-产品设计/飞书CRM绑定操作流程与注意事项.md)
 
-当用户需求不在预设 5 个场景内时：
+### 技术设计
 
-- 前端可选择 `其他场景`
-- 后端不强行套用已有专业模板
-- 改走通用电力智能体解决方案模板
-- 允许牺牲一部分专业精度，换取更稳的场景匹配与完整流程
+- [客户需求分析智能体 技术设计稿](./项目文档/02-技术设计/客户需求分析智能体_技术设计稿.md)
+- [售前闭环智能体平台 技术设计稿](./项目文档/02-技术设计/售前闭环智能体平台_技术设计稿.md)
+- [飞书多维表格 CRM 接入方案分析](./项目文档/02-技术设计/飞书多维表格CRM接入方案分析.md)
+- [飞书 CRM 接口设计文档](./项目文档/02-技术设计/飞书CRM接口设计文档.md)
 
-## 10. 当前支持的客户需求分析链路
+## 当前阶段
 
-当前 MVP 已支持：
+- 当前版本：`0.1.0-mvp`
+- 当前重点：
+  - 会中辅助体验优化
+  - 需求分析与解决方案联动
+  - 售前闭环流转
+  - 飞书任务与飞书 CRM 闭环
 
-1. 新建客户沟通会话
-2. 开始记录 / 暂停 / 结束记录
-3. 实时转写沟通记录展示
-4. 分段语义校验
-5. 人工复核保留 / 丢弃
-6. 自动阶段整理
-7. 人工触发阶段整理
-8. 异步生成正式需求分析报告
-9. 独立报告页查看与导出
-10. 一键转入解决方案生成工作台
+## Roadmap
 
-## 11. 管理与权限入口
+### 已完成
 
-- 登录页：`http://127.0.0.1:5173/login`
-- 方案工作台：`http://127.0.0.1:5173/`
-- 客户需求分析工作台：`http://127.0.0.1:5173/customer-demand`
-- 组织与权限中心：`http://127.0.0.1:5173/admin/access`
-- 审计日志中心：`http://127.0.0.1:5173/admin/audit`
+- 统一模块入口与权限控制
+- 客户需求分析智能体会中辅助
+- 需求分析报告生成与一键转方案
+- 售前闭环中心与飞书任务卡片流转
+- 飞书 CRM 客户/商机关联与跟进写回
 
-说明：
+### 进行中
 
-- `组织与权限中心` 仅超级管理员或具备 `platform.manage` 权限的用户可见
-- 普通用户只能看到自己的会话与任务历史
-- access token 默认有效期为 `7 天`
+- 飞书 CRM 深度联动体验优化
+- 售前任务流转、筛选与归档增强
+- 需求分析与解决方案的跨模块自动继承
 
-## 12. 当前阶段说明
+### 下一步
 
-当前整体能力处于 `0.1.0-mvp` 阶段，重点已经从“是否可跑通”转到：
+- 飞书任务与平台售前任务双向状态同步
+- CRM 自动推荐客户/商机与默认写回目标
+- 更多电力行业场景模板与知识增强
+- 生产环境部署与稳定性治理
 
-1. 会中辅助体验优化
-2. 需求分析质量提升
-3. 需求分析结果与方案生成的闭环联动
-4. 多场景稳定性与测试基线建设
+## 安全与配置说明
 
-同时，平台管理侧当前已具备：
+- 仓库仅保留 `.env.example`
+- 实际 `.env`、录音文件、媒体文件不应提交
+- 飞书、模型、数据库等真实密钥应保存在本地或部署环境
 
-- 用户管理
-- 角色管理
-- 部门管理
-- 用户停用 / 恢复
-- 用户删除回收站
-- 用户详情抽屉
-  - 登录历史
-  - 操作历史
-  - 会话历史
-  - 生成任务历史
-- 审计日志检索
+---
 
-## 13. 真实测试结果与评审材料
+# English
 
-目录：
+## Overview
 
-- [测试结果](./测试结果/)
+`PowerAgent` is an internal AI workspace for power-industry presales operations. It currently connects three major workflows:
 
-已包含：
+- `Customer Demand Analysis Agent`
+- `Solution Generation Agent`
+- `Presales Center` with `Feishu Tasks` and `Feishu CRM`
 
-- 多轮真实运行的 Markdown / JSON 结果
-- 与参考模板的对比归档
-- 外部评审版 HTML / PDF
+The goal is not a single chat assistant, but an end-to-end presales workflow:
 
-适合用于：
+1. Customer communication and in-meeting assistance
+2. Demand analysis and formal reporting
+3. Solution generation
+4. Presales task orchestration and Feishu collaboration
+5. CRM binding and writeback through Feishu Bitable
 
-- 方案质量评估
-- 工作流效果对比
-- 外部评审与内部汇报
+## Key Features
 
-## 14. 当前开发建议
+### Customer Demand Analysis
 
-如果你是新加入项目的开发者，建议按这个顺序理解仓库：
+- Real-time recording and transcription
+- Semantic validation and manual review
+- Stage summaries and final demand reports
+- One-click handoff to solution generation
+- Feishu CRM customer/opportunity binding
 
-1. 先看 [项目文档总览](./项目文档/README.md)
-2. 再看 [PRD](./项目文档/01-产品设计/电力行业解决方案生成Agent_PRD.md)
-3. 再看 [技术架构设计说明书](./项目文档/02-技术设计/电力行业解决方案生成Agent_技术架构设计说明书.md)
-4. 再看 [多场景技术设计稿](./项目文档/02-技术设计/电力行业解决方案Agent_多场景技术设计稿.md)
-5. 然后启动：
-   - PostgreSQL
-   - Django
-   - Agent Service
-   - 前端
-   - RAGFlow
+### Solution Generation
 
-## 15. 备注
+- Multi-scenario solution workflows
+- Parameterized generation and conflict confirmation
+- Section-level orchestration and verification
+- Knowledge retrieval and evidence cards
+- CRM binding and writeback support
 
-- 当前仓库已经不是纯文档仓库，而是“文档 + 可运行项目骨架 + 核心功能实现”混合仓库
-- 前端包体目前仍偏大，构建会有 chunk warning，不影响本地开发与联调
-- 项目当前仍处于持续迭代阶段，建议以 `main` 为基线，新增功能时按模块小步提交
+### Presales Center
+
+- Create presales tasks from demand reports or solution outputs
+- Send Feishu cards to users and groups
+- Convert cards to personal Feishu tasks
+- Feishu account/department sync and merge
+- Feishu CRM binding and follow-up writeback
+
+## Screenshots
+
+| Unified Entry | Example Business Scene |
+| --- | --- |
+| ![Platform Banner](./assets/raw/product_banner.png) | ![Fault Scene](./assets/raw/prod_fault.png) |
+
+| Planning Scene | Grid Service Scene |
+| --- | --- |
+| ![Planning Scene](./assets/raw/prod_planning.png) | ![Grid Service](./assets/converted/service_grid.png) |
+
+## Tech Stack
+
+- Frontend: `Vue 3`, `Vite`, `Pinia`, `Element Plus`
+- Platform API: `Django`, `Django REST Framework`
+- Agent runtime: `FastAPI`, `LangGraph`
+- Database: `PostgreSQL`
+- Knowledge layer: `RAGFlow`
+- Model providers: `Qwen`, `MiniMax`
+- Collaboration: `Feishu Cards`, `Feishu Tasks`, `Feishu Bitable CRM`
+
+## Repository Structure
+
+```text
+backend/            Platform API and agent services
+frontend/           Vue application
+ragflow/            Local RAGFlow deployment scaffold
+项目文档/           Product and technical documents
+测试结果/           Test outputs and review materials
+参考图/             Visual references
+本地调研材料/       Local research materials
+```
+
+## Quick Start
+
+### Platform API
+
+```bash
+cd backend/platform
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env
+python manage.py migrate
+python manage.py runserver 127.0.0.1:8000 --noreload
+```
+
+### Agent Service
+
+```bash
+cd backend/agent_service
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env
+uvicorn app.main:app --host 127.0.0.1 --port 9100 --reload
+```
+
+### Frontend
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+### RAGFlow
+
+```bash
+cd ragflow
+cp .env.example .env
+docker compose -f docker-compose.yml up -d
+```
+
+## Local Endpoints
+
+- Frontend: `http://127.0.0.1:5173`
+- Django: `http://127.0.0.1:8000`
+- Agent Service: `http://127.0.0.1:9100`
+- RAGFlow: `http://127.0.0.1:9381`
+
+## Docs
+
+- [Project Documentation Index](./项目文档/README.md)
+- [Customer Demand Analysis PRD](./项目文档/01-产品设计/客户需求分析智能体_PRD.md)
+- [Presales + Feishu PRD](./项目文档/01-产品设计/售前闭环智能体平台_飞书接入PRD.md)
+- [Feishu CRM Integration Analysis](./项目文档/02-技术设计/飞书多维表格CRM接入方案分析.md)
+- [Feishu CRM API Design](./项目文档/02-技术设计/飞书CRM接口设计文档.md)
+
+## Status
+
+- Version: `0.1.0-mvp`
+- Current focus:
+  - In-meeting assistant UX
+  - Demand-to-solution workflow
+  - Presales execution loop
+  - Feishu task and CRM integration
+
+## Roadmap
+
+### Done
+
+- Unified module entry and permission controls
+- In-meeting customer demand assistant
+- Demand report generation and solution handoff
+- Presales center with Feishu task card delivery
+- Feishu CRM customer/opportunity binding and writeback
+
+### In Progress
+
+- Deeper Feishu CRM workflow polishing
+- Presales task filtering, flow management, and archive UX
+- Cross-module inheritance from demand analysis to solution and presales
+
+### Next
+
+- Two-way status sync between Feishu tasks and platform tasks
+- Automatic CRM recommendations for customer/opportunity binding
+- More domain templates and knowledge-enhanced workflows
+- Production deployment and operational hardening
+
+## Security Notes
+
+- Only `.env.example` files should be committed
+- Real secrets, media, and recordings must stay out of the repository
+- Production credentials should be stored in local or deployment environments
