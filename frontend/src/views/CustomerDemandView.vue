@@ -32,6 +32,7 @@ import CrmWritebackHistoryDrawer from '@/components/crm/CrmWritebackHistoryDrawe
 import { bindCustomerDemandSessionCrm } from '@/api/crm'
 import { useAuthStore } from '@/stores/auth'
 import { useCustomerDemandStore } from '@/stores/customerDemand'
+import type { CrmRecordItem } from '@/types/crm'
 import { renderMarkdown } from '@/utils/markdown'
 import { formatDateTime, formatRelativeTime } from '@/utils/time'
 
@@ -45,6 +46,7 @@ const sidebarCollapsed = ref(false)
 const createDialogVisible = ref(false)
 const recordingDialogVisible = ref(false)
 const crmBindDialogVisible = ref(false)
+const createCrmDialogVisible = ref(false)
 const crmHistoryVisible = ref(false)
 const uploadInputRef = ref<HTMLInputElement | null>(null)
 const transcriptContainerRef = ref<HTMLElement | null>(null)
@@ -64,6 +66,17 @@ const createForm = reactive({
   customer_type: '',
   knowledge_enabled: false,
   remarks: '',
+})
+const createCrmSelection = reactive<{
+  crm_customer_record_id: string
+  crm_opportunity_record_id: string
+  customer: CrmRecordItem | null
+  opportunity: CrmRecordItem | null
+}>({
+  crm_customer_record_id: '',
+  crm_opportunity_record_id: '',
+  customer: null,
+  opportunity: null,
 })
 const recorderState = ref<'idle' | 'recording' | 'paused' | 'stopping' | 'unsupported'>(
   typeof window !== 'undefined' &&
@@ -760,7 +773,7 @@ async function handleCreateSession() {
     ElMessage.warning('请先填写客户名称和会话标题')
     return
   }
-  await demandStore.createSession({
+  const session = await demandStore.createSession({
     customer_name: createForm.customer_name.trim(),
     session_title: createForm.session_title.trim(),
     industry: createForm.industry.trim(),
@@ -771,6 +784,18 @@ async function handleCreateSession() {
     remarks: createForm.remarks.trim(),
     knowledge_scope: {},
   })
+  if (session && createCrmSelection.crm_customer_record_id) {
+    try {
+      await bindCustomerDemandSessionCrm(session.id, {
+        crm_customer_record_id: createCrmSelection.crm_customer_record_id,
+        crm_opportunity_record_id: createCrmSelection.crm_opportunity_record_id,
+      })
+      await demandStore.selectSession(session.id)
+      ElMessage.success('已关联飞书 CRM，并创建客户沟通会话')
+    } catch (error) {
+      ElMessage.warning(error instanceof Error ? `会话已创建，但 CRM 关联失败：${error.message}` : '会话已创建，但 CRM 关联失败')
+    }
+  }
   createDialogVisible.value = false
   Object.assign(createForm, {
     customer_name: '',
@@ -782,6 +807,7 @@ async function handleCreateSession() {
     knowledge_enabled: false,
     remarks: '',
   })
+  resetCreateCrmSelection()
 }
 
 async function handleSelectSession(sessionId: string) {
@@ -790,7 +816,44 @@ async function handleSelectSession(sessionId: string) {
 }
 
 function openCreateDialog() {
+  resetCreateCrmSelection()
   createDialogVisible.value = true
+}
+
+function resetCreateCrmSelection() {
+  createCrmSelection.crm_customer_record_id = ''
+  createCrmSelection.crm_opportunity_record_id = ''
+  createCrmSelection.customer = null
+  createCrmSelection.opportunity = null
+}
+
+function buildCreateDialogSessionTitle(customerName: string, opportunityName: string) {
+  const parts = [customerName.trim(), opportunityName.trim()].filter(Boolean)
+  if (!parts.length) return ''
+  return `${parts.join(' · ')}需求沟通`
+}
+
+function handleCreateDialogCrmBind(payload: {
+  crm_customer_record_id: string
+  crm_opportunity_record_id: string
+  customer?: CrmRecordItem | null
+  opportunity?: CrmRecordItem | null
+}) {
+  createCrmSelection.crm_customer_record_id = payload.crm_customer_record_id
+  createCrmSelection.crm_opportunity_record_id = payload.crm_opportunity_record_id
+  createCrmSelection.customer = payload.customer || null
+  createCrmSelection.opportunity = payload.opportunity || null
+
+  const customer = payload.customer || null
+  const opportunity = payload.opportunity || null
+  if (customer?.name) createForm.customer_name = customer.name
+  if (customer?.industry) createForm.industry = customer.industry
+  if (customer?.region) createForm.region = customer.region
+  if (opportunity?.name) createForm.topic = opportunity.name
+  if (!createForm.session_title.trim()) {
+    createForm.session_title = buildCreateDialogSessionTitle(customer?.name || '', opportunity?.name || '')
+  }
+  ElMessage.success(opportunity?.name ? '已带入飞书 CRM 客户和商机信息' : '已带入飞书 CRM 客户信息')
 }
 
 async function openRecordingDialog() {
@@ -1524,6 +1587,19 @@ onBeforeUnmount(() => {
 
     <el-dialog v-model="createDialogVisible" title="新建客户沟通会话" width="560px">
       <div class="create-form">
+        <div class="create-form__actions">
+          <el-button v-if="canBindCrm" type="primary" plain @click="createCrmDialogVisible = true">
+            <el-icon><Connection /></el-icon>
+            从飞书 CRM 带入
+          </el-button>
+        </div>
+        <div v-if="createCrmSelection.crm_customer_record_id" class="create-form__crm-summary">
+          <strong>已选飞书 CRM</strong>
+          <p>
+            {{ createCrmSelection.customer?.name || '未命名客户' }}
+            <span v-if="createCrmSelection.opportunity?.name"> · {{ createCrmSelection.opportunity?.name }}</span>
+          </p>
+        </div>
         <el-input v-model="createForm.customer_name" placeholder="客户名称" />
         <el-input v-model="createForm.session_title" placeholder="会话标题" />
         <el-input v-model="createForm.industry" placeholder="行业" />
@@ -1569,6 +1645,11 @@ onBeforeUnmount(() => {
         </el-button>
       </template>
     </el-dialog>
+
+    <CrmSearchDialog
+      v-model="createCrmDialogVisible"
+      @confirm="handleCreateDialogCrmBind"
+    />
 
     <CrmSearchDialog
       v-model="crmBindDialogVisible"
@@ -2298,6 +2379,32 @@ onBeforeUnmount(() => {
 .create-form {
   display: grid;
   gap: 12px;
+}
+
+.create-form__actions {
+  display: flex;
+  justify-content: flex-start;
+}
+
+.create-form__crm-summary {
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, rgba(236, 248, 255, 0.98), rgba(247, 252, 255, 0.95));
+  border: 1px solid rgba(21, 127, 255, 0.12);
+  color: #163047;
+}
+
+.create-form__crm-summary strong {
+  display: block;
+  font-size: 13px;
+  color: #157fff;
+  margin-bottom: 4px;
+}
+
+.create-form__crm-summary p {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.6;
 }
 
 .review-form {

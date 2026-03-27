@@ -15,6 +15,7 @@ from rest_framework.authtoken.models import Token
 
 from apps.accounts.models import Department, User
 from apps.audit.models import AuditLog
+from apps.conversations.models import Conversation
 from apps.customer_demand.models import CustomerDemandReport
 
 from .feishu import FeishuApiError, FeishuClient
@@ -29,9 +30,9 @@ def resolve_visible_presales_tasks(user: User):
         "created_by",
         "latest_feishu_delivery",
     )
-    if user.is_superuser or user.has_permission_code("presales_task.manage"):
+    if user.is_superuser or user.has_permission_code("presales_task.view_all"):
         return qs
-    return qs.filter(Q(owner_user=user) | Q(assignee_user=user)).distinct()
+    return qs.filter(owner_user=user).distinct()
 
 
 def resolve_visible_presales_archives(user: User):
@@ -355,6 +356,24 @@ def create_presales_task(*, created_by, owner_user=None, owner_department=None, 
     return task
 
 
+def _bind_and_writeback_task_if_crm_available(*, task: PresalesTask, operator_user, provider: str = "", crm_customer_record_id: str = "", crm_opportunity_record_id: str = "") -> PresalesTask:
+    if not crm_customer_record_id:
+        return task
+    try:
+        from apps.crm_integration.services import bind_presales_task_crm, writeback_presales_task
+
+        task = bind_presales_task_crm(
+            task=task,
+            provider=provider or "feishu_bitable",
+            crm_customer_record_id=crm_customer_record_id,
+            crm_opportunity_record_id=crm_opportunity_record_id,
+        )
+        writeback_presales_task(task=task, operator_user=operator_user)
+    except Exception:
+        return task
+    return task
+
+
 @transaction.atomic
 def create_task_from_demand_report(*, report: CustomerDemandReport, created_by, assignee_user=None, task_title: str, task_description: str = "", priority: str = "medium", due_at=None, next_follow_up_at=None, collaborator_user_ids=None, payload_json: dict | None = None):
     payload = dict(payload_json or {})
@@ -378,7 +397,13 @@ def create_task_from_demand_report(*, report: CustomerDemandReport, created_by, 
         collaborator_user_ids=collaborator_user_ids,
         payload_json=payload,
     )
-    return task
+    return _bind_and_writeback_task_if_crm_available(
+        task=task,
+        operator_user=created_by,
+        provider=report.session.crm_provider,
+        crm_customer_record_id=report.session.crm_customer_record_id,
+        crm_opportunity_record_id=report.session.crm_opportunity_record_id,
+    )
 
 
 @transaction.atomic
@@ -402,7 +427,16 @@ def create_task_from_solution_result(*, created_by, source_id: str, source_title
         collaborator_user_ids=collaborator_user_ids,
         payload_json=payload,
     )
-    return task
+    conversation = Conversation.objects.filter(id=source_id).first()
+    if not conversation:
+        return task
+    return _bind_and_writeback_task_if_crm_available(
+        task=task,
+        operator_user=created_by,
+        provider=conversation.crm_provider,
+        crm_customer_record_id=conversation.crm_customer_record_id,
+        crm_opportunity_record_id=conversation.crm_opportunity_record_id,
+    )
 
 
 @transaction.atomic

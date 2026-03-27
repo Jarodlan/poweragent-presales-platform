@@ -51,7 +51,7 @@ def _has_any_permission(user, codes: list[str]) -> bool:
 
 
 def _ensure_presales_access(user):
-    if not _has_any_permission(user, ["presales_center.access", "presales_task.view", "presales_task.manage"]):
+    if not _has_any_permission(user, ["presales_center.access", "presales_task.view", "presales_task.view_all", "presales_task.manage"]):
         return Response({"code": 40301, "message": "无权访问售前闭环模块", "data": None}, status=status.HTTP_403_FORBIDDEN)
     return None
 
@@ -63,7 +63,7 @@ def _ensure_task_manage(user):
 
 
 def _ensure_task_view(user):
-    if not _has_any_permission(user, ["presales_task.view", "presales_task.manage"]):
+    if not _has_any_permission(user, ["presales_task.view", "presales_task.view_all", "presales_task.manage"]):
         return Response({"code": 40303, "message": "无权查看售前任务", "data": None}, status=status.HTTP_403_FORBIDDEN)
     return None
 

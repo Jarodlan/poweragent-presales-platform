@@ -96,4 +96,4 @@ export const CUSTOMER_DEMAND_PERMISSION_CODES = [
 export const KNOWLEDGE_BASE_PERMISSION_CODES = ['knowledge.access', 'knowledge.manage']
 export const ACCESS_ADMIN_PERMISSION_CODES = ['access_admin.access', 'platform.manage']
 export const AUDIT_CENTER_PERMISSION_CODES = ['audit.access', 'audit.view']
-export const PRESALES_CENTER_PERMISSION_CODES = ['presales_center.access', 'presales_task.view', 'presales_task.manage']
+export const PRESALES_CENTER_PERMISSION_CODES = ['presales_center.access', 'presales_task.view', 'presales_task.view_all', 'presales_task.manage']

@@ -25,6 +25,7 @@ import {
   updatePresalesTask,
 } from '@/api/presales'
 import { useAuthStore } from '@/stores/auth'
+import type { CrmRecordItem } from '@/types/crm'
 import type {
   FeishuDeliveryRecordItem,
   FeishuRecipientDepartmentItem,
@@ -83,6 +84,7 @@ const taskDialogVisible = ref(false)
 const sendDialogVisible = ref(false)
 const deliveryDrawerVisible = ref(false)
 const crmBindDialogVisible = ref(false)
+const createTaskCrmDialogVisible = ref(false)
 const crmWritebackDialogVisible = ref(false)
 const crmHistoryVisible = ref(false)
 const memberTreeRef = ref()
@@ -100,6 +102,17 @@ const taskForm = reactive<PresalesTaskPayload>({
   due_at: null,
   next_follow_up_at: null,
   source_type: 'manual',
+})
+const createTaskCrmSelection = reactive<{
+  crm_customer_record_id: string
+  crm_opportunity_record_id: string
+  customer: CrmRecordItem | null
+  opportunity: CrmRecordItem | null
+}>({
+  crm_customer_record_id: '',
+  crm_opportunity_record_id: '',
+  customer: null,
+  opportunity: null,
 })
 
 const sendFormRef = ref()
@@ -445,6 +458,7 @@ function resetTaskForm() {
   taskForm.collaborator_user_ids = []
   taskForm.status = 'pending'
   taskForm.payload_json = {}
+  resetCreateTaskCrmSelection()
 }
 
 function openCreateTaskDialog() {
@@ -485,8 +499,25 @@ async function submitTaskForm() {
       next_follow_up_at: taskForm.next_follow_up_at || null,
     }
     if (editingMode.value === 'create') {
-      await createPresalesTask(payload)
-      ElMessage.success('售前任务已创建')
+      const result = await createPresalesTask(payload)
+      if (createTaskCrmSelection.crm_customer_record_id) {
+        try {
+          await bindPresalesTaskCrm(result.task.id, {
+            crm_customer_record_id: createTaskCrmSelection.crm_customer_record_id,
+            crm_opportunity_record_id: createTaskCrmSelection.crm_opportunity_record_id,
+          })
+          await writebackPresalesTaskCrm(result.task.id, {
+            confirmed: true,
+            write_target: 'followup',
+            mode: 'append',
+          })
+          ElMessage.success('售前任务已创建，并已写回飞书 CRM 跟进记录')
+        } catch (error) {
+          ElMessage.warning(error instanceof Error ? `售前任务已创建，但 CRM 回写失败：${error.message}` : '售前任务已创建，但 CRM 回写失败')
+        }
+      } else {
+        ElMessage.success('售前任务已创建')
+      }
     } else if (selectedTask.value) {
       await updatePresalesTask(selectedTask.value.id, payload)
       ElMessage.success('售前任务已更新')
@@ -499,6 +530,44 @@ async function submitTaskForm() {
   } finally {
     loading.taskSubmit = false
   }
+}
+
+function resetCreateTaskCrmSelection() {
+  createTaskCrmSelection.crm_customer_record_id = ''
+  createTaskCrmSelection.crm_opportunity_record_id = ''
+  createTaskCrmSelection.customer = null
+  createTaskCrmSelection.opportunity = null
+}
+
+function handleCreateTaskCrmBind(payload: {
+  crm_customer_record_id: string
+  crm_opportunity_record_id: string
+  customer?: CrmRecordItem | null
+  opportunity?: CrmRecordItem | null
+}) {
+  createTaskCrmSelection.crm_customer_record_id = payload.crm_customer_record_id
+  createTaskCrmSelection.crm_opportunity_record_id = payload.crm_opportunity_record_id
+  createTaskCrmSelection.customer = payload.customer || null
+  createTaskCrmSelection.opportunity = payload.opportunity || null
+
+  const customer = payload.customer || null
+  const opportunity = payload.opportunity || null
+  if (customer?.name) taskForm.customer_name = customer.name
+  if (!taskForm.task_title.trim()) {
+    taskForm.task_title = `${customer?.name || '客户'}${opportunity?.name ? ` · ${opportunity.name}` : ''}售前跟进`
+  }
+  if (!String(taskForm.task_description || '').trim()) {
+    taskForm.task_description = [
+      customer?.name ? `关联客户：${customer.name}` : '',
+      opportunity?.name ? `关联商机：${opportunity.name}` : '',
+      customer?.industry ? `所属行业：${customer.industry}` : '',
+      customer?.region ? `客户区域：${customer.region}` : '',
+      '请基于当前 CRM 客户信息推进本轮售前跟进。',
+    ]
+      .filter(Boolean)
+      .join('\n')
+  }
+  ElMessage.success(opportunity?.name ? '已带入飞书 CRM 客户和商机信息' : '已带入飞书 CRM 客户信息')
 }
 
 async function completeTask(task: PresalesTaskItem) {
@@ -1008,6 +1077,22 @@ onMounted(async () => {
 
     <el-dialog v-model="taskDialogVisible" :title="editingMode === 'create' ? '新建售前任务' : '编辑售前任务'" width="620px">
       <el-form ref="taskFormRef" :model="taskForm" :rules="taskRules" label-width="96px">
+        <el-form-item v-if="editingMode === 'create' && canBindCrm" label="飞书 CRM">
+          <div class="task-dialog__crm-block">
+            <el-button type="primary" plain @click="createTaskCrmDialogVisible = true">
+              <el-icon><ChatDotRound /></el-icon>
+              从飞书 CRM 带入
+            </el-button>
+            <div v-if="createTaskCrmSelection.crm_customer_record_id" class="task-dialog__crm-summary">
+              <strong>{{ createTaskCrmSelection.customer?.name || '未命名客户' }}</strong>
+              <p>
+                <span v-if="createTaskCrmSelection.customer?.industry">{{ createTaskCrmSelection.customer.industry }}</span>
+                <span v-if="createTaskCrmSelection.customer?.region"> · {{ createTaskCrmSelection.customer.region }}</span>
+                <span v-if="createTaskCrmSelection.opportunity?.name"> · {{ createTaskCrmSelection.opportunity.name }}</span>
+              </p>
+            </div>
+          </div>
+        </el-form-item>
         <el-form-item label="任务标题" prop="task_title">
           <el-input v-model="taskForm.task_title" placeholder="例如：常州园区方案回访与演示安排" />
         </el-form-item>
@@ -1047,6 +1132,11 @@ onMounted(async () => {
         <el-button type="primary" :loading="loading.taskSubmit" @click="submitTaskForm">{{ editingMode === 'create' ? '创建任务' : '保存修改' }}</el-button>
       </template>
     </el-dialog>
+
+    <CrmSearchDialog
+      v-model="createTaskCrmDialogVisible"
+      @confirm="handleCreateTaskCrmBind"
+    />
 
     <el-dialog v-model="sendDialogVisible" title="发送到飞书" width="620px">
         <el-form ref="sendFormRef" :model="sendForm" :rules="sendRules" label-width="98px">
@@ -1365,6 +1455,31 @@ onMounted(async () => {
   border-radius: 16px;
   border: 1px solid rgba(24, 50, 71, 0.12);
   background: rgba(255, 255, 255, 0.82);
+}
+
+.task-dialog__crm-block {
+  display: grid;
+  gap: 10px;
+  width: 100%;
+}
+
+.task-dialog__crm-summary {
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, rgba(236, 248, 255, 0.98), rgba(247, 252, 255, 0.95));
+  border: 1px solid rgba(21, 127, 255, 0.12);
+}
+
+.task-dialog__crm-summary strong {
+  display: block;
+  color: #163047;
+  margin-bottom: 4px;
+}
+
+.task-dialog__crm-summary p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.6;
 }
 
 .send-dialog-tip {

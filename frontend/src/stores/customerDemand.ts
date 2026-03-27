@@ -303,6 +303,7 @@ export const useCustomerDemandStore = defineStore('customerDemand', () => {
       sessions.value.unshift(session)
       await loadSessionDetail(session.id)
       ElMessage.success('客户沟通会话已创建')
+      return session
     } finally {
       actionLoading.value = false
     }
