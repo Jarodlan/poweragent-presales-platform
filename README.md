@@ -1,6 +1,6 @@
-# PowerAgent
+# PowerAgent Presales Platform
 
-> An internal AI workspace for power-industry presales, demand discovery, solution generation, and Feishu-based task collaboration.
+> An internal AI platform for power-industry presales, demand discovery, solution generation, task orchestration, and Feishu CRM collaboration.
 
 [中文](#中文) | [English](#english)
 
@@ -10,7 +10,7 @@
 ![Workflow](https://img.shields.io/badge/workflow-Feishu%20Tasks%20%2B%20CRM-0ea5e9)
 ![Status](https://img.shields.io/badge/status-active%20development-f59e0b)
 
-![PowerAgent Platform](./assets/img_for_readme/平台模块入口界面.png)
+![PowerAgent Presales Platform](./assets/img_for_readme/平台模块入口界面.png)
 
 ---
 
@@ -18,7 +18,7 @@
 
 ## 项目简介
 
-`PowerAgent` 是一个面向电力行业内部业务场景的智能体平台，当前重点覆盖三条核心链路：
+`PowerAgent Presales Platform` 是一个面向电力行业内部业务场景的售前智能体平台，当前重点覆盖三条核心链路：
 
 - `客户需求分析智能体`
 - `解决方案智能体`
@@ -269,7 +269,7 @@ cd backend/platform
 
 ## Overview
 
-`PowerAgent` is an internal AI workspace for power-industry presales operations. It currently connects three major workflows:
+`PowerAgent Presales Platform` is an internal AI platform for power-industry presales operations. It currently connects three major workflows:
 
 - `Customer Demand Analysis Agent`
 - `Solution Generation Agent`
