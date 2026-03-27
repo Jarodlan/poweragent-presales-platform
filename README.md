@@ -116,11 +116,9 @@ backend/
   platform/         Django 平台层
   agent_service/    Agent Service / 工作流执行层
 frontend/           Vue 前端
+assets/             图标、README 展示图、静态素材
 ragflow/            本地 RAGFlow 部署脚手架
 项目文档/           产品/技术/开发计划/模板
-测试结果/           联调结果、评审材料
-参考图/             视觉素材
-本地调研材料/       调研与分析材料
 ```
 
 ## 快速启动
@@ -342,11 +340,9 @@ The goal is not a single chat assistant, but an end-to-end presales workflow:
 ```text
 backend/            Platform API and agent services
 frontend/           Vue application
+assets/             Icons, README screenshots, static assets
 ragflow/            Local RAGFlow deployment scaffold
 项目文档/           Product and technical documents
-测试结果/           Test outputs and review materials
-参考图/             Visual references
-本地调研材料/       Local research materials
 ```
 
 ## Quick Start
