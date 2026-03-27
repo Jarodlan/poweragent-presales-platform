@@ -5,6 +5,11 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 
 import EmptyState from '@/components/common/EmptyState.vue'
+import CrmActionButton from '@/components/crm/CrmActionButton.vue'
+import CrmSearchDialog from '@/components/crm/CrmSearchDialog.vue'
+import CrmWritebackDialog from '@/components/crm/CrmWritebackDialog.vue'
+import CrmWritebackHistoryDrawer from '@/components/crm/CrmWritebackHistoryDrawer.vue'
+import { bindCustomerDemandSessionCrm, writebackCustomerDemandReportCrm } from '@/api/crm'
 import { DEFAULT_PARAMS, SCENARIO_PRESET_MAP, type ComposerParams } from '@/config/solutionComposer'
 import { useAuthStore } from '@/stores/auth'
 import { useCustomerDemandStore } from '@/stores/customerDemand'
@@ -33,6 +38,10 @@ const presalesDialogVisible = ref(false)
 const handoffQuery = ref('')
 const handoffParams = ref<ComposerParams>({ ...DEFAULT_PARAMS })
 const creatingPresalesTask = ref(false)
+const crmBindDialogVisible = ref(false)
+const crmWritebackDialogVisible = ref(false)
+const crmHistoryVisible = ref(false)
+const crmSubmitting = ref(false)
 const presalesForm = reactive({
   task_title: '',
   task_description: '',
@@ -92,6 +101,8 @@ const handoffSummary = computed(() => {
 
 const canAccessSolutionWorkspace = computed(() => authStore.canAccessSolutionWorkspace)
 const canCreatePresalesTask = computed(() => authStore.hasPermission('presales_task.manage') || authStore.user?.is_superuser)
+const canBindCrm = computed(() => authStore.hasPermission('crm.bind') || authStore.user?.is_superuser)
+const canWritebackCrm = computed(() => authStore.hasPermission('crm.writeback') || authStore.user?.is_superuser)
 
 const knowledgeSources = computed<CustomerDemandKnowledgeSource[]>(() => {
   const raw = report.value?.used_knowledge_sources || []
@@ -349,6 +360,41 @@ async function submitPresalesTaskFromReport() {
   }
 }
 
+async function handleBindCrm(payload: { crm_customer_record_id: string; crm_opportunity_record_id: string }) {
+  if (!sessionId.value) return
+  crmSubmitting.value = true
+  try {
+    await bindCustomerDemandSessionCrm(sessionId.value, payload)
+    await loadReportContext()
+    ElMessage.success('已绑定飞书 CRM 客户/商机')
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '绑定 CRM 失败')
+  } finally {
+    crmSubmitting.value = false
+  }
+}
+
+async function handleWritebackCrm() {
+  if (!report.value) return
+  crmSubmitting.value = true
+  try {
+    await writebackCustomerDemandReportCrm(report.value.id, {
+      confirmed: true,
+      write_target: 'followup',
+      mode: 'append',
+      sync_next_followup: true,
+    })
+    crmWritebackDialogVisible.value = false
+    crmHistoryVisible.value = true
+    await loadReportContext()
+    ElMessage.success('需求分析报告已写回飞书 CRM')
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '写回 CRM 失败')
+  } finally {
+    crmSubmitting.value = false
+  }
+}
+
 function handleScenarioChange(value: string) {
   handoffParams.value = {
     ...handoffParams.value,
@@ -431,6 +477,18 @@ watch(sessionId, async () => {
     </div>
 
     <template v-else-if="report">
+      <CrmActionButton
+        :state="demandStore.currentSession"
+        :can-bind="canBindCrm"
+        :can-writeback="canWritebackCrm"
+        title="飞书 CRM 关联"
+        description="把当前需求分析结果挂到飞书 CRM 的客户和商机上，写回后可直接沉淀为 CRM 跟进记录。"
+        writeback-label="写回需求分析报告"
+        @bind="crmBindDialogVisible = true"
+        @writeback="crmWritebackDialogVisible = true"
+        @history="crmHistoryVisible = true"
+      />
+
       <section class="customer-demand-report-grid">
         <article class="panel-card report-main">
           <div class="report-main__head">
@@ -756,6 +814,25 @@ watch(sessionId, async () => {
         </el-button>
       </template>
     </el-dialog>
+
+    <CrmSearchDialog
+      v-model="crmBindDialogVisible"
+      @confirm="handleBindCrm"
+    />
+
+    <CrmWritebackDialog
+      v-model="crmWritebackDialogVisible"
+      title="写回需求分析报告到飞书 CRM"
+      description="当前会把正式需求分析结果写入飞书 CRM 的跟进记录，建议在报告内容已确认无误后再执行。"
+      :loading="crmSubmitting"
+      @confirm="handleWritebackCrm"
+    />
+
+    <CrmWritebackHistoryDrawer
+      v-model="crmHistoryVisible"
+      object-type="customer_demand_report"
+      :object-id="report?.id || ''"
+    />
   </div>
 </template>
 

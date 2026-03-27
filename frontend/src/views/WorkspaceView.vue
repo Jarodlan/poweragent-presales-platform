@@ -7,6 +7,11 @@ import ConversationSidebar from '@/components/sidebar/ConversationSidebar.vue'
 import MessageComposer from '@/components/composer/MessageComposer.vue'
 import MessageStream from '@/components/chat/MessageStream.vue'
 import EvidenceDrawer from '@/components/evidence/EvidenceDrawer.vue'
+import CrmActionButton from '@/components/crm/CrmActionButton.vue'
+import CrmSearchDialog from '@/components/crm/CrmSearchDialog.vue'
+import CrmWritebackDialog from '@/components/crm/CrmWritebackDialog.vue'
+import CrmWritebackHistoryDrawer from '@/components/crm/CrmWritebackHistoryDrawer.vue'
+import { bindConversationCrm, writebackConversationCrm } from '@/api/crm'
 import { createPresalesTaskFromSolution } from '@/api/presales'
 import { useAuthStore } from '@/stores/auth'
 import { useMetaStore } from '@/stores/meta'
@@ -18,6 +23,10 @@ const workspace = useWorkspaceStore()
 const authStore = useAuthStore()
 const presalesDialogVisible = ref(false)
 const creatingPresalesTask = ref(false)
+const crmBindDialogVisible = ref(false)
+const crmWritebackDialogVisible = ref(false)
+const crmHistoryVisible = ref(false)
+const crmSubmitting = ref(false)
 const presalesForm = reactive({
   task_title: '',
   task_description: '',
@@ -28,6 +37,8 @@ const presalesForm = reactive({
 })
 
 const canCreatePresalesTask = computed(() => authStore.hasPermission('presales_task.manage') || authStore.user?.is_superuser)
+const canBindCrm = computed(() => authStore.hasPermission('crm.bind') || authStore.user?.is_superuser)
+const canWritebackCrm = computed(() => authStore.hasPermission('crm.writeback') || authStore.user?.is_superuser)
 const latestCompletedAssistantMessage = computed(() =>
   [...workspace.currentMessages]
     .reverse()
@@ -106,6 +117,48 @@ async function submitPresalesTaskFromSolution() {
     creatingPresalesTask.value = false
   }
 }
+
+async function refreshConversationContext() {
+  await workspace.loadConversationList()
+  if (workspace.currentConversationId) {
+    await workspace.selectConversation(workspace.currentConversationId)
+  }
+}
+
+async function handleBindCrm(payload: { crm_customer_record_id: string; crm_opportunity_record_id: string }) {
+  if (!workspace.currentConversationId) return
+  crmSubmitting.value = true
+  try {
+    await bindConversationCrm(workspace.currentConversationId, payload)
+    await refreshConversationContext()
+    ElMessage.success('已绑定飞书 CRM 客户/商机')
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '绑定 CRM 失败')
+  } finally {
+    crmSubmitting.value = false
+  }
+}
+
+async function handleWritebackCrm() {
+  if (!workspace.currentConversationId) return
+  crmSubmitting.value = true
+  try {
+    await writebackConversationCrm(workspace.currentConversationId, {
+      confirmed: true,
+      write_target: 'followup',
+      mode: 'append',
+      sync_next_followup: true,
+    })
+    crmWritebackDialogVisible.value = false
+    crmHistoryVisible.value = true
+    await refreshConversationContext()
+    ElMessage.success('解决方案结果已写回飞书 CRM')
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '写回 CRM 失败')
+  } finally {
+    crmSubmitting.value = false
+  }
+}
 </script>
 
 <template>
@@ -138,6 +191,18 @@ async function submitPresalesTaskFromSolution() {
         <span>{{ workspace.importedDraftNotice }}</span>
         <el-button link type="primary" @click="workspace.clearImportedDraftNotice()">知道了</el-button>
       </div>
+
+      <CrmActionButton
+        :state="workspace.currentConversation"
+        :can-bind="canBindCrm"
+        :can-writeback="canWritebackCrm"
+        title="飞书 CRM 关联"
+        description="把当前解决方案会话关联到飞书 CRM 的客户和商机上，后续结果写回和售前推进会更顺。"
+        writeback-label="写回解决方案结果"
+        @bind="crmBindDialogVisible = true"
+        @writeback="crmWritebackDialogVisible = true"
+        @history="crmHistoryVisible = true"
+      />
 
       <section class="workspace-main__stream">
         <MessageStream
@@ -206,6 +271,25 @@ async function submitPresalesTaskFromSolution() {
         </el-button>
       </template>
     </el-dialog>
+
+    <CrmSearchDialog
+      v-model="crmBindDialogVisible"
+      @confirm="handleBindCrm"
+    />
+
+    <CrmWritebackDialog
+      v-model="crmWritebackDialogVisible"
+      title="写回解决方案结果到飞书 CRM"
+      description="当前会把这轮解决方案结果写入飞书 CRM 跟进记录，适合在准备进入售前推进阶段时执行。"
+      :loading="crmSubmitting"
+      @confirm="handleWritebackCrm"
+    />
+
+    <CrmWritebackHistoryDrawer
+      v-model="crmHistoryVisible"
+      object-type="solution_result"
+      :object-id="latestCompletedAssistantMessage?.message_id || ''"
+    />
   </div>
 </template>
 

@@ -23,11 +23,24 @@ class Conversation(models.Model):
     status = models.CharField(max_length=32, choices=STATUS_CHOICES, default="idle")
     last_user_message = models.TextField(blank=True)
     last_message_at = models.DateTimeField(null=True, blank=True)
+    crm_provider = models.CharField(max_length=32, blank=True)
+    crm_base_id = models.CharField(max_length=128, blank=True)
+    crm_customer_record_id = models.CharField(max_length=128, blank=True)
+    crm_customer_snapshot = models.JSONField(default=dict, blank=True)
+    crm_opportunity_record_id = models.CharField(max_length=128, blank=True)
+    crm_opportunity_snapshot = models.JSONField(default=dict, blank=True)
+    crm_bound_at = models.DateTimeField(null=True, blank=True)
+    crm_last_writeback_at = models.DateTimeField(null=True, blank=True)
+    crm_last_writeback_status = models.CharField(max_length=32, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         ordering = ["-updated_at"]
+        indexes = [
+            models.Index(fields=["crm_customer_record_id"]),
+            models.Index(fields=["crm_opportunity_record_id"]),
+        ]
 
 
 class Message(models.Model):

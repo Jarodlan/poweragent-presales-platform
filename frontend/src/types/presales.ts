@@ -62,6 +62,15 @@ export interface PresalesTaskItem {
   priority: string
   due_at: string | null
   next_follow_up_at: string | null
+  crm_provider: string
+  crm_base_id: string
+  crm_customer_record_id: string
+  crm_customer_snapshot: Record<string, unknown>
+  crm_opportunity_record_id: string
+  crm_opportunity_snapshot: Record<string, unknown>
+  crm_bound_at: string | null
+  crm_last_writeback_at: string | null
+  crm_last_writeback_status: string
   followup_status: string
   feishu_delivery_status: string
   latest_feishu_delivery: FeishuDeliveryRecordItem | null
@@ -89,6 +98,15 @@ export interface PresalesArchiveRecordItem {
   storage_bucket: string
   archive_status: string
   feishu_shared: boolean
+  crm_provider: string
+  crm_base_id: string
+  crm_customer_record_id: string
+  crm_customer_snapshot: Record<string, unknown>
+  crm_opportunity_record_id: string
+  crm_opportunity_snapshot: Record<string, unknown>
+  crm_bound_at: string | null
+  crm_last_writeback_at: string | null
+  crm_last_writeback_status: string
   metadata_json: Record<string, unknown>
   uploaded_by: PresalesUserSummary | null
   created_at: string

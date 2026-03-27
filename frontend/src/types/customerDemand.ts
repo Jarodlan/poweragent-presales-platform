@@ -12,6 +12,15 @@ export interface CustomerDemandSessionItem {
   customer_type: string
   knowledge_enabled: boolean
   knowledge_scope: Record<string, unknown>
+  crm_provider: string
+  crm_base_id: string
+  crm_customer_record_id: string
+  crm_customer_snapshot: Record<string, unknown>
+  crm_opportunity_record_id: string
+  crm_opportunity_snapshot: Record<string, unknown>
+  crm_bound_at: string | null
+  crm_last_writeback_at: string | null
+  crm_last_writeback_status: string
   status: string
   recording_started_at: string | null
   recording_stopped_at: string | null

@@ -4,6 +4,11 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { ArrowLeft, ChatDotRound, CirclePlus, Document, FolderOpened, Promotion, Refresh, Upload } from '@element-plus/icons-vue'
 import { useRoute, useRouter } from 'vue-router'
 
+import CrmActionButton from '@/components/crm/CrmActionButton.vue'
+import CrmSearchDialog from '@/components/crm/CrmSearchDialog.vue'
+import CrmWritebackDialog from '@/components/crm/CrmWritebackDialog.vue'
+import CrmWritebackHistoryDrawer from '@/components/crm/CrmWritebackHistoryDrawer.vue'
+import { bindPresalesTaskCrm, writebackPresalesTaskCrm } from '@/api/crm'
 import {
   completePresalesTask,
   createFeishuSyncJob,
@@ -77,6 +82,9 @@ const taskDrawerVisible = ref(false)
 const taskDialogVisible = ref(false)
 const sendDialogVisible = ref(false)
 const deliveryDrawerVisible = ref(false)
+const crmBindDialogVisible = ref(false)
+const crmWritebackDialogVisible = ref(false)
+const crmHistoryVisible = ref(false)
 const memberTreeRef = ref()
 const editingMode = ref<'create' | 'edit'>('create')
 const selectedTask = ref<PresalesTaskItem | null>(null)
@@ -153,6 +161,8 @@ const canManagePresales = computed(() => authStore.hasPermission('presales_task.
 const canManageArchive = computed(() => authStore.hasPermission('presales_archive.manage') || authStore.user?.is_superuser)
 const canManageFeishuSync = computed(() => authStore.hasPermission('feishu_sync.manage') || authStore.user?.is_superuser)
 const canManageFeishuDelivery = computed(() => authStore.hasPermission('feishu_delivery.manage') || authStore.hasPermission('presales_task.manage') || authStore.user?.is_superuser)
+const canBindCrm = computed(() => authStore.hasPermission('crm.bind') || authStore.user?.is_superuser)
+const canWritebackCrm = computed(() => authStore.hasPermission('crm.writeback') || authStore.user?.is_superuser)
 const selectedFeishuGroups = computed(() => feishuGroups.value.filter((item) => sendForm.group_chat_ids.includes(item.chat_id)))
 const feishuMemberTree = computed(() => {
   const nodeMap = new Map<string, { key: string; label: string; disabled: boolean; children: any[] }>()
@@ -662,6 +672,43 @@ function openDeliveryDrawer(item: FeishuDeliveryRecordItem) {
   deliveryDrawerVisible.value = true
 }
 
+async function handleBindTaskCrm(payload: { crm_customer_record_id: string; crm_opportunity_record_id: string }) {
+  if (!selectedTask.value) return
+  loading.taskSubmit = true
+  try {
+    await bindPresalesTaskCrm(selectedTask.value.id, payload)
+    await loadTasks()
+    await openTaskDrawer(selectedTask.value.id)
+    ElMessage.success('已绑定飞书 CRM 客户/商机')
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '绑定 CRM 失败')
+  } finally {
+    loading.taskSubmit = false
+  }
+}
+
+async function handleWritebackTaskCrm() {
+  if (!selectedTask.value) return
+  loading.taskSubmit = true
+  try {
+    await writebackPresalesTaskCrm(selectedTask.value.id, {
+      confirmed: true,
+      write_target: 'followup',
+      mode: 'append',
+      sync_next_followup: true,
+    })
+    crmWritebackDialogVisible.value = false
+    crmHistoryVisible.value = true
+    await loadTasks()
+    await openTaskDrawer(selectedTask.value.id)
+    ElMessage.success('售前任务已写回飞书 CRM')
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '写回 CRM 失败')
+  } finally {
+    loading.taskSubmit = false
+  }
+}
+
 onMounted(async () => {
   await loadAll()
   const authStatus = String(route.query.feishu_task_auth || '').trim()
@@ -1091,6 +1138,18 @@ onMounted(async () => {
           </div>
         </div>
 
+        <CrmActionButton
+          :state="selectedTask"
+          :can-bind="canBindCrm"
+          :can-writeback="canWritebackCrm"
+          title="飞书 CRM 关联"
+          description="把这条售前任务关联到飞书 CRM 的客户和商机上，后续写回记录和客户闭环会更清晰。"
+          writeback-label="写回售前任务"
+          @bind="crmBindDialogVisible = true"
+          @writeback="crmWritebackDialogVisible = true"
+          @history="crmHistoryVisible = true"
+        />
+
         <section class="panel-card drawer-card">
           <div class="section-head">
             <strong>任务活动</strong>
@@ -1143,6 +1202,25 @@ onMounted(async () => {
         </section>
       </div>
     </el-drawer>
+
+    <CrmSearchDialog
+      v-model="crmBindDialogVisible"
+      @confirm="handleBindTaskCrm"
+    />
+
+    <CrmWritebackDialog
+      v-model="crmWritebackDialogVisible"
+      title="写回售前任务到飞书 CRM"
+      description="当前会把这条售前任务写入飞书 CRM 跟进记录，便于客户推进、回访和方案准备在 CRM 里统一可见。"
+      :loading="loading.taskSubmit"
+      @confirm="handleWritebackTaskCrm"
+    />
+
+    <CrmWritebackHistoryDrawer
+      v-model="crmHistoryVisible"
+      object-type="presales_task"
+      :object-id="selectedTask?.id || ''"
+    />
   </div>
 </template>
 

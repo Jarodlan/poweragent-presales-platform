@@ -25,6 +25,7 @@ INSTALLED_APPS = [
     "rest_framework",
     "rest_framework.authtoken",
     "apps.accounts",
+    "apps.crm_integration",
     "apps.customer_demand",
     "apps.presales_center.apps.PresalesCenterConfig",
     "apps.conversations",
@@ -186,3 +187,10 @@ def _load_json_list_env(name: str) -> list[dict]:
 
 
 FEISHU_DELIVERY_GROUP_OPTIONS = _load_json_list_env("FEISHU_DELIVERY_GROUP_OPTIONS")
+FEISHU_CRM_ENABLED = os.getenv("FEISHU_CRM_ENABLED", "false").lower() in {"1", "true", "yes", "on"}
+FEISHU_BITABLE_APP_TOKEN = os.getenv("FEISHU_BITABLE_APP_TOKEN", "")
+FEISHU_CRM_CUSTOMER_TABLE_ID = os.getenv("FEISHU_CRM_CUSTOMER_TABLE_ID", "")
+FEISHU_CRM_CONTACT_TABLE_ID = os.getenv("FEISHU_CRM_CONTACT_TABLE_ID", "")
+FEISHU_CRM_OPPORTUNITY_TABLE_ID = os.getenv("FEISHU_CRM_OPPORTUNITY_TABLE_ID", "")
+FEISHU_CRM_FOLLOWUP_TABLE_ID = os.getenv("FEISHU_CRM_FOLLOWUP_TABLE_ID", "")
+FEISHU_CRM_ATTACHMENT_TABLE_ID = os.getenv("FEISHU_CRM_ATTACHMENT_TABLE_ID", "")

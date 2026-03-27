@@ -113,8 +113,19 @@ class FeishuClient:
             headers=headers,
             timeout=25,
         )
-        response.raise_for_status()
-        payload = response.json()
+        try:
+            payload = response.json()
+        except ValueError:
+            payload = {}
+        if response.status_code >= 400:
+            message = payload.get("msg") or f"飞书接口请求失败（HTTP {response.status_code}）"
+            if response.status_code == 403 and payload.get("code") == 91403:
+                message = "飞书 CRM 当前应用缺少多维表格写入权限，或这张多维表格尚未向应用开放编辑权限。"
+            raise FeishuApiError(
+                message,
+                code=payload.get("code") or response.status_code,
+                response_payload=payload or {"http_status": response.status_code, "text": response.text},
+            )
         if payload.get("code") != 0:
             raise FeishuApiError(
                 payload.get("msg") or "飞书接口调用失败",

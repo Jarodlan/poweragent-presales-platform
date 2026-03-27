@@ -41,6 +41,15 @@ class CustomerDemandSession(models.Model):
     customer_type = models.CharField(max_length=50, blank=True)
     knowledge_enabled = models.BooleanField(default=False)
     knowledge_scope = models.JSONField(default=dict, blank=True)
+    crm_provider = models.CharField(max_length=32, blank=True)
+    crm_base_id = models.CharField(max_length=128, blank=True)
+    crm_customer_record_id = models.CharField(max_length=128, blank=True)
+    crm_customer_snapshot = models.JSONField(default=dict, blank=True)
+    crm_opportunity_record_id = models.CharField(max_length=128, blank=True)
+    crm_opportunity_snapshot = models.JSONField(default=dict, blank=True)
+    crm_bound_at = models.DateTimeField(null=True, blank=True)
+    crm_last_writeback_at = models.DateTimeField(null=True, blank=True)
+    crm_last_writeback_status = models.CharField(max_length=32, blank=True)
     status = models.CharField(max_length=32, choices=STATUS_CHOICES, default="draft")
     recording_started_at = models.DateTimeField(null=True, blank=True)
     recording_stopped_at = models.DateTimeField(null=True, blank=True)
@@ -62,6 +71,8 @@ class CustomerDemandSession(models.Model):
             models.Index(fields=["customer_name"]),
             models.Index(fields=["industry"]),
             models.Index(fields=["region"]),
+            models.Index(fields=["crm_customer_record_id"]),
+            models.Index(fields=["crm_opportunity_record_id"]),
         ]
 
     def __str__(self) -> str:

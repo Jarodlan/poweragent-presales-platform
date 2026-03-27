@@ -26,6 +26,10 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { useRouter } from 'vue-router'
 
 import EmptyState from '@/components/common/EmptyState.vue'
+import CrmActionButton from '@/components/crm/CrmActionButton.vue'
+import CrmSearchDialog from '@/components/crm/CrmSearchDialog.vue'
+import CrmWritebackHistoryDrawer from '@/components/crm/CrmWritebackHistoryDrawer.vue'
+import { bindCustomerDemandSessionCrm } from '@/api/crm'
 import { useAuthStore } from '@/stores/auth'
 import { useCustomerDemandStore } from '@/stores/customerDemand'
 import { renderMarkdown } from '@/utils/markdown'
@@ -40,6 +44,8 @@ const keyword = ref('')
 const sidebarCollapsed = ref(false)
 const createDialogVisible = ref(false)
 const recordingDialogVisible = ref(false)
+const crmBindDialogVisible = ref(false)
+const crmHistoryVisible = ref(false)
 const uploadInputRef = ref<HTMLInputElement | null>(null)
 const transcriptContainerRef = ref<HTMLElement | null>(null)
 const reviewDialogVisible = ref(false)
@@ -144,6 +150,8 @@ const currentStatusLabel = computed(() => {
   }
   return statusMap[demandStore.currentSession?.status || 'draft'] || demandStore.currentSession?.status || '草稿'
 })
+
+const canBindCrm = computed(() => authStore.hasPermission('crm.bind') || authStore.user?.is_superuser)
 
 const activityLabel = computed(() => {
   if (demandStore.uploadingAudio) return '正在调用 Qwen ASR 识别音频分片'
@@ -825,6 +833,17 @@ async function handleDeleteRecording(recordingId: string, title: string) {
   await demandStore.removeRecording(recordingId)
 }
 
+async function handleBindCrm(payload: { crm_customer_record_id: string; crm_opportunity_record_id: string }) {
+  if (!demandStore.currentSessionId) return
+  try {
+    await bindCustomerDemandSessionCrm(demandStore.currentSessionId, payload)
+    await demandStore.selectSession(demandStore.currentSessionId)
+    ElMessage.success('已绑定飞书 CRM 客户/商机')
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '绑定 CRM 失败')
+  }
+}
+
 function triggerAudioUpload() {
   uploadInputRef.value?.click()
 }
@@ -1112,6 +1131,15 @@ onBeforeUnmount(() => {
                 />
               </div>
             </section>
+
+            <CrmActionButton
+              :state="demandStore.currentSession"
+              :can-bind="canBindCrm"
+              title="飞书 CRM 关联"
+              description="把当前客户沟通会话挂到飞书 CRM 的客户和商机上，后续需求分析结果才能稳定写回。"
+              @bind="crmBindDialogVisible = true"
+              @history="crmHistoryVisible = true"
+            />
 
             <section class="customer-card panel-card">
               <div class="customer-card__head">
@@ -1541,6 +1569,17 @@ onBeforeUnmount(() => {
         </el-button>
       </template>
     </el-dialog>
+
+    <CrmSearchDialog
+      v-model="crmBindDialogVisible"
+      @confirm="handleBindCrm"
+    />
+
+    <CrmWritebackHistoryDrawer
+      v-model="crmHistoryVisible"
+      object-type="customer_demand_session"
+      :object-id="demandStore.currentSessionId"
+    />
   </div>
 </template>
 

@@ -84,6 +84,15 @@ class PresalesTask(models.Model):
     priority = models.CharField(max_length=16, choices=PRIORITY_CHOICES, default="medium")
     due_at = models.DateTimeField(null=True, blank=True)
     next_follow_up_at = models.DateTimeField(null=True, blank=True)
+    crm_provider = models.CharField(max_length=32, blank=True)
+    crm_base_id = models.CharField(max_length=128, blank=True)
+    crm_customer_record_id = models.CharField(max_length=128, blank=True)
+    crm_customer_snapshot = models.JSONField(default=dict, blank=True)
+    crm_opportunity_record_id = models.CharField(max_length=128, blank=True)
+    crm_opportunity_snapshot = models.JSONField(default=dict, blank=True)
+    crm_bound_at = models.DateTimeField(null=True, blank=True)
+    crm_last_writeback_at = models.DateTimeField(null=True, blank=True)
+    crm_last_writeback_status = models.CharField(max_length=32, blank=True)
     followup_status = models.CharField(max_length=32, choices=FOLLOWUP_STATUS_CHOICES, default="not_scheduled")
     feishu_delivery_status = models.CharField(max_length=32, choices=FEISHU_DELIVERY_STATUS_CHOICES, default="not_sent")
     latest_feishu_delivery = models.ForeignKey(
@@ -113,6 +122,8 @@ class PresalesTask(models.Model):
             models.Index(fields=["customer_name", "created_at"]),
             models.Index(fields=["next_follow_up_at", "followup_status"]),
             models.Index(fields=["feishu_delivery_status", "updated_at"]),
+            models.Index(fields=["crm_customer_record_id"]),
+            models.Index(fields=["crm_opportunity_record_id"]),
         ]
 
 
@@ -196,6 +207,15 @@ class PresalesArchiveRecord(models.Model):
     storage_bucket = models.CharField(max_length=128, blank=True)
     archive_status = models.CharField(max_length=32, choices=ARCHIVE_STATUS_CHOICES, default="active")
     feishu_shared = models.BooleanField(default=False)
+    crm_provider = models.CharField(max_length=32, blank=True)
+    crm_base_id = models.CharField(max_length=128, blank=True)
+    crm_customer_record_id = models.CharField(max_length=128, blank=True)
+    crm_customer_snapshot = models.JSONField(default=dict, blank=True)
+    crm_opportunity_record_id = models.CharField(max_length=128, blank=True)
+    crm_opportunity_snapshot = models.JSONField(default=dict, blank=True)
+    crm_bound_at = models.DateTimeField(null=True, blank=True)
+    crm_last_writeback_at = models.DateTimeField(null=True, blank=True)
+    crm_last_writeback_status = models.CharField(max_length=32, blank=True)
     metadata_json = models.JSONField(default=dict, blank=True)
     uploaded_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -214,6 +234,8 @@ class PresalesArchiveRecord(models.Model):
             models.Index(fields=["archive_type", "created_at"]),
             models.Index(fields=["customer_name", "created_at"]),
             models.Index(fields=["archive_status", "updated_at"]),
+            models.Index(fields=["crm_customer_record_id"]),
+            models.Index(fields=["crm_opportunity_record_id"]),
         ]
 
 
