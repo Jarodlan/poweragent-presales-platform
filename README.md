@@ -10,7 +10,7 @@
 ![Workflow](https://img.shields.io/badge/workflow-Feishu%20Tasks%20%2B%20CRM-0ea5e9)
 ![Status](https://img.shields.io/badge/status-active%20development-f59e0b)
 
-![PowerAgent Banner](./assets/raw/product_banner.png)
+![PowerAgent Platform](./assets/img_for_readme/平台模块入口界面.png)
 
 ---
 
@@ -70,13 +70,21 @@
 
 ## 界面预览
 
-| 统一平台入口 | 典型业务场景 |
+| 统一平台入口 | 解决方案智能体 |
 | --- | --- |
-| ![Platform Banner](./assets/raw/product_banner.png) | ![Fault Scene](./assets/raw/prod_fault.png) |
+| ![平台模块入口](./assets/img_for_readme/平台模块入口界面.png) | ![解决方案智能体](./assets/img_for_readme/解决方案智能体界面.png) |
 
-| 规划类方案场景 | 电网服务类场景 |
+| 需求分析智能体 | 会中辅助界面 |
 | --- | --- |
-| ![Planning Scene](./assets/raw/prod_planning.png) | ![Grid Service](./assets/converted/service_grid.png) |
+| ![需求分析智能体](./assets/img_for_readme/需求分析智能体界面.png) | ![需求分析会中辅助](./assets/img_for_readme/需求分析会中辅助界面.png) |
+
+| 售前闭环中心 | 组织与权限管理 |
+| --- | --- |
+| ![售前闭环中心](./assets/img_for_readme/售前闭环中心界面.png) | ![组织与权限管理](./assets/img_for_readme/组织与权限管理界面.png) |
+
+| 审计日志中心 |
+| --- |
+| ![审计日志中心](./assets/img_for_readme/审计日志中心界面.png) |
 
 ## 技术架构
 
@@ -303,13 +311,21 @@ The goal is not a single chat assistant, but an end-to-end presales workflow:
 
 ## Screenshots
 
-| Unified Entry | Example Business Scene |
+| Unified Entry | Solution Workspace |
 | --- | --- |
-| ![Platform Banner](./assets/raw/product_banner.png) | ![Fault Scene](./assets/raw/prod_fault.png) |
+| ![Platform Entry](./assets/img_for_readme/平台模块入口界面.png) | ![Solution Workspace](./assets/img_for_readme/解决方案智能体界面.png) |
 
-| Planning Scene | Grid Service Scene |
+| Demand Analysis Workspace | In-Meeting Assistant |
 | --- | --- |
-| ![Planning Scene](./assets/raw/prod_planning.png) | ![Grid Service](./assets/converted/service_grid.png) |
+| ![Demand Analysis Workspace](./assets/img_for_readme/需求分析智能体界面.png) | ![In-Meeting Assistant](./assets/img_for_readme/需求分析会中辅助界面.png) |
+
+| Presales Center | Access & Permission Center |
+| --- | --- |
+| ![Presales Center](./assets/img_for_readme/售前闭环中心界面.png) | ![Access & Permission Center](./assets/img_for_readme/组织与权限管理界面.png) |
+
+| Audit Log Center |
+| --- |
+| ![Audit Log Center](./assets/img_for_readme/审计日志中心界面.png) |
 
 ## Tech Stack
 
