@@ -99,6 +99,108 @@ flowchart LR
     G --> H["Feishu Tasks / Cards / CRM(Bitable)"]
 ```
 
+### 系统分层
+
+```mermaid
+flowchart TD
+    U["用户 / 销售 / 售前 / 管理员"] --> F["Frontend Web App"]
+    F --> P["Django Platform Layer"]
+    P --> DB["PostgreSQL"]
+    P --> FS["本地文件与媒体存储"]
+    P --> FEI["Feishu Open Platform"]
+    P --> AG["Agent Service"]
+    AG --> LLM["LLM Providers (Qwen / MiniMax)"]
+    AG --> RAG["RAGFlow / Knowledge Retrieval"]
+    FEI --> FT["Feishu Tasks / Cards"]
+    FEI --> CRM["Feishu CRM (Bitable)"]
+```
+
+#### 1. Frontend
+
+- 统一模块入口页，承接多模块访问
+- 解决方案智能体工作台
+- 客户需求分析工作台与独立报告页
+- 售前闭环中心
+- 组织与权限管理、审计日志中心
+
+#### 2. Django Platform Layer
+
+平台层承担业务主控与系统治理职责，主要负责：
+
+- 用户、角色、权限、部门与模块可见性控制
+- 会话、报告、售前任务、写回记录等主数据管理
+- 飞书任务、飞书 CRM、飞书身份同步等外部集成
+- 审计日志、操作留痕、状态协调
+- 统一向前端提供 REST API
+
+#### 3. Agent Service
+
+智能体执行层负责 AI 工作流本身，主要包括：
+
+- 需求分析工作流
+- 解决方案生成工作流
+- 多场景模板路由与参数化生成
+- 实时/异步模型调用编排
+- 知识检索、证据整理、报告结构化输出
+
+#### 4. Knowledge Layer
+
+- `RAGFlow` 作为知识库与检索层
+- 承接知识文档、结构化知识源与检索结果
+- 通过 Agent Service 被需求分析与方案生成工作流调用
+
+#### 5. Collaboration Layer
+
+飞书侧当前承担两类能力：
+
+- `协同执行`
+  - 飞书卡片
+  - 飞书个人任务
+  - 群聊分发
+- `业务主数据`
+  - 飞书多维表格 CRM
+  - 客户 / 商机 / 跟进记录
+
+### 典型业务流
+
+#### 客户需求分析链路
+
+```mermaid
+sequenceDiagram
+    participant User as 用户
+    participant FE as Frontend
+    participant DJ as Django
+    participant AG as Agent Service
+    participant KB as RAGFlow
+
+    User->>FE: 创建沟通会话 / 开始录音
+    FE->>DJ: 上传会话与录音分段
+    DJ->>AG: 发起转写 / 需求分析任务
+    AG->>KB: 检索知识补证
+    AG-->>DJ: 返回阶段整理 / 正式报告
+    DJ-->>FE: 返回会话、报告、状态
+```
+
+#### 售前闭环与飞书链路
+
+```mermaid
+sequenceDiagram
+    participant FE as Frontend
+    participant DJ as Django
+    participant F as Feishu
+    participant CRM as Feishu CRM
+
+    FE->>DJ: 创建售前任务 / 绑定 CRM
+    DJ->>CRM: 查询客户 / 商机
+    CRM-->>DJ: 返回 CRM 记录
+    FE->>DJ: 写回需求分析 / 方案 / 任务
+    DJ->>CRM: 新增跟进记录
+    FE->>DJ: 发送飞书任务卡片
+    DJ->>F: 发送卡片 / 创建个人任务
+    F-->>DJ: 回调或长连接事件
+    DJ-->>FE: 更新任务状态与留痕
+```
+
 ### 技术栈
 
 - 前端：`Vue 3` + `Vite` + `Pinia` + `Element Plus`
@@ -327,13 +429,101 @@ The goal is not a single chat assistant, but an end-to-end presales workflow:
 
 ## Tech Stack
 
-- Frontend: `Vue 3`, `Vite`, `Pinia`, `Element Plus`
-- Platform API: `Django`, `Django REST Framework`
-- Agent runtime: `FastAPI`, `LangGraph`
+- Frontend UI and module workspaces: `Vue 3`, `Vite`, `Pinia`, `Element Plus`
+- Platform API and governance layer: `Django`, `Django REST Framework`
+- Agent execution layer: `FastAPI`, `LangGraph`
 - Database: `PostgreSQL`
 - Knowledge layer: `RAGFlow`
 - Model providers: `Qwen`, `MiniMax`
-- Collaboration: `Feishu Cards`, `Feishu Tasks`, `Feishu Bitable CRM`
+- Collaboration and CRM: `Feishu Cards`, `Feishu Tasks`, `Feishu Bitable CRM`
+
+## Architecture Details
+
+```mermaid
+flowchart TD
+    U["Users / Sales / Presales / Admins"] --> F["Frontend Web App"]
+    F --> P["Django Platform Layer"]
+    P --> DB["PostgreSQL"]
+    P --> FS["Local Files / Media Storage"]
+    P --> FEI["Feishu Open Platform"]
+    P --> AG["Agent Service"]
+    AG --> LLM["LLM Providers"]
+    AG --> RAG["RAGFlow"]
+    FEI --> FT["Feishu Cards / Tasks"]
+    FEI --> CRM["Feishu CRM (Bitable)"]
+```
+
+### Layer Responsibilities
+
+#### Frontend
+
+- Unified module entry
+- Solution workspace
+- Customer demand analysis workspace and report page
+- Presales center
+- Access control and audit views
+
+#### Django Platform Layer
+
+- Core business entities and APIs
+- Permission system, departments, audit trail
+- Task orchestration and external integration
+- Feishu task/card/CRM coordination
+- State persistence and business writeback
+
+#### Agent Service
+
+- Demand analysis workflow orchestration
+- Solution generation workflow orchestration
+- Template routing and parameterized generation
+- Model invocation and result structuring
+- Knowledge retrieval integration
+
+#### Knowledge Layer
+
+- Managed retrieval through `RAGFlow`
+- Evidence and context support for AI workflows
+
+### Typical Workflows
+
+#### Demand Analysis Flow
+
+```mermaid
+sequenceDiagram
+    participant User as User
+    participant FE as Frontend
+    participant DJ as Django
+    participant AG as Agent Service
+    participant KB as RAGFlow
+
+    User->>FE: Create session / start recording
+    FE->>DJ: Submit session and transcript/audio chunks
+    DJ->>AG: Launch analysis workflow
+    AG->>KB: Retrieve supporting knowledge
+    AG-->>DJ: Return summaries and report
+    DJ-->>FE: Persist and display results
+```
+
+#### Presales + Feishu Flow
+
+```mermaid
+sequenceDiagram
+    participant FE as Frontend
+    participant DJ as Django
+    participant F as Feishu
+    participant CRM as Feishu CRM
+
+    FE->>DJ: Create task / bind CRM
+    DJ->>CRM: Search customers and opportunities
+    CRM-->>DJ: Return CRM records
+    FE->>DJ: Write back report / solution / task
+    DJ->>CRM: Append follow-up record
+    FE->>DJ: Send Feishu task card
+    DJ->>F: Deliver card / create personal task
+    F-->>DJ: Callback or long-connection event
+    DJ-->>FE: Update state and audit trail
+```
+
 
 ## Repository Structure
 
